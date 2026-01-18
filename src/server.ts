@@ -96,7 +96,7 @@ export function startServer(
       token: config.token,
       serverInfo: { name: PLUGIN_ID, version: PLUGIN_VERSION },
       instructions:
-        'Use get_project_state/get_project_diff (or includeState/includeDiff) before and after edits. Prefer apply_project_spec/apply_* specs and id fields when updating or deleting items. Pass ifRevision on mutations to guard against stale state.'
+        'Tool paths can be session-bound (e.g., /bbmcp/link_...). Do not cache tool paths; re-run tools/list if a call returns Resource not found. Use get_project_state/get_project_diff (or includeState/includeDiff) before and after edits. Prefer apply_project_spec/apply_* specs and id fields when updating or deleting items. Pass ifRevision on mutations to guard against stale state.'
     },
     executor,
     log

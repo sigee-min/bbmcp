@@ -1,7 +1,7 @@
 import { Logger } from '../logging';
 import { McpRouter } from './router';
 import { ResponsePlan, SseConnection } from './types';
-import { encodeSseComment } from './sse';
+import { openSseConnection } from './transport';
 import type { Server, Socket } from 'net';
 
 const MAX_BODY_BYTES = 5_000_000;
@@ -84,7 +84,14 @@ const writePlan = (
       socket.write(event);
     }
     if (plan.onOpen || !plan.close) {
-      createNetSseConnection(socket, plan.onOpen ?? onOpen);
+      openSseConnection(
+        {
+          send: (payload) => socket.write(payload),
+          close: () => socket.end(),
+          onClose: (handler) => socket.on('close', handler)
+        },
+        plan.onOpen ?? onOpen
+      );
       if (plan.close || closeAfter) {
         socket.end();
       }
@@ -114,38 +121,6 @@ const writePlan = (
 
   writeHeaders(socket, plan.status, plan.headers, false);
   if (closeAfter) socket.end();
-};
-
-const createNetSseConnection = (socket: Socket, onOpen?: (conn: SseConnection) => void | (() => void)) => {
-  let closed = false;
-  const keepAliveMs = 15_000;
-  let cleanup: void | (() => void);
-
-  const connection: SseConnection = {
-    send: (payload) => {
-      if (closed) return;
-      socket.write(payload);
-    },
-    close: () => {
-      if (closed) return;
-      closed = true;
-      if (cleanup) cleanup();
-      clearInterval(timer);
-      socket.end();
-    },
-    isClosed: () => closed
-  };
-
-  if (onOpen) {
-    cleanup = onOpen(connection);
-  }
-
-  const timer = setInterval(() => {
-    if (closed) return;
-    socket.write(encodeSseComment('keepalive'));
-  }, keepAliveMs);
-
-  socket.on('close', () => connection.close());
 };
 
 const jsonPlan = (status: number, body: unknown): ResponsePlan => ({

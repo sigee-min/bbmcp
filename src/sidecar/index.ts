@@ -1,5 +1,5 @@
 import http from 'http';
-import { SidecarClient } from './SidecarClient';
+import { SidecarClient } from './transport/SidecarClient';
 import { StderrLogger } from './logger';
 import { McpRouter } from '../mcp/router';
 import { createMcpHttpServer } from '../mcp/httpServer';

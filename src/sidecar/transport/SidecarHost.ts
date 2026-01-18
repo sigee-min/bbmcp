@@ -1,14 +1,14 @@
-import { Dispatcher, ToolName, ToolPayloadMap, ToolResponse } from '../types';
-import { ProxyRouter } from '../proxy';
-import { Logger } from '../logging';
-import { createLineDecoder, encodeMessage } from '../transport/codec';
+import { Dispatcher, ToolName, ToolPayloadMap, ToolResponse } from '../../types';
+import { ProxyRouter } from '../../proxy';
+import { Logger } from '../../logging';
+import { createLineDecoder, encodeMessage } from '../../transport/codec';
 import {
   PROTOCOL_VERSION,
   SidecarMessage,
   SidecarRequestMessage,
   SidecarResponseMessage
-} from '../transport/protocol';
-import { ProxyTool } from '../spec';
+} from '../../transport/protocol';
+import { ProxyTool } from '../../spec';
 
 type Readable = {
   on(event: 'data', handler: (chunk: string | Uint8Array) => void): void;

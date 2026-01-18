@@ -1,7 +1,7 @@
 import { Dispatcher } from '../types';
 import { ProxyRouter } from '../proxy';
 import { Logger } from '../logging';
-import { SidecarHost } from './SidecarHost';
+import { SidecarHost } from './transport/SidecarHost';
 import { SidecarLaunchConfig } from './types';
 import { PLUGIN_ID } from '../config';
 import { readBlockbenchGlobals } from '../types/blockbench';

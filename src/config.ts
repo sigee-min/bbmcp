@@ -4,7 +4,7 @@ import { FormatOverrides, resolveFormatId } from './domain/format';
 
 export const PLUGIN_ID = 'bbmcp';
 export const PLUGIN_VERSION = '0.0.2';
-export const TOOL_SCHEMA_VERSION = '2025-03-22';
+export const TOOL_SCHEMA_VERSION = '2025-03-23';
 export const DEFAULT_SERVER_HOST = '127.0.0.1';
 export const DEFAULT_SERVER_PORT = 8787;
 export const DEFAULT_SERVER_PATH = '/mcp';
@@ -24,17 +24,18 @@ const BASE_FORMATS: Array<{ format: FormatKind; animations: boolean }> = [
 const CAPABILITIES_GUIDANCE = {
   toolPathStability: {
     cache: 'no' as const,
-    note: 'Tool paths like /bbmcp/link_... are session-bound and can change. Do not cache them.'
+    note:
+      'Tool paths like /bbmcp/link_... are session-bound and can change after reconnects. Never cache tool paths; re-discover tools when a request returns Resource not found.'
   },
   retryPolicy: {
-    maxAttempts: 1,
-    onErrors: ['resource_not_found', 'invalid_state_revision_mismatch'],
-    steps: ['refetch_tools', 'refresh_state', 'retry_request']
+    maxAttempts: 2,
+    onErrors: ['resource_not_found', 'invalid_state', 'invalid_state_revision_mismatch', 'tool_registry_empty'],
+    steps: ['tools_list', 'refresh_state', 'retry_once']
   },
   rediscovery: {
     refetchTools: true,
     refreshState: true,
-    methods: ['list_capabilities', 'get_project_state']
+    methods: ['tools/list', 'list_capabilities', 'get_project_state']
   }
 };
 

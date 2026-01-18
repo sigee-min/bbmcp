@@ -10,7 +10,7 @@ import {
   RenderPreviewResult,
   ToolError
 } from '../types';
-import { ProjectSession, SessionState } from '../session';
+import { ProjectSession } from '../session';
 import { EditorPort, TextureSource } from '../ports/editor';
 import { FormatPort } from '../ports/formats';
 import { SnapshotPort } from '../ports/snapshot';
@@ -24,8 +24,22 @@ import { resolveFormatId, FormatOverrides, matchesFormatKind } from '../domain/f
 import { mergeSnapshots } from '../domain/snapshot';
 import { diffSnapshots } from '../domain/diff';
 import { mergeRigParts, RigMergeStrategy } from '../domain/rig';
+import { isZeroSize } from '../domain/geometry';
+import { ProjectStateService } from '../services/projectState';
+import { RevisionStore } from '../services/revision';
+import { createId } from '../services/id';
+import {
+  collectDescendantBones,
+  isDescendantBone,
+  resolveAnimationTarget,
+  resolveBoneNameById,
+  resolveBoneTarget,
+  resolveCubeTarget,
+  resolveTextureTarget
+} from '../services/lookup';
 
 const FORMAT_OVERRIDE_HINT = 'Set Format ID override in Settings (bbmcp).';
+const REVISION_CACHE_LIMIT = 5;
 
 function withFormatOverrideHint(message: string) {
   return `${message} ${FORMAT_OVERRIDE_HINT}`;
@@ -49,9 +63,8 @@ export class ToolService {
   private readonly snapshotPort: SnapshotPort;
   private readonly exporter: ExportPort;
   private readonly policies: ToolPolicies;
-  private readonly snapshotCache = new Map<string, SessionState>();
-  private readonly snapshotOrder: string[] = [];
-  private readonly snapshotCacheLimit = 5;
+  private readonly projectState: ProjectStateService;
+  private readonly revisionStore: RevisionStore;
   private revisionBypassDepth = 0;
 
   constructor(deps: ToolServiceDeps) {
@@ -62,6 +75,8 @@ export class ToolService {
     this.snapshotPort = deps.snapshot;
     this.exporter = deps.exporter;
     this.policies = deps.policies ?? {};
+    this.projectState = new ProjectStateService(this.formats, this.policies.formatOverrides);
+    this.revisionStore = new RevisionStore(REVISION_CACHE_LIMIT);
   }
 
   listCapabilities(): Capabilities {
@@ -84,42 +99,40 @@ export class ToolService {
   listProjects(): UsecaseResult<{ projects: ProjectInfo[] }> {
     const live = this.snapshotPort.readSnapshot();
     if (!live) return ok({ projects: [] });
-    const normalized = this.normalizeSnapshot(live);
-    const info = this.toProjectInfo(normalized);
+    const normalized = this.projectState.normalize(live);
+    const info = this.projectState.toProjectInfo(normalized);
     return ok({ projects: info ? [info] : [] });
   }
 
   getProjectState(payload: { detail?: ProjectStateDetail }): UsecaseResult<{ project: ProjectState }> {
     const detail: ProjectStateDetail = payload.detail ?? 'summary';
     const snapshot = this.getSnapshot(this.policies.snapshotPolicy ?? 'hybrid');
-    const normalized = this.normalizeSnapshot(snapshot);
-    const info = this.toProjectInfo(normalized);
+    const info = this.projectState.toProjectInfo(snapshot);
     const active = Boolean(info);
-    const project = this.buildProjectState(normalized, detail, active);
-    this.rememberSnapshot(normalized, project.revision);
+    const revision = this.revisionStore.track(snapshot);
+    const project = this.projectState.buildProjectState(snapshot, detail, active, revision);
     return ok({ project });
   }
 
   getProjectDiff(payload: { sinceRevision: string; detail?: ProjectStateDetail }): UsecaseResult<{ diff: ProjectDiff }> {
     const detail: ProjectStateDetail = payload.detail ?? 'summary';
     const snapshot = this.getSnapshot(this.policies.snapshotPolicy ?? 'hybrid');
-    const normalized = this.normalizeSnapshot(snapshot);
-    const info = this.toProjectInfo(normalized);
+    const info = this.projectState.toProjectInfo(snapshot);
     if (!info) {
       return fail({ code: 'invalid_state', message: 'No active project.' });
     }
-    const currentRevision = hashSnapshot(normalized);
-    const previous = this.snapshotCache.get(payload.sinceRevision);
+    const currentRevision = this.revisionStore.hash(snapshot);
+    const previous = this.revisionStore.get(payload.sinceRevision);
     const baseMissing = !previous;
     const emptyBase = {
-      ...normalized,
+      ...snapshot,
       bones: [],
       cubes: [],
       textures: [],
       animations: [],
-      animationsStatus: normalized.animationsStatus
+      animationsStatus: snapshot.animationsStatus
     };
-    const diffResult = diffSnapshots(previous ?? emptyBase, normalized, detail === 'full');
+    const diffResult = diffSnapshots(previous ?? emptyBase, snapshot, detail === 'full');
     const diff: ProjectDiff = {
       sinceRevision: payload.sinceRevision,
       currentRevision,
@@ -132,7 +145,7 @@ export class ToolService {
       diff.textures = diffResult.sets.textures;
       diff.animations = diffResult.sets.animations;
     }
-    this.rememberSnapshot(normalized, currentRevision);
+    this.revisionStore.remember(snapshot, currentRevision);
     return ok({ diff });
   }
 
@@ -141,8 +154,8 @@ export class ToolService {
     if (!live) {
       return fail({ code: 'invalid_state', message: 'No active project.' });
     }
-    const normalized = this.normalizeSnapshot(live);
-    const info = this.toProjectInfo(normalized);
+    const normalized = this.projectState.normalize(live);
+    const info = this.projectState.toProjectInfo(normalized);
     if (!info) {
       return fail({ code: 'invalid_state', message: 'No active project.' });
     }
@@ -946,7 +959,7 @@ export class ToolService {
         !snapshot.format &&
         snapshot.formatId &&
         !matchesFormatKind(expectedFormat, snapshot.formatId) &&
-        this.matchOverrideKind(snapshot.formatId) !== expectedFormat
+        this.projectState.matchOverrideKind(snapshot.formatId) !== expectedFormat
       ) {
         return fail({
           code: 'invalid_payload',
@@ -994,89 +1007,13 @@ export class ToolService {
 
   private getSnapshot(policy: SnapshotPolicy) {
     const sessionSnapshot = this.session.snapshot();
-    if (policy === 'session') return sessionSnapshot;
+    if (policy === 'session') return this.projectState.normalize(sessionSnapshot);
     const live = this.snapshotPort.readSnapshot();
     if (!live) {
-      return this.normalizeSnapshot(sessionSnapshot);
+      return this.projectState.normalize(sessionSnapshot);
     }
     const merged = policy === 'live' ? live : mergeSnapshots(sessionSnapshot, live);
-    return this.normalizeSnapshot(merged);
-  }
-
-  private normalizeSnapshot(snapshot: SessionState): SessionState {
-    const normalized = { ...snapshot };
-    if (!normalized.formatId) {
-      normalized.formatId = this.formats.getActiveFormatId();
-    }
-    if (!normalized.format && normalized.formatId) {
-      const overrideKind = this.matchOverrideKind(normalized.formatId);
-      if (overrideKind) {
-        normalized.format = overrideKind;
-        return normalized;
-      }
-      const kinds: FormatKind[] = ['animated_java', 'geckolib', 'vanilla'];
-      const match = kinds.find((kind) => matchesFormatKind(kind, normalized.formatId));
-      if (match) normalized.format = match;
-    }
-    return normalized;
-  }
-
-  private toProjectInfo(snapshot: SessionState): ProjectInfo | null {
-    const hasData =
-      snapshot.format ||
-      snapshot.formatId ||
-      snapshot.name ||
-      snapshot.bones.length > 0 ||
-      snapshot.cubes.length > 0 ||
-      snapshot.textures.length > 0 ||
-      snapshot.animations.length > 0;
-    if (!hasData) return null;
-    return {
-      id: snapshot.id ?? 'active',
-      name: snapshot.name ?? null,
-      format: snapshot.format ?? null,
-      formatId: snapshot.formatId ?? null
-    };
-  }
-
-  private buildProjectState(snapshot: SessionState, detail: ProjectStateDetail, active: boolean): ProjectState {
-    const normalized = snapshot;
-    const counts = {
-      bones: normalized.bones.length,
-      cubes: normalized.cubes.length,
-      textures: normalized.textures.length,
-      animations: normalized.animations.length
-    };
-    const project: ProjectState = {
-      id: active ? normalized.id ?? 'active' : 'none',
-      active,
-      name: normalized.name ?? null,
-      format: normalized.format ?? null,
-      formatId: normalized.formatId ?? null,
-      dirty: normalized.dirty,
-      revision: hashSnapshot(normalized),
-      counts
-    };
-    if (detail === 'full') {
-      project.bones = normalized.bones;
-      project.cubes = normalized.cubes;
-      project.textures = normalized.textures;
-      project.animations = normalized.animations;
-    }
-    return project;
-  }
-
-  private rememberSnapshot(snapshot: SessionState, revision: string) {
-    if (!revision) return;
-    const cloned = cloneSnapshot(snapshot);
-    if (!this.snapshotCache.has(revision)) {
-      this.snapshotOrder.push(revision);
-      if (this.snapshotOrder.length > this.snapshotCacheLimit) {
-        const oldest = this.snapshotOrder.shift();
-        if (oldest) this.snapshotCache.delete(oldest);
-      }
-    }
-    this.snapshotCache.set(revision, cloned);
+    return this.projectState.normalize(merged);
   }
 
   private ensureActive(): ToolError | null {
@@ -1095,8 +1032,8 @@ export class ToolService {
         fix: 'Create a project (create_project) or select an active project before mutating.'
       };
     }
-    const normalized = this.normalizeSnapshot(live);
-    if (!this.toProjectInfo(normalized) || !normalized.format) {
+    const normalized = this.projectState.normalize(live);
+    if (!this.projectState.toProjectInfo(normalized) || !normalized.format) {
       return {
         ...stateError,
         fix: 'Create a project (create_project) or select an active project before mutating.'
@@ -1115,10 +1052,8 @@ export class ToolService {
     if (!this.policies.requireRevision) return null;
     if (this.revisionBypassDepth > 0) return null;
     const snapshot = this.getSnapshot(this.policies.snapshotPolicy ?? 'hybrid');
-    const normalized = this.normalizeSnapshot(snapshot);
-    const hasProject = Boolean(this.toProjectInfo(snapshot));
-    const currentRevision = hashSnapshot(normalized);
-    this.rememberSnapshot(normalized, currentRevision);
+    const hasProject = Boolean(this.projectState.toProjectInfo(snapshot));
+    const currentRevision = this.revisionStore.track(snapshot);
     if (!expected) {
       return {
         code: 'invalid_state',
@@ -1148,159 +1083,6 @@ export class ToolService {
     return null;
   }
 
-  private matchOverrideKind(formatId: string | null): FormatKind | null {
-    if (!formatId) return null;
-    const overrides = this.policies.formatOverrides;
-    if (!overrides) return null;
-    const entries = Object.entries(overrides) as Array<[FormatKind, string]>;
-    const match = entries.find(([, id]) => id === formatId);
-    return match ? match[0] : null;
-  }
-}
-
-function hashSnapshot(snapshot: SessionState): string {
-  const data = {
-    id: snapshot.id ?? '',
-    format: snapshot.format ?? '',
-    formatId: snapshot.formatId ?? '',
-    name: snapshot.name ?? '',
-    dirty: snapshot.dirty ?? null,
-    bones: snapshot.bones.map((b) => [
-      b.id ?? '',
-      b.name,
-      b.parent ?? '',
-      b.pivot,
-      b.rotation ?? null,
-      b.scale ?? null
-    ]),
-    cubes: snapshot.cubes.map((c) => [
-      c.id ?? '',
-      c.name,
-      c.bone,
-      c.from,
-      c.to,
-      c.uv ?? null,
-      c.inflate ?? null,
-      c.mirror ?? null
-    ]),
-    textures: snapshot.textures.map((t) => [t.id ?? '', t.name, t.path ?? '', t.width ?? 0, t.height ?? 0]),
-    animations: snapshot.animations.map((a) => [
-      a.id ?? '',
-      a.name,
-      a.length,
-      a.loop,
-      a.fps ?? null,
-      a.channels?.length ?? 0
-    ])
-  };
-  return hashString(JSON.stringify(data));
-}
-
-function hashString(value: string): string {
-  let hash = 5381;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = ((hash << 5) + hash) ^ value.charCodeAt(i);
-  }
-  return (hash >>> 0).toString(16);
-}
-
-function cloneSnapshot(snapshot: SessionState): SessionState {
-  return {
-    ...snapshot,
-    bones: snapshot.bones.map((bone) => ({ ...bone })),
-    cubes: snapshot.cubes.map((cube) => ({ ...cube })),
-    textures: snapshot.textures.map((tex) => ({ ...tex })),
-    animations: snapshot.animations.map((anim) => ({
-      ...anim,
-      channels: anim.channels ? anim.channels.map((ch) => ({ ...ch, keys: [...ch.keys] })) : undefined
-    })),
-    animationsStatus: snapshot.animationsStatus
-  };
-}
-
-function resolveBoneNameById(bones: SessionState['bones'], id: string): string | null {
-  const match = bones.find((bone) => bone.id === id);
-  return match?.name ?? null;
-}
-
-function resolveBoneTarget(bones: SessionState['bones'], id?: string, name?: string) {
-  if (id) {
-    return bones.find((bone) => bone.id === id) ?? null;
-  }
-  if (name) {
-    return bones.find((bone) => bone.name === name) ?? null;
-  }
-  return null;
-}
-
-function resolveCubeTarget(cubes: SessionState['cubes'], id?: string, name?: string) {
-  if (id) {
-    return cubes.find((cube) => cube.id === id) ?? null;
-  }
-  if (name) {
-    return cubes.find((cube) => cube.name === name) ?? null;
-  }
-  return null;
-}
-
-function resolveTextureTarget(textures: SessionState['textures'], id?: string, name?: string) {
-  if (id) {
-    return textures.find((tex) => tex.id === id) ?? null;
-  }
-  if (name) {
-    return textures.find((tex) => tex.name === name) ?? null;
-  }
-  return null;
-}
-
-function resolveAnimationTarget(animations: SessionState['animations'], id?: string, name?: string) {
-  if (id) {
-    return animations.find((anim) => anim.id === id) ?? null;
-  }
-  if (name) {
-    return animations.find((anim) => anim.name === name) ?? null;
-  }
-  return null;
-}
-
-function collectDescendantBones(bones: SessionState['bones'], rootName: string): string[] {
-  const childrenMap = new Map<string, string[]>();
-  bones.forEach((bone) => {
-    if (!bone.parent) return;
-    const list = childrenMap.get(bone.parent) ?? [];
-    list.push(bone.name);
-    childrenMap.set(bone.parent, list);
-  });
-  const result: string[] = [];
-  const queue = [...(childrenMap.get(rootName) ?? [])];
-  while (queue.length > 0) {
-    const next = queue.shift()!;
-    result.push(next);
-    const children = childrenMap.get(next);
-    if (children && children.length > 0) {
-      queue.push(...children);
-    }
-  }
-  return result;
-}
-
-function isDescendantBone(bones: SessionState['bones'], rootName: string, candidateParent: string): boolean {
-  const descendants = collectDescendantBones(bones, rootName);
-  return descendants.includes(candidateParent);
-}
-
-function isZeroSize(size: [number, number, number]) {
-  return size[0] === 0 && size[1] === 0 && size[2] === 0;
-}
-
-let idCounter = 0;
-
-function createId(prefix: string): string {
-  const cryptoApi = globalThis.crypto;
-  const uuid = typeof cryptoApi?.randomUUID === 'function' ? cryptoApi.randomUUID() : undefined;
-  if (uuid) return `${prefix}_${uuid}`;
-  idCounter += 1;
-  return `${prefix}_${Date.now().toString(36)}_${idCounter}`;
 }
 
 function exportFormatToCapability(format: ExportPayload['format']): FormatKind | null {

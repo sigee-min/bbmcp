@@ -1,7 +1,7 @@
 import { Logger } from '../logging';
 import { McpRouter } from './router';
-import { HttpRequest, ResponsePlan, SseConnection } from './types';
-import { encodeSseComment } from './sse';
+import { HttpRequest, ResponsePlan } from './types';
+import { openSseConnection } from './transport';
 import type { IncomingMessage, Server, ServerResponse } from 'http';
 
 const MAX_BODY_BYTES = 5_000_000;
@@ -46,7 +46,20 @@ const writePlan = (plan: ResponsePlan, res: ServerResponse, log: Logger) => {
       res.write(event);
     }
     if (plan.onOpen || !plan.close) {
-      createHttpSseConnection(res, plan.onOpen);
+      openSseConnection(
+        {
+          send: (payload) => res.write(payload),
+          close: () => {
+            try {
+              res.end();
+            } catch {
+              res.destroy?.();
+            }
+          },
+          onClose: (handler) => res.on('close', handler)
+        },
+        plan.onOpen
+      );
       if (plan.close) {
         res.end();
       }
@@ -67,45 +80,6 @@ const writePlan = (plan: ResponsePlan, res: ServerResponse, log: Logger) => {
     return;
   }
   res.end();
-};
-
-const createHttpSseConnection = (
-  res: ServerResponse,
-  onOpen?: (conn: SseConnection) => void | (() => void)
-) => {
-  let closed = false;
-  const keepAliveMs = 15_000;
-  let cleanup: void | (() => void);
-
-  const connection: SseConnection = {
-    send: (payload) => {
-      if (closed) return;
-      res.write(payload);
-    },
-    close: () => {
-      if (closed) return;
-      closed = true;
-      if (cleanup) cleanup();
-      clearInterval(timer);
-      try {
-        res.end();
-      } catch {
-        res.destroy?.();
-      }
-    },
-    isClosed: () => closed
-  };
-
-  if (onOpen) {
-    cleanup = onOpen(connection);
-  }
-
-  const timer = setInterval(() => {
-    if (closed) return;
-    res.write(encodeSseComment('keepalive'));
-  }, keepAliveMs);
-
-  res.on('close', () => connection.close());
 };
 
 type HttpModule = {

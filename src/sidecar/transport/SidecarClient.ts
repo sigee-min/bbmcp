@@ -1,12 +1,12 @@
-import { Logger } from '../logging';
-import { createLineDecoder, encodeMessage } from '../transport/codec';
+import { Logger } from '../../logging';
+import { createLineDecoder, encodeMessage } from '../../transport/codec';
 import {
   PROTOCOL_VERSION,
   SidecarMessage,
   SidecarRequestMessage,
   SidecarResponseMessage
-} from '../transport/protocol';
-import { ToolError, ToolResponse } from '../types';
+} from '../../transport/protocol';
+import { ToolError, ToolResponse } from '../../types';
 
 type Readable = {
   on(event: 'data', handler: (chunk: string | Uint8Array) => void): void;

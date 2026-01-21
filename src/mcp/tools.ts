@@ -15,7 +15,19 @@ const cubeFaceSchema: JsonSchema = {
 
 const texturePresetSchema: JsonSchema = {
   type: 'string',
-  enum: ['painted_metal', 'rubber', 'glass', 'wood', 'dirt', 'plant']
+  enum: [
+    'painted_metal',
+    'rubber',
+    'glass',
+    'wood',
+    'dirt',
+    'plant',
+    'stone',
+    'sand',
+    'leather',
+    'fabric',
+    'ceramic'
+  ]
 };
 
 const textureOpSchema: JsonSchema = {

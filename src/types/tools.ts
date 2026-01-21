@@ -63,7 +63,18 @@ export interface GenerateBlockPipelinePayload {
   ifRevision?: string;
 }
 
-export type TexturePresetName = 'painted_metal' | 'rubber' | 'glass' | 'wood' | 'dirt' | 'plant';
+export type TexturePresetName =
+  | 'painted_metal'
+  | 'rubber'
+  | 'glass'
+  | 'wood'
+  | 'dirt'
+  | 'plant'
+  | 'stone'
+  | 'sand'
+  | 'leather'
+  | 'fabric'
+  | 'ceramic';
 
 export interface GenerateTexturePresetPayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
   preset: TexturePresetName;

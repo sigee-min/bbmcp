@@ -63,6 +63,7 @@ Use `resources/list` to discover generated assets and `resources/read` to fetch 
 2) `preflight_texture` to build the UV mapping table and recommended resolution.
 3) Paint a checker/label texture first to verify orientation and coverage.
 4) For 64x64+ textures, prefer `generate_texture_preset` (avoids large ops payloads). For <=32px, `set_pixel` ops are fine.
+   - Presets: `painted_metal`, `rubber`, `glass`, `wood`, `dirt`, `plant`, `stone`, `sand`, `leather`, `fabric`, `ceramic`.
 5) `apply_texture_spec` to create or update texture data via ops (no image import tool).
    - Omit `ops` to create an empty texture (background can still fill).
    - `width/height` are required and should match the project textureResolution.

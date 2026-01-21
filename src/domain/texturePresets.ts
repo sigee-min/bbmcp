@@ -1,4 +1,15 @@
-export type TexturePresetName = 'painted_metal' | 'rubber' | 'glass' | 'wood' | 'dirt' | 'plant';
+export type TexturePresetName =
+  | 'painted_metal'
+  | 'rubber'
+  | 'glass'
+  | 'wood'
+  | 'dirt'
+  | 'plant'
+  | 'stone'
+  | 'sand'
+  | 'leather'
+  | 'fabric'
+  | 'ceramic';
 
 export type TexturePresetSpec = {
   preset: TexturePresetName;
@@ -262,6 +273,134 @@ const generatePlant = (spec: TexturePresetSpec, data: Uint8ClampedArray) => {
   }
 };
 
+const generateStone = (spec: TexturePresetSpec, data: Uint8ClampedArray) => {
+  const palette = resolvePalette(
+    { base: '#7a7a7a', dark: '#5f5f5f', light: '#9a9a9a', accent: '#4c4c4c', accent2: '#b0b0b0' },
+    spec.palette
+  );
+  const base = parseHex(palette.base, { r: 122, g: 122, b: 122 });
+  const dark = parseHex(palette.dark, base);
+  const light = parseHex(palette.light, base);
+  const accent = parseHex(palette.accent, dark);
+  const accent2 = parseHex(palette.accent2, light);
+  const rand = createRng(resolveSeed(spec.seed, `stone:${spec.width}x${spec.height}`));
+  for (let y = 0; y < spec.height; y += 1) {
+    for (let x = 0; x < spec.width; x += 1) {
+      let color = base;
+      const n = rand();
+      if (n < 0.08) color = light;
+      else if (n > 0.93) color = dark;
+      if ((x * 3 + y * 5) % 37 === 0 && rand() < 0.6) color = accent;
+      if ((x + y) % 17 === 0 && rand() < 0.35) color = accent2;
+      if (((x >> 2) + (y >> 2)) % 3 === 0 && rand() < 0.12) color = dark;
+      setPixel(data, spec.width, x, y, color);
+    }
+  }
+};
+
+const generateSand = (spec: TexturePresetSpec, data: Uint8ClampedArray) => {
+  const palette = resolvePalette(
+    { base: '#d8c08a', dark: '#bfa46f', light: '#eed7a3', accent: '#c9b27d', accent2: '#f4e4be' },
+    spec.palette
+  );
+  const base = parseHex(palette.base, { r: 216, g: 192, b: 138 });
+  const dark = parseHex(palette.dark, base);
+  const light = parseHex(palette.light, base);
+  const accent = parseHex(palette.accent, base);
+  const accent2 = parseHex(palette.accent2, light);
+  const rand = createRng(resolveSeed(spec.seed, `sand:${spec.width}x${spec.height}`));
+  for (let y = 0; y < spec.height; y += 1) {
+    for (let x = 0; x < spec.width; x += 1) {
+      let color = base;
+      const n = rand();
+      if (n < 0.12) color = light;
+      else if (n > 0.96) color = dark;
+      if ((x + y) % 5 === 0 && rand() < 0.35) color = accent;
+      if ((x * 2 - y + spec.width) % 11 === 0 && rand() < 0.2) color = accent2;
+      setPixel(data, spec.width, x, y, color);
+    }
+  }
+};
+
+const generateLeather = (spec: TexturePresetSpec, data: Uint8ClampedArray) => {
+  const palette = resolvePalette(
+    { base: '#7b4b2a', dark: '#5c3620', light: '#9b6a3c', accent: '#4a2d1a', accent2: '#b58354' },
+    spec.palette
+  );
+  const base = parseHex(palette.base, { r: 123, g: 75, b: 42 });
+  const dark = parseHex(palette.dark, base);
+  const light = parseHex(palette.light, base);
+  const accent = parseHex(palette.accent, dark);
+  const accent2 = parseHex(palette.accent2, light);
+  const rand = createRng(resolveSeed(spec.seed, `leather:${spec.width}x${spec.height}`));
+  for (let y = 0; y < spec.height; y += 1) {
+    for (let x = 0; x < spec.width; x += 1) {
+      let color = base;
+      if ((x + y) % 9 === 0 && rand() < 0.5) color = dark;
+      if (x % 11 === 0 && rand() < 0.2) color = accent;
+      const n = rand();
+      if (n < 0.06) color = light;
+      else if (n > 0.95) color = dark;
+      if (y % 8 === 0 && rand() < 0.25) color = accent2;
+      setPixel(data, spec.width, x, y, color);
+    }
+  }
+};
+
+const generateFabric = (spec: TexturePresetSpec, data: Uint8ClampedArray) => {
+  const palette = resolvePalette(
+    { base: '#7b7f8a', dark: '#5f626c', light: '#a0a5b0', accent: '#9096a3', accent2: '#4f525b' },
+    spec.palette
+  );
+  const base = parseHex(palette.base, { r: 123, g: 127, b: 138 });
+  const dark = parseHex(palette.dark, base);
+  const light = parseHex(palette.light, base);
+  const accent = parseHex(palette.accent, light);
+  const accent2 = parseHex(palette.accent2, dark);
+  const rand = createRng(resolveSeed(spec.seed, `fabric:${spec.width}x${spec.height}`));
+  for (let y = 0; y < spec.height; y += 1) {
+    const weaveY = y % 4;
+    for (let x = 0; x < spec.width; x += 1) {
+      const weaveX = x % 4;
+      let color = base;
+      if (weaveX === 0 || weaveY === 0) color = dark;
+      if (weaveX === 2 && weaveY === 2) color = accent;
+      if (weaveX === 0 && weaveY === 0) color = accent2;
+      const n = rand();
+      if (n < 0.05) color = light;
+      else if (n > 0.98) color = dark;
+      setPixel(data, spec.width, x, y, color);
+    }
+  }
+};
+
+const generateCeramic = (spec: TexturePresetSpec, data: Uint8ClampedArray) => {
+  const palette = resolvePalette(
+    { base: '#d7d7d1', dark: '#b8b8b1', light: '#f0f0ea', accent: '#c6c6bf', accent2: '#ffffff' },
+    spec.palette
+  );
+  const base = parseHex(palette.base, { r: 215, g: 215, b: 209 });
+  const dark = parseHex(palette.dark, base);
+  const light = parseHex(palette.light, base);
+  const accent = parseHex(palette.accent, base);
+  const accent2 = parseHex(palette.accent2, light);
+  const rand = createRng(resolveSeed(spec.seed, `ceramic:${spec.width}x${spec.height}`));
+  const denom = Math.max(1, spec.width + spec.height - 2);
+  for (let y = 0; y < spec.height; y += 1) {
+    for (let x = 0; x < spec.width; x += 1) {
+      const gradient = 1 - (x + y) / denom;
+      const tint = gradient > 0.7 ? 6 : gradient > 0.45 ? 3 : 0;
+      let color = shade(base, tint);
+      if (x === 0 || y === 0 || x === spec.width - 1 || y === spec.height - 1) color = dark;
+      const n = rand();
+      if (n < 0.04) color = light;
+      else if (n > 0.98) color = accent;
+      if ((x + y) % 13 === 0 && rand() < 0.08) color = accent2;
+      setPixel(data, spec.width, x, y, color);
+    }
+  }
+};
+
 export const generateTexturePreset = (spec: TexturePresetSpec): TexturePresetResult => {
   const width = Math.max(1, Math.floor(spec.width));
   const height = Math.max(1, Math.floor(spec.height));
@@ -286,6 +425,21 @@ export const generateTexturePreset = (spec: TexturePresetSpec): TexturePresetRes
       break;
     case 'plant':
       generatePlant(presetSpec, data);
+      break;
+    case 'stone':
+      generateStone(presetSpec, data);
+      break;
+    case 'sand':
+      generateSand(presetSpec, data);
+      break;
+    case 'leather':
+      generateLeather(presetSpec, data);
+      break;
+    case 'fabric':
+      generateFabric(presetSpec, data);
+      break;
+    case 'ceramic':
+      generateCeramic(presetSpec, data);
       break;
     default:
       generatePaintedMetal(presetSpec, data);

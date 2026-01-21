@@ -62,17 +62,18 @@ Use `resources/list` to discover generated assets and `resources/read` to fetch 
 1) Lock invariants first: textureResolution, UV policy (manual per-face), and texture count (single atlas vs per-material).
 2) `preflight_texture` to build the UV mapping table and recommended resolution.
 3) Paint a checker/label texture first to verify orientation and coverage.
-4) `apply_texture_spec` to create or update texture data via ops (no image import tool).
+4) For 64x64+ textures, prefer `generate_texture_preset` (avoids large ops payloads). For <=32px, `set_pixel` ops are fine.
+5) `apply_texture_spec` to create or update texture data via ops (no image import tool).
    - Omit `ops` to create an empty texture (background can still fill).
    - `width/height` are required and should match the project textureResolution.
    - Very low opaque coverage is rejected; fill a larger area or tighten UVs.
    - Success responses include `report.textureCoverage` (opaque ratio + bounds) for each rendered texture.
-5) `assign_texture` to bind textures to cubes (required for visible results; does not change UVs).
-6) `set_face_uv` to apply per-face UVs explicitly.
-7) Prefer material-group textures (pot/soil/plant) and assign via `cubeNames` for stability.
-8) If UVs exceed the current resolution, increase it or split textures per material.
-9) Size textures to fit the UV layout (width >= 2*(w+d), height >= 2*(h+d)) and round up to 32/64/128; use `set_project_texture_resolution` before creating textures. If you need to scale existing UVs, pass `modifyUv=true` (if supported by the host).
-10) If UVs or resolution change after painting, repaint using the new mapping.
+6) `assign_texture` to bind textures to cubes (required for visible results; does not change UVs).
+7) `set_face_uv` to apply per-face UVs explicitly.
+8) Prefer material-group textures (pot/soil/plant) and assign via `cubeNames` for stability.
+9) If UVs exceed the current resolution, increase it or split textures per material.
+10) Size textures to fit the UV layout (width >= 2*(w+d), height >= 2*(h+d)) and round up to 32/64/128; use `set_project_texture_resolution` before creating textures. If you need to scale existing UVs, pass `modifyUv=true` (if supported by the host).
+11) If UVs or resolution change after painting, repaint using the new mapping.
 
 ## Preview Output (MCP Standard)
 `render_preview` responds with MCP `content` blocks:

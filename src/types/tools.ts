@@ -16,6 +16,7 @@ export type ToolName =
   | 'get_project_state'
   | 'read_texture'
   | 'reload_plugins'
+  | 'generate_texture_preset'
   | 'set_project_texture_resolution'
   | 'preflight_texture'
   | 'ensure_project'
@@ -60,6 +61,20 @@ export interface GenerateBlockPipelinePayload {
   onConflict?: BlockPipelineOnConflict;
   mode?: BlockPipelineMode;
   ifRevision?: string;
+}
+
+export type TexturePresetName = 'painted_metal' | 'rubber' | 'glass' | 'wood' | 'dirt' | 'plant';
+
+export interface GenerateTexturePresetPayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
+  preset: TexturePresetName;
+  width: number;
+  height: number;
+  name?: string;
+  targetId?: string;
+  targetName?: string;
+  mode?: 'create' | 'update';
+  seed?: number;
+  palette?: string[];
 }
 
 export interface ReadTexturePayload {
@@ -185,6 +200,7 @@ export interface ToolPayloadMap {
   get_project_state: GetProjectStatePayload;
   read_texture: ReadTexturePayload;
   reload_plugins: ReloadPluginsPayload;
+  generate_texture_preset: GenerateTexturePresetPayload;
   set_project_texture_resolution: SetProjectTextureResolutionPayload;
   preflight_texture: PreflightTexturePayload;
   ensure_project: EnsureProjectPayload;
@@ -253,6 +269,24 @@ export interface ReloadPluginsResult {
   scheduled: true;
   delayMs: number;
   method: 'devReload';
+}
+
+export type TextureCoverage = {
+  opaquePixels: number;
+  totalPixels: number;
+  opaqueRatio: number;
+  bounds?: { x1: number; y1: number; x2: number; y2: number };
+};
+
+export interface GenerateTexturePresetResult {
+  textureId: string;
+  textureName: string;
+  preset: TexturePresetName;
+  mode: 'create' | 'update';
+  width: number;
+  height: number;
+  seed: number;
+  coverage?: TextureCoverage;
 }
 
 export interface GetProjectStateResult {
@@ -335,6 +369,7 @@ export interface ToolResultMap {
   get_project_state: GetProjectStateResult;
   read_texture: ReadTextureResult;
   reload_plugins: ReloadPluginsResult;
+  generate_texture_preset: WithState<GenerateTexturePresetResult>;
   set_project_texture_resolution: WithState<SetProjectTextureResolutionResult>;
   preflight_texture: PreflightTextureResult;
   ensure_project: WithState<EnsureProjectResult>;

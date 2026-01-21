@@ -19,6 +19,7 @@ import { BlockbenchHost } from './adapters/blockbench/BlockbenchHost';
 import { BlockbenchFormats } from './adapters/blockbench/BlockbenchFormats';
 import { BlockbenchSnapshot } from './adapters/blockbench/BlockbenchSnapshot';
 import { BlockbenchExport } from './adapters/blockbench/BlockbenchExport';
+import { BlockbenchTextureRenderer } from './adapters/blockbench/BlockbenchTextureRenderer';
 import { ToolService } from './usecases/ToolService';
 import { UsecaseResult } from './usecases/result';
 import {
@@ -56,6 +57,7 @@ export class ToolDispatcherImpl implements Dispatcher {
       const formats = new BlockbenchFormats();
       const snapshot = new BlockbenchSnapshot(log);
       const exporter = new BlockbenchExport(log);
+      const textureRenderer = new BlockbenchTextureRenderer();
       this.service = new ToolService({
         session,
         capabilities,
@@ -64,6 +66,7 @@ export class ToolDispatcherImpl implements Dispatcher {
         formats,
         snapshot,
         exporter,
+        textureRenderer,
         policies: { snapshotPolicy: 'hybrid', rigMergeStrategy: 'skip_existing', exportPolicy: 'strict' }
       });
     }
@@ -89,6 +92,11 @@ export class ToolDispatcherImpl implements Dispatcher {
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'reload_plugins':
           return toToolResponse(this.service.reloadPlugins(payload)) as ToolResponse<ToolResultMap[TName]>;
+        case 'generate_texture_preset':
+          return this.attachState(
+            payload,
+            toToolResponse(this.service.generateTexturePreset(payload))
+          ) as ToolResponse<ToolResultMap[TName]>;
         case 'set_project_texture_resolution':
           return this.attachState(
             payload,

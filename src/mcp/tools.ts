@@ -13,6 +13,11 @@ const cubeFaceSchema: JsonSchema = {
   enum: ['north', 'south', 'east', 'west', 'up', 'down']
 };
 
+const texturePresetSchema: JsonSchema = {
+  type: 'string',
+  enum: ['painted_metal', 'rubber', 'glass', 'wood', 'dirt', 'plant']
+};
+
 const textureOpSchema: JsonSchema = {
   type: 'object',
   required: ['op'],
@@ -109,6 +114,24 @@ const toolSchemas: Record<string, JsonSchema> = {
     properties: {
       confirm: { type: 'boolean' },
       delayMs: { type: 'number' }
+    }
+  },
+  generate_texture_preset: {
+    type: 'object',
+    required: ['preset', 'width', 'height'],
+    additionalProperties: false,
+    properties: {
+      preset: texturePresetSchema,
+      width: { type: 'number' },
+      height: { type: 'number' },
+      name: { type: 'string' },
+      targetId: { type: 'string' },
+      targetName: { type: 'string' },
+      mode: { type: 'string', enum: ['create', 'update'] },
+      seed: { type: 'number' },
+      palette: { type: 'array', items: { type: 'string' } },
+      ifRevision: { type: 'string' },
+      ...metaProps
     }
   },
   ensure_project: {
@@ -385,7 +408,7 @@ const toolSchemas: Record<string, JsonSchema> = {
       ...metaProps
     }
   },
-  
+
 };
 
 export const MCP_TOOLS: McpToolDefinition[] = [
@@ -417,6 +440,13 @@ export const MCP_TOOLS: McpToolDefinition[] = [
     inputSchema: toolSchemas.reload_plugins
   },
   {
+    name: 'generate_texture_preset',
+    title: 'Generate Texture Preset',
+    description:
+      'Generates a procedural texture preset without local files. Use for 64x64+ textures to avoid large ops payloads. Requires ifRevision; call get_project_state first. mode=create needs name; mode=update needs targetId/targetName.',
+    inputSchema: toolSchemas.generate_texture_preset
+  },
+  {
     name: 'ensure_project',
     title: 'Ensure Project',
     description:
@@ -430,13 +460,13 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       'Generates Minecraft block assets (blockstates + models + item models) using vanilla parents. Returns JSON in structuredContent and also stores them as MCP resources. mode=with_blockbench creates a new Java Block/Item project named after name and adds a base cube (requires ifRevision).',
     inputSchema: toolSchemas.generate_block_pipeline
   },
-    {
+  {
     name: 'set_project_texture_resolution',
     title: 'Set Project Texture Resolution',
     description:
-        'Sets the project texture resolution (width/height). Requires ifRevision; call get_project_state first. Set modifyUv=true to scale existing UVs to the new resolution (if supported). This does not resize existing textures; use it before creating textures. If you change resolution after painting, repaint using the new UV mapping. If UVs exceed the current resolution, increase it (width >= 2*(w+d), height >= 2*(h+d), round up to 32/64/128) or split textures per material.',
-      inputSchema: toolSchemas.set_project_texture_resolution
-    },
+      'Sets the project texture resolution (width/height). Requires ifRevision; call get_project_state first. Set modifyUv=true to scale existing UVs to the new resolution (if supported). This does not resize existing textures; use it before creating textures. If you change resolution after painting, repaint using the new UV mapping. If UVs exceed the current resolution, increase it (width >= 2*(w+d), height >= 2*(h+d), round up to 32/64/128) or split textures per material.',
+    inputSchema: toolSchemas.set_project_texture_resolution
+  },
   {
     name: 'preflight_texture',
     title: 'Preflight Texture',

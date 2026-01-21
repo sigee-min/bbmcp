@@ -21,6 +21,7 @@ import { BlockbenchHost } from './adapters/blockbench/BlockbenchHost';
 import { BlockbenchFormats } from './adapters/blockbench/BlockbenchFormats';
 import { BlockbenchSnapshot } from './adapters/blockbench/BlockbenchSnapshot';
 import { BlockbenchExport } from './adapters/blockbench/BlockbenchExport';
+import { BlockbenchTextureRenderer } from './adapters/blockbench/BlockbenchTextureRenderer';
 import { FormatOverrides, resolveFormatId } from './domain/format';
 import { buildInternalExport } from './domain/exporters';
 import { DEFAULT_UV_POLICY } from './domain/uvPolicy';
@@ -589,6 +590,7 @@ Notes:
     const formats = new BlockbenchFormats();
     const snapshot = new BlockbenchSnapshot(logger);
     const exporter = new BlockbenchExport(logger);
+    const textureRenderer = new BlockbenchTextureRenderer();
     const previewCapability = {
       pngOnly: true,
       fixedOutput: 'single' as const,
@@ -610,6 +612,7 @@ Notes:
       formats,
       snapshot,
       exporter,
+      textureRenderer,
       resources: resourceStore,
       policies
     });

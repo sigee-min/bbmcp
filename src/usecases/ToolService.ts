@@ -3,6 +3,7 @@ import {
   ExportPayload,
   FormatKind,
   GenerateBlockPipelineResult,
+  GenerateTexturePresetResult,
   PreflightTextureResult,
   PreflightUsageSummary,
   PreflightUvBounds,
@@ -12,6 +13,7 @@ import {
   ReadTextureResult,
   RenderPreviewPayload,
   RenderPreviewResult,
+  TexturePresetName,
   ToolError
 } from '../types';
 import { ProjectSession, SessionState } from '../session';
@@ -32,11 +34,13 @@ import { diffSnapshots } from '../domain/diff';
 import { mergeRigParts, RigMergeStrategy } from '../domain/rig';
 import { isZeroSize } from '../domain/geometry';
 import { DEFAULT_UV_POLICY, UvPolicyConfig, computeExpectedUvSize, getFaceDimensions, shouldAutoFixUv } from '../domain/uvPolicy';
+import { TexturePresetResult, generateTexturePreset } from '../domain/texturePresets';
 import { ProjectStateService } from '../services/projectState';
 import { RevisionStore } from '../services/revision';
 import { createId } from '../services/id';
 import { HostPort } from '../ports/host';
 import { ResourceStore } from '../ports/resources';
+import { TextureRendererPort } from '../ports/textureRenderer';
 import { BlockPipelineMode, BlockPipelineOnConflict, BlockPipelineTextures, BlockVariant } from '../types/blockPipeline';
 import {
   collectDescendantBones,
@@ -64,6 +68,7 @@ export interface ToolServiceDeps {
   exporter: ExportPort;
   host?: HostPort;
   resources?: ResourceStore;
+  textureRenderer?: TextureRendererPort;
   policies?: ToolPolicies;
 }
 
@@ -76,6 +81,7 @@ export class ToolService {
   private readonly exporter: ExportPort;
   private readonly host?: HostPort;
   private readonly resources?: ResourceStore;
+  private readonly textureRenderer?: TextureRendererPort;
   private readonly policies: ToolPolicies;
   private readonly projectState: ProjectStateService;
   private readonly revisionStore: RevisionStore;
@@ -92,6 +98,7 @@ export class ToolService {
     this.exporter = deps.exporter;
     this.host = deps.host;
     this.resources = deps.resources;
+    this.textureRenderer = deps.textureRenderer;
     this.policies = deps.policies ?? {};
     this.projectState = new ProjectStateService(this.formats, this.policies.formatOverrides);
     this.revisionStore = new RevisionStore(REVISION_CACHE_LIMIT);
@@ -222,6 +229,117 @@ export class ToolService {
       textureUsage: payload.includeUsage ? usage : undefined
     };
     return ok(result);
+  }
+
+  generateTexturePreset(payload: {
+    preset: TexturePresetName;
+    width: number;
+    height: number;
+    name?: string;
+    targetId?: string;
+    targetName?: string;
+    mode?: 'create' | 'update';
+    seed?: number;
+    palette?: string[];
+    ifRevision?: string;
+  }): UsecaseResult<GenerateTexturePresetResult> {
+    const activeErr = this.ensureActive();
+    if (activeErr) return fail(activeErr);
+    const revisionErr = this.ensureRevisionMatch(payload.ifRevision);
+    if (revisionErr) return fail(revisionErr);
+    if (!this.textureRenderer) {
+      return fail({ code: 'not_implemented', message: 'Texture renderer unavailable.' });
+    }
+    const width = Number(payload.width);
+    const height = Number(payload.height);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return fail({ code: 'invalid_payload', message: 'width and height must be positive numbers.' });
+    }
+    if (!Number.isInteger(width) || !Number.isInteger(height)) {
+      return fail({ code: 'invalid_payload', message: 'width and height must be integers.' });
+    }
+    const maxSize = this.capabilities.limits.maxTextureSize;
+    if (width > maxSize || height > maxSize) {
+      return fail({
+        code: 'invalid_payload',
+        message: `Texture size exceeds max ${maxSize}.`,
+        fix: `Use width/height <= ${maxSize}.`,
+        details: { width, height, maxSize }
+      });
+    }
+    const mode = payload.mode ?? (payload.targetId || payload.targetName ? 'update' : 'create');
+    if (mode === 'create' && !payload.name) {
+      return fail({
+        code: 'invalid_payload',
+        message: 'name is required when mode=create.'
+      });
+    }
+    if (mode === 'update' && !payload.targetId && !payload.targetName) {
+      return fail({
+        code: 'invalid_payload',
+        message: 'targetId or targetName is required when mode=update.'
+      });
+    }
+    const snapshot = this.getSnapshot(this.policies.snapshotPolicy ?? 'hybrid');
+    const target =
+      mode === 'update'
+        ? resolveTextureTarget(snapshot.textures, payload.targetId, payload.targetName)
+        : null;
+    if (mode === 'update' && !target) {
+      const label = payload.targetId ?? payload.targetName ?? 'unknown';
+      return fail({ code: 'invalid_payload', message: `Texture not found: ${label}` });
+    }
+    if (mode === 'create' && payload.name) {
+      const conflict = snapshot.textures.some((texture) => texture.name === payload.name);
+      if (conflict) {
+        return fail({ code: 'invalid_payload', message: `Texture already exists: ${payload.name}` });
+      }
+    }
+    const preset: TexturePresetResult = generateTexturePreset({
+      preset: payload.preset,
+      width,
+      height,
+      seed: payload.seed,
+      palette: payload.palette
+    });
+    const renderRes = this.textureRenderer.renderPixels({
+      width: preset.width,
+      height: preset.height,
+      data: preset.data
+    });
+    if (renderRes.error) return fail(renderRes.error);
+    if (!renderRes.result) {
+      return fail({ code: 'not_implemented', message: 'Texture renderer failed to produce an image.' });
+    }
+    const image = renderRes.result.image;
+    const result =
+      mode === 'update'
+        ? this.updateTexture({
+            id: target?.id,
+            name: target?.name,
+            image,
+            width: preset.width,
+            height: preset.height,
+            ifRevision: payload.ifRevision
+          })
+        : this.importTexture({
+            name: payload.name ?? payload.preset,
+            image,
+            width: preset.width,
+            height: preset.height,
+            ifRevision: payload.ifRevision
+          });
+    if (!result.ok) return result as UsecaseResult<GenerateTexturePresetResult>;
+    return ok({
+      textureId: result.value.id,
+      textureName: result.value.name,
+      preset: payload.preset,
+      mode,
+      width: preset.width,
+      height: preset.height,
+      seed: preset.seed,
+      coverage: preset.coverage
+    });
   }
 
   getProjectState(payload: { detail?: ProjectStateDetail }): UsecaseResult<{ project: ProjectState }> {

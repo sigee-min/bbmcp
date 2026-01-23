@@ -12,9 +12,10 @@ export class BlockbenchHost implements HostPort {
     if (typeof plugins?.devReload !== 'function') {
       return { code: 'not_implemented', message: 'Plugins.devReload not available.' };
     }
+    const devReload = plugins.devReload;
     const safeDelay = normalizeDelay(delayMs);
     const run = () => {
-      plugins.devReload();
+      devReload();
     };
     if (typeof setTimeout === 'function') {
       setTimeout(run, safeDelay);

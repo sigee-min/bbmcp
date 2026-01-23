@@ -21,7 +21,8 @@ import {
 } from './spec';
 import { SidecarProcess } from './sidecar/SidecarProcess';
 import { SidecarLaunchConfig } from './sidecar/types';
-import { ToolService, ExportPolicy } from './usecases/ToolService';
+import { ToolService } from './usecases/ToolService';
+import type { ExportPolicy } from './usecases/policies';
 import { BlockbenchEditor } from './adapters/blockbench/BlockbenchEditor';
 import { BlockbenchHost } from './adapters/blockbench/BlockbenchHost';
 import { BlockbenchFormats } from './adapters/blockbench/BlockbenchFormats';
@@ -153,11 +154,13 @@ function registerCodecs(capabilities: Capabilities, session: ProjectSession, for
     if (!registry || typeof registry !== 'object') return null;
     const format = registry[formatId] ?? null;
     if (!format) return null;
-    if (typeof format.compile === 'function') {
-      return () => format.compile();
+    const compile = format.compile;
+    if (typeof compile === 'function') {
+      return () => compile();
     }
-    if (format.codec && typeof format.codec.compile === 'function') {
-      return () => format.codec.compile();
+    const codecCompile = format.codec?.compile;
+    if (typeof codecCompile === 'function') {
+      return () => codecCompile();
     }
     return null;
   };
@@ -650,11 +653,8 @@ Notes:
 
     exposeBridge({
       invoke: dispatcher.handle.bind(dispatcher),
-      invokeProxy: (
-        tool: ProxyTool,
-        payload: ApplyModelSpecPayload | ApplyTextureSpecPayload | ApplyUvSpecPayload | ApplyEntitySpecPayload
-      ) =>
-        proxy.handle(tool, payload),
+      invokeProxy: (tool: ProxyTool, payload: unknown) =>
+        proxy.handle(tool, payload as ApplyModelSpecPayload | ApplyTextureSpecPayload | ApplyUvSpecPayload | ApplyEntitySpecPayload),
       capabilities,
       serverConfig: () => ({ ...serverConfig }),
       settings: () => ({ ...serverConfig })

@@ -131,17 +131,26 @@ export class BlockbenchAnimationAdapter {
           throw new Error(`Animation clip not found: ${label}`);
         }
         if (clip) {
-          const animator = clip.animators?.[params.bone] || new AnimatorCtor(params.bone, clip);
-          clip.animators ??= {};
-          clip.animators[params.bone] = animator;
+          const animators = (clip.animators ?? {}) as Record<string, unknown>;
+          const existing = animators[params.bone] as unknown;
+          const animator =
+            (existing && typeof existing === 'object' ? existing : null) ??
+            new AnimatorCtor(params.bone, clip);
+          animators[params.bone] = animator;
+          clip.animators = animators;
           params.keys.forEach((k) => {
-            const kf = animator?.createKeyframe?.(params.channel, k.time);
-            if (kf?.set) {
-              kf.set('data_points', k.value);
-              if (k.interp) kf.set('interpolation', k.interp);
-            } else if (kf) {
-              kf.data_points = k.value;
-              if (k.interp) kf.interpolation = k.interp;
+            const kf = (animator as { createKeyframe?: (channel: string, time: number) => unknown })
+              .createKeyframe?.(params.channel, k.time);
+            const keyframe = kf as
+              | { set?: (key: string, value: unknown) => void; data_points?: unknown; interpolation?: unknown }
+              | null
+              | undefined;
+            if (keyframe?.set) {
+              keyframe.set('data_points', k.value);
+              if (k.interp) keyframe.set('interpolation', k.interp);
+            } else if (keyframe) {
+              keyframe.data_points = k.value;
+              if (k.interp) keyframe.interpolation = k.interp;
             }
           });
         }

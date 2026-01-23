@@ -11,7 +11,7 @@ import { BlockPipelineMode, BlockPipelineOnConflict, BlockPipelineTextures, Bloc
 import { ProjectState, WithState } from './project';
 import { RenderPreviewPayload, RenderPreviewResult } from './preview';
 import type { UvPaintMapping, UvPaintScope, UvPaintSource, UvPaintSpec, UvPaintTarget } from '../domain/uvPaintSpec';
-import type { CubeFaceDirection } from '../domain/model';
+import type { CubeFaceDirection, FaceUvMap } from '../domain/model';
 
 export type { UvPaintMapping, UvPaintScope, UvPaintSource, UvPaintSpec, UvPaintTarget } from '../domain/uvPaintSpec';
 export type { CubeFaceDirection } from '../domain/model';
@@ -142,8 +142,6 @@ export interface AssignTexturePayload extends IncludeStateOption, IncludeDiffOpt
   cubeNames?: string[];
   faces?: CubeFaceDirection[];
 }
-
-export type FaceUvMap = Partial<Record<CubeFaceDirection, [number, number, number, number]>>;
 
 export interface SetFaceUvPayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
   cubeId?: string;

@@ -2,6 +2,7 @@ import {
   EnsureProjectMatch,
   EnsureProjectOnMismatch,
   EnsureProjectOnMissing,
+  CubeFaceDirection,
   ProjectStateDetail,
   UvPaintMapping,
   UvPaintScope,
@@ -9,6 +10,7 @@ import {
   UvPaintSpec,
   UvPaintTarget
 } from './types';
+import type { FaceUvMap } from './domain/model';
 
 export type RigTemplateKind = 'empty' | 'biped' | 'quadruped' | 'block_entity';
 
@@ -56,9 +58,9 @@ export type TextureOp =
   | { op: 'draw_rect'; x: number; y: number; width: number; height: number; color: string; lineWidth?: number }
   | { op: 'draw_line'; x1: number; y1: number; x2: number; y2: number; color: string; lineWidth?: number };
 
-export type UvFaceDirection = 'north' | 'south' | 'east' | 'west' | 'up' | 'down';
+export type UvFaceDirection = CubeFaceDirection;
 
-export type UvFaceMap = Partial<Record<UvFaceDirection, [number, number, number, number]>>;
+export type UvFaceMap = FaceUvMap;
 
 export type UvAssignmentSpec = {
   cubeId?: string;

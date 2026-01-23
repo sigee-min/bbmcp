@@ -1,3 +1,5 @@
+import type { TextureUsage } from './model';
+
 export type TextureTargetSet = { ids: Set<string>; names: Set<string> };
 
 type TargetLike = {
@@ -21,6 +23,21 @@ export const collectTextureTargets = (entries: TargetLike[]): TextureTargetSet =
 
 export const collectSingleTarget = (entry: TargetLike): TextureTargetSet =>
   collectTextureTargets([entry]);
+
+export const expandTextureTargets = (usage: TextureUsage, targets: TextureTargetSet): TextureTargetSet => {
+  if (targets.ids.size === 0 && targets.names.size === 0) return targets;
+  const ids = new Set(targets.ids);
+  const names = new Set(targets.names);
+  usage.textures.forEach((texture) => {
+    if (texture.id && ids.has(texture.id)) {
+      names.add(texture.name);
+    }
+    if (names.has(texture.name) && texture.id) {
+      ids.add(texture.id);
+    }
+  });
+  return { ids, names };
+};
 
 export const isIssueTarget = (
   issue: { textureId?: string; textureName: string },

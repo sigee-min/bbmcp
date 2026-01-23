@@ -186,10 +186,12 @@ export const removeOutlinerNode = (node: OutlinerNode | null, outliner: Outliner
 const detachFromOutliner = (node: OutlinerNode | null, outliner: OutlinerApi | undefined): boolean => {
   if (!node) return false;
   const parent = node.parent ?? null;
+  const root = outliner?.root;
+  const rootChildren = !Array.isArray(root) ? root?.children : undefined;
   const removed =
     removeNodeFromCollection(parent?.children, node) ||
-    removeNodeFromCollection(outliner?.root, node) ||
-    removeNodeFromCollection(outliner?.root?.children, node);
+    (Array.isArray(root) ? removeNodeFromCollection(root, node) : false) ||
+    removeNodeFromCollection(rootChildren, node);
   if (node && 'parent' in node) {
     node.parent = null;
   }
@@ -229,7 +231,7 @@ export const attachToOutliner = (
     if (!root.includes(node)) root.push(node);
     return true;
   }
-  if (root && Array.isArray(root.children)) {
+  if (root && !Array.isArray(root) && Array.isArray(root.children)) {
     if (!root.children.includes(node)) root.children.push(node);
     return true;
   }
@@ -249,7 +251,10 @@ const isNodeInOutlinerRoot = (outliner: OutlinerApi | undefined, node: OutlinerN
   if (!outliner || !node) return false;
   const root = outliner.root;
   if (Array.isArray(root) && root.includes(node)) return true;
-  return Array.isArray(root?.children) && root.children.includes(node);
+  if (root && !Array.isArray(root) && Array.isArray(root.children)) {
+    return root.children.includes(node);
+  }
+  return false;
 };
 
 const pickPositive = (...values: Array<number | undefined>) => {

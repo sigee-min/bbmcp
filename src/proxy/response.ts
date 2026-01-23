@@ -3,7 +3,7 @@ import { UsecaseResult } from '../usecases/result';
 
 export type ErrorCode = 'invalid_payload' | 'not_implemented' | 'no_change' | 'unknown';
 
-export const err = (code: ErrorCode, message: string): ToolResponse<unknown> => ({
+export const err = <T = never>(code: ErrorCode, message: string): ToolResponse<T> => ({
   ok: false,
   error: { code, message }
 });

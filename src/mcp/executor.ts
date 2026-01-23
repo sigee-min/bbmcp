@@ -16,11 +16,11 @@ export class LocalToolExecutor implements ToolExecutor {
   }
 
   async callTool(name: string, args: unknown): Promise<ToolResponse<unknown>> {
-    const toolName = name as ToolName;
-    if (isProxyTool(toolName)) {
-      const response = await this.proxy.handle(toolName, args);
+    if (isProxyTool(name)) {
+      const response = await this.proxy.handle(name, args);
       return normalizeToolResponse(response);
     }
+    const toolName = name as ToolName;
     return normalizeToolResponse(this.dispatcher.handle(toolName, args as ToolPayloadMap[ToolName]));
   }
 }
@@ -34,7 +34,7 @@ const normalizeToolResponse = (response: ToolResponse<unknown>): ToolResponse<un
   return { ok: false, error: { ...response.error, details } };
 };
 
-const isProxyTool = (name: ToolName): name is ProxyTool =>
+const isProxyTool = (name: string): name is ProxyTool =>
   name === 'apply_model_spec' ||
   name === 'apply_texture_spec' ||
   name === 'apply_uv_spec' ||

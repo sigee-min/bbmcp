@@ -1,4 +1,5 @@
 import { FormatKind } from './shared';
+import type { Limits } from '../domain/model';
 
 export interface Capability {
   format: FormatKind;
@@ -6,11 +7,7 @@ export interface Capability {
   enabled: boolean;
 }
 
-export interface Limits {
-  maxCubes: number;
-  maxTextureSize: number;
-  maxAnimationSeconds: number;
-}
+export type { Limits };
 
 export interface PreviewCapability {
   pngOnly: boolean;

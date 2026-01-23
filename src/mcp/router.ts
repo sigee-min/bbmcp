@@ -214,7 +214,7 @@ export class McpRouter {
     }
 
     const message = parsed as JsonRpcMessage;
-    const id = 'id' in message ? message.id : null;
+    const id = 'id' in message ? message.id ?? null : null;
 
     const protocolHeader = req.headers['mcp-protocol-version'];
     if (protocolHeader && !this.supportedProtocols.includes(protocolHeader)) {
@@ -272,6 +272,9 @@ export class McpRouter {
     if (message.method === 'initialize') {
       if (isNotification || id === null) {
         return { type: 'response', response: jsonRpcError(id, -32600, 'initialize requires id'), status: 400 };
+      }
+      if (!session) {
+        return { type: 'response', response: jsonRpcError(id, -32000, 'Session unavailable'), status: 400 };
       }
       const params = isRecord(message.params) ? message.params : {};
       const requested = typeof params.protocolVersion === 'string' ? params.protocolVersion : DEFAULT_PROTOCOL_VERSION;

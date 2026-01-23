@@ -5,6 +5,7 @@
   required?: string[];
   enum?: Array<string | number | boolean | null>;
   additionalProperties?: boolean;
+  minProperties?: number;
   minItems?: number;
   maxItems?: number;
 };

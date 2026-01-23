@@ -40,7 +40,7 @@ const executor = {
       name === 'apply_texture_spec'
         ? 'proxy'
         : 'direct';
-    const response = await client.request(name, args, mode);
+    const response = await client.request(name as Parameters<typeof client.request>[0], args, mode);
     if (name === 'generate_block_pipeline') {
       storePipelineResources(resourceStore, response);
     }

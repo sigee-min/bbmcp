@@ -202,7 +202,7 @@ const isFiniteNumber = (value: unknown): value is number => Number.isFinite(valu
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
-const err = (code: 'invalid_payload' | 'invalid_state', message: string): DomainResult<unknown> => ({
+const err = <T = never>(code: 'invalid_payload' | 'invalid_state', message: string): DomainResult<T> => ({
   ok: false,
   error: { code, message }
 });

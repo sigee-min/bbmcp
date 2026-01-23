@@ -1,3 +1,6 @@
+import type { CubeFaceDirection } from '../domain/model';
+export type { CubeFaceDirection } from '../domain/model';
+
 export type UnknownRecord = Record<string, unknown>;
 
 export interface BlockbenchProject {
@@ -61,6 +64,7 @@ export interface TextureInstance {
   height?: number;
   img?: HTMLImageElement;
   canvas?: HTMLCanvasElement;
+  ctx?: CanvasRenderingContext2D;
   bbmcpId?: string;
   namespace?: string;
   folder?: string;
@@ -92,10 +96,9 @@ export interface TextureInstance {
   getDataUrl?: () => string;
   getBase64?: () => string;
   toDataURL?: (mime?: string) => string;
+  edit?: (fn: (canvas: HTMLCanvasElement | unknown) => unknown, options?: UnknownRecord) => void;
   extend?: (data: UnknownRecord) => void;
 }
-
-export type CubeFaceDirection = 'north' | 'south' | 'east' | 'west' | 'up' | 'down';
 
 export interface CubeFace {
   texture?: string | false;
@@ -110,7 +113,7 @@ export interface TextureConstructor {
   all?: TextureInstance[];
 }
 
-export interface OutlinerNode {
+export interface OutlinerNode extends UnknownRecord {
   name?: string;
   parent?: OutlinerNode | null;
   children?: OutlinerNode[];
@@ -119,6 +122,9 @@ export interface OutlinerNode {
   id?: string;
   uid?: string;
   _uuid?: string;
+  from?: [number, number, number] | { x: number; y: number; z: number };
+  to?: [number, number, number] | { x: number; y: number; z: number };
+  uv?: [number, number] | { x: number; y: number };
   addTo?: (parent: OutlinerNode) => void;
   remove?: () => void;
   delete?: () => void;
@@ -143,6 +149,7 @@ export interface CubeInstance extends OutlinerNode {
   from?: [number, number, number] | { x: number; y: number; z: number };
   to?: [number, number, number] | { x: number; y: number; z: number };
   uv_offset?: [number, number] | { x: number; y: number };
+  uv?: [number, number] | { x: number; y: number };
   inflate?: number;
   mirror?: boolean;
   mirror_uv?: boolean;
@@ -169,6 +176,10 @@ export interface UndoApi {
 
 export interface AnimationClip {
   id?: string;
+  uuid?: string;
+  uid?: string;
+  _uuid?: string;
+  bbmcpId?: string;
   name?: string;
   length?: number;
   animation_length?: number;
@@ -181,21 +192,35 @@ export interface AnimationClip {
   time?: number;
   select?: () => void;
   setTime?: (time: number) => void;
+  rename?: (name: string) => void;
+  add?: (select?: boolean) => void;
+  remove?: () => void;
+  delete?: () => void;
+}
+
+export interface AnimatorInstance extends UnknownRecord {
+  createKeyframe?: (channel: string, time: number) => UnknownRecord | null | undefined;
 }
 
 export interface AnimatorApi {
+  new (name: string, clip: AnimationClip): AnimatorInstance;
   time?: number;
   setTime?: (time: number) => void;
   preview?: (time: number) => void;
 }
 
 export interface AnimationApi {
+  new (options: UnknownRecord): AnimationClip;
   all?: AnimationClip[];
   selected?: AnimationClip | null;
 }
 
 export interface PreviewItem {
   canvas?: HTMLCanvasElement | null;
+  renderer?: { domElement?: HTMLCanvasElement | null };
+  controls?: unknown;
+  camera?: unknown;
+  render?: () => void;
 }
 
 export interface PreviewRegistry {

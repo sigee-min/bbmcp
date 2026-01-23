@@ -1,4 +1,7 @@
 import { FormatKind, RenderPreviewPayload, RenderPreviewResult, ToolError } from '../types';
+import type { CubeFaceDirection, FaceUvMap } from '../domain/model';
+
+export type { CubeFaceDirection, FaceUvMap } from '../domain/model';
 import {
   TextureFrameOrderType,
   TexturePbrChannel,
@@ -8,8 +11,6 @@ import {
 
 export type Vec2 = [number, number];
 export type Vec3 = [number, number, number];
-export type CubeFaceDirection = 'north' | 'south' | 'east' | 'west' | 'up' | 'down';
-
 export type TextureSource = {
   id?: string;
   name: string;
@@ -112,8 +113,6 @@ export type AssignTextureCommand = {
   cubeNames?: string[];
   faces?: CubeFaceDirection[];
 };
-
-export type FaceUvMap = Partial<Record<CubeFaceDirection, [number, number, number, number]>>;
 
 export type SetFaceUvCommand = {
   cubeId?: string;

@@ -156,10 +156,10 @@ export class BlockbenchTextureAdapter {
       }
       return {
         result: {
-          id: readTextureId(target),
+          id: readTextureId(target) ?? undefined,
           name: target?.name ?? target?.id ?? 'texture',
-      width,
-      height,
+          width,
+          height,
           path,
           dataUri: dataUri ?? undefined,
           image: image ?? undefined

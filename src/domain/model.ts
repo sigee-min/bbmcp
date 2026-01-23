@@ -2,6 +2,8 @@ export type CubeFaceDirection = 'north' | 'south' | 'east' | 'west' | 'up' | 'do
 
 export type FaceUvRect = [number, number, number, number];
 
+export type FaceUvMap = Partial<Record<CubeFaceDirection, FaceUvRect>>;
+
 export type TextureUsageFace = {
   face: CubeFaceDirection;
   uv?: FaceUvRect;

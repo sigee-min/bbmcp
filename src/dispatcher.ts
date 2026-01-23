@@ -88,102 +88,113 @@ export class ToolDispatcherImpl implements Dispatcher {
         case 'list_capabilities':
           return respondOk(this.service.listCapabilities()) as ToolResponse<ToolResultMap[TName]>;
         case 'get_project_state':
-          return toToolResponse(this.service.getProjectState(payload)) as ToolResponse<ToolResultMap[TName]>;
+          return toToolResponse(
+            this.service.getProjectState(payload as ToolPayloadMap['get_project_state'])
+          ) as ToolResponse<ToolResultMap[TName]>;
         case 'read_texture':
           return attachTextureContent(
-            toToolResponse(this.service.readTextureImage(payload))
+            toToolResponse(this.service.readTextureImage(payload as ToolPayloadMap['read_texture']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'reload_plugins':
-          return toToolResponse(this.service.reloadPlugins(payload)) as ToolResponse<ToolResultMap[TName]>;
+          return toToolResponse(
+            this.service.reloadPlugins(payload as ToolPayloadMap['reload_plugins'])
+          ) as ToolResponse<ToolResultMap[TName]>;
         case 'generate_texture_preset':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.generateTexturePreset(payload))
+            payload as ToolPayloadMap['generate_texture_preset'],
+            toToolResponse(this.service.generateTexturePreset(payload as ToolPayloadMap['generate_texture_preset']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'auto_uv_atlas':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.autoUvAtlas(payload))
+            payload as ToolPayloadMap['auto_uv_atlas'],
+            toToolResponse(this.service.autoUvAtlas(payload as ToolPayloadMap['auto_uv_atlas']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'set_project_texture_resolution':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.setProjectTextureResolution(payload))
+            payload as ToolPayloadMap['set_project_texture_resolution'],
+            toToolResponse(
+              this.service.setProjectTextureResolution(payload as ToolPayloadMap['set_project_texture_resolution'])
+            )
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'preflight_texture':
-          return toToolResponse(this.service.preflightTexture(payload)) as ToolResponse<ToolResultMap[TName]>;
+          return toToolResponse(
+            this.service.preflightTexture(payload as ToolPayloadMap['preflight_texture'])
+          ) as ToolResponse<ToolResultMap[TName]>;
         case 'ensure_project':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.ensureProject(payload))
+            payload as ToolPayloadMap['ensure_project'],
+            toToolResponse(this.service.ensureProject(payload as ToolPayloadMap['ensure_project']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'generate_block_pipeline':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.generateBlockPipeline(payload))
+            payload as ToolPayloadMap['generate_block_pipeline'],
+            toToolResponse(this.service.generateBlockPipeline(payload as ToolPayloadMap['generate_block_pipeline']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'delete_texture':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.deleteTexture(payload))
+            payload as ToolPayloadMap['delete_texture'],
+            toToolResponse(this.service.deleteTexture(payload as ToolPayloadMap['delete_texture']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'assign_texture':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.assignTexture(payload))
+            payload as ToolPayloadMap['assign_texture'],
+            toToolResponse(this.service.assignTexture(payload as ToolPayloadMap['assign_texture']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'set_face_uv':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.setFaceUv(payload))
+            payload as ToolPayloadMap['set_face_uv'],
+            toToolResponse(this.service.setFaceUv(payload as ToolPayloadMap['set_face_uv']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'add_bone':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.addBone(payload))
+            payload as ToolPayloadMap['add_bone'],
+            toToolResponse(this.service.addBone(payload as ToolPayloadMap['add_bone']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'update_bone':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.updateBone(payload))
+            payload as ToolPayloadMap['update_bone'],
+            toToolResponse(this.service.updateBone(payload as ToolPayloadMap['update_bone']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'delete_bone':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.deleteBone(payload))
+            payload as ToolPayloadMap['delete_bone'],
+            toToolResponse(this.service.deleteBone(payload as ToolPayloadMap['delete_bone']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'add_cube':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.addCube(payload))
+            payload as ToolPayloadMap['add_cube'],
+            toToolResponse(this.service.addCube(payload as ToolPayloadMap['add_cube']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'update_cube':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.updateCube(payload))
+            payload as ToolPayloadMap['update_cube'],
+            toToolResponse(this.service.updateCube(payload as ToolPayloadMap['update_cube']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'delete_cube':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.deleteCube(payload))
+            payload as ToolPayloadMap['delete_cube'],
+            toToolResponse(this.service.deleteCube(payload as ToolPayloadMap['delete_cube']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'apply_rig_template':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.applyRigTemplate(payload))
+            payload as ToolPayloadMap['apply_rig_template'],
+            toToolResponse(this.service.applyRigTemplate(payload as ToolPayloadMap['apply_rig_template']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'export':
           return this.attachState(
-            payload,
-            toToolResponse(this.service.exportModel(payload))
+            payload as ToolPayloadMap['export'],
+            toToolResponse(this.service.exportModel(payload as ToolPayloadMap['export']))
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'render_preview':
           return attachRenderPreviewContent(
-            this.attachState(payload, toToolResponse(this.service.renderPreview(payload)))
+            this.attachState(
+              payload as ToolPayloadMap['render_preview'],
+              toToolResponse(this.service.renderPreview(payload as ToolPayloadMap['render_preview']))
+            )
           ) as ToolResponse<ToolResultMap[TName]>;
         case 'validate':
           return this.attachState(
-            payload,
+            payload as ToolPayloadMap['validate'],
             toToolResponse(this.service.validate())
           ) as ToolResponse<ToolResultMap[TName]>;
         default:
@@ -233,7 +244,7 @@ export class ToolDispatcherImpl implements Dispatcher {
           ...(shouldIncludeRevision && revision ? { revision } : {}),
           ...(shouldIncludeState ? { state: project } : {}),
           ...(shouldIncludeDiff ? { diff: diffValue ?? null } : {})
-        }
+        } as TResult & { state?: ProjectState | null; diff?: ProjectDiff | null }
       };
     }
     const details: Record<string, unknown> = { ...(response.error.details ?? {}) };

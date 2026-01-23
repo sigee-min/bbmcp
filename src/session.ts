@@ -97,8 +97,9 @@ export class ProjectSession {
     name: string,
     formatId?: string | null
   ): ToolResponse<{ id: string; format: FormatKind; name: string }> {
+    const id = `${Date.now()}`;
     this.state = {
-      id: `${Date.now()}`,
+      id,
       format,
       formatId: formatId ?? null,
       name,
@@ -109,7 +110,7 @@ export class ProjectSession {
       animations: [],
       animationsStatus: 'available'
     };
-    return { ok: true, data: { id: this.state.id, format: this.state.format, name: this.state.name } };
+    return { ok: true, data: { id, format, name } };
   }
 
   attach(snapshot: SessionState): ToolResponse<{ id: string; format: FormatKind; name: string | null }> {
@@ -117,11 +118,13 @@ export class ProjectSession {
       return { ok: false, error: { code: 'invalid_state', message: 'No active project.' } };
     }
     const id = snapshot.id ?? `${Date.now()}`;
+    const format = snapshot.format;
+    const name = snapshot.name ?? null;
     this.state = {
       id,
-      format: snapshot.format,
+      format,
       formatId: snapshot.formatId ?? null,
-      name: snapshot.name ?? null,
+      name,
       dirty: snapshot.dirty,
       bones: [...snapshot.bones],
       cubes: [...snapshot.cubes],
@@ -133,7 +136,7 @@ export class ProjectSession {
       })),
       animationsStatus: snapshot.animationsStatus ?? 'available'
     };
-    return { ok: true, data: { id, format: this.state.format, name: this.state.name } };
+    return { ok: true, data: { id, format, name } };
   }
 
   reset(): ToolResponse<{ ok: true }> {
@@ -193,13 +196,14 @@ export class ProjectSession {
     if (!bone) return false;
     const oldName = bone.name;
     if (updates.id) bone.id = updates.id;
-    if (updates.newName && updates.newName !== oldName) {
-      bone.name = updates.newName;
+    const nextName = updates.newName;
+    if (nextName && nextName !== oldName) {
+      bone.name = nextName;
       this.state.bones.forEach((b) => {
-        if (b.parent === oldName) b.parent = updates.newName;
+        if (b.parent === oldName) b.parent = nextName;
       });
       this.state.cubes.forEach((c) => {
-        if (c.bone === oldName) c.bone = updates.newName;
+        if (c.bone === oldName) c.bone = nextName;
       });
     }
     if (updates.parent !== undefined) {

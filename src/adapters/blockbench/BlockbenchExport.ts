@@ -48,11 +48,13 @@ function getFormatById(formatId: string): FormatEntry | null {
 
 function resolveCompiler(format: FormatEntry | null): (() => unknown) | null {
   if (!format) return null;
-  if (typeof format.compile === 'function') {
-    return () => format.compile();
+  const compile = format.compile;
+  if (typeof compile === 'function') {
+    return () => compile();
   }
-  if (format.codec && typeof format.codec.compile === 'function') {
-    return () => format.codec.compile();
+  const codecCompile = format.codec?.compile;
+  if (typeof codecCompile === 'function') {
+    return () => codecCompile();
   }
   return null;
 }

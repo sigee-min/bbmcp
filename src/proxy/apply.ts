@@ -142,8 +142,14 @@ export const applyTextureSpecSteps = async (
           service
         );
       }
-      const anchor = Array.isArray(uvPaintSpec.anchor) ? uvPaintSpec.anchor : [0, 0];
-      const padding = Number.isFinite(uvPaintSpec.padding) ? Math.max(0, uvPaintSpec.padding) : 0;
+      const anchor =
+        Array.isArray(uvPaintSpec.anchor) && uvPaintSpec.anchor.length === 2
+          ? ([uvPaintSpec.anchor[0], uvPaintSpec.anchor[1]] as [number, number])
+          : ([0, 0] as [number, number]);
+      const padding =
+        typeof uvPaintSpec.padding === 'number' && Number.isFinite(uvPaintSpec.padding)
+          ? Math.max(0, uvPaintSpec.padding)
+          : 0;
       uvPaintConfig = {
         rects: rectRes.data.rects,
         mapping: uvPaintSpec.mapping ?? 'stretch',
@@ -266,7 +272,7 @@ const withReportError = (
   item: string | undefined,
   meta: MetaOptions,
   service: ToolService
-): ToolResponse<unknown> => {
+): ToolResponse<ApplyReport> => {
   const nextReport = recordApplyError(report, step, item, error.message);
   const details: Record<string, unknown> = { ...(error.details ?? {}), report: nextReport, ...buildMeta(meta, service) };
   return { ok: false, error: { ...error, details } };

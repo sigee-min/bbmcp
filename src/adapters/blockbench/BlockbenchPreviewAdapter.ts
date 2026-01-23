@@ -78,8 +78,8 @@ export class BlockbenchPreviewAdapter {
     if (!canvas.width || !canvas.height) {
       return { error: { code: 'not_implemented', message: 'preview canvas has no size' } };
     }
-    const controls = preview?.controls ?? null;
-    const camera = preview?.camera ?? null;
+    const controls = (preview?.controls ?? null) as ControlsLike | null;
+    const camera = (preview?.camera ?? null) as CameraLike | null;
     if (params.angle && !controls) {
       return {
         error: {
@@ -156,6 +156,9 @@ export class BlockbenchPreviewAdapter {
         return { error: { code: 'invalid_payload', message: 'fixed mode only supports single output' } };
       }
 
+      if (!controls) {
+        return { error: { code: 'not_implemented', message: 'turntable preview controls not available' } };
+      }
       const fps = params.fps ?? DEFAULT_TURNTABLE_FPS;
       const durationSeconds = params.durationSeconds ?? DEFAULT_TURNTABLE_SECONDS;
       if (!Number.isFinite(fps) || fps <= 0 || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {

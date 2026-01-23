@@ -62,7 +62,7 @@ export class BlockbenchGeometryAdapter {
         if (group) {
           if (params.id) group.bbmcpId = params.id;
           const attached = attachToOutliner(parent, outliner, group, this.log, 'bone');
-          if (!attached && outliner?.root?.push) {
+          if (!attached && Array.isArray(outliner?.root)) {
             outliner.root.push(group);
           }
         }
@@ -167,7 +167,7 @@ export class BlockbenchGeometryAdapter {
           this.enforceManualUvMode(cube);
           if (params.id) cube.bbmcpId = params.id;
           const attached = attachToOutliner(parent, outliner, cube, this.log, 'cube');
-          if (!attached && outliner?.root?.push) {
+          if (!attached && Array.isArray(outliner?.root)) {
             outliner.root.push(cube);
           }
         }
@@ -428,7 +428,7 @@ export class BlockbenchGeometryAdapter {
         const cubeName = cube?.name ? String(cube.name) : 'cube';
         const faces = cube.faces ?? {};
         Object.entries(faces).forEach(([faceKey, face]) => {
-          if (!VALID_FACE_KEYS.has(faceKey)) return;
+          if (!VALID_FACE_KEYS.has(faceKey as CubeFaceDirection)) return;
           const ref = face?.texture;
           if (ref === false || ref === undefined || ref === null) return;
           const refValue = typeof ref === 'string' ? ref : String(ref);

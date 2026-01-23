@@ -22,9 +22,8 @@ import {
 import { toToolResponse } from './response';
 import { validateEntitySpec, validateModelSpec, validateTextureSpec, validateUvSpec } from './validators';
 import { computeTextureUsageId } from '../domain/textureUsage';
-import { findUvOverlapIssues, formatUvFaceRect } from '../domain/uvOverlap';
-import { findUvScaleIssues } from '../domain/uvScale';
-import { collectTextureTargets, isIssueTarget } from '../domain/uvTargets';
+import { guardUvOverlaps, guardUvScale, guardUvUsageId } from '../domain/uvGuards';
+import { collectTextureTargets } from '../domain/uvTargets';
 import { toDomainCube, toDomainTextureUsage } from '../usecases/domainMappers';
 import { buildUvApplyPlan } from '../domain/uvApply';
 
@@ -85,87 +84,28 @@ export class ProxyRouter {
     const usageRes = this.service.getTextureUsage({});
     if (!usageRes.ok) return withErrorMeta(usageRes.error, meta, this.service);
     const usage = toDomainTextureUsage(usageRes.value);
-    const currentUsageId = computeTextureUsageId(usage);
-    if (currentUsageId !== payload.uvUsageId) {
-      return withErrorMeta(
-        {
-          code: 'invalid_state',
-          message: 'UV usage changed since preflight_texture. Refresh preflight and retry.',
-          fix: 'Call preflight_texture without texture filters and retry with the new uvUsageId.',
-          details: { expected: payload.uvUsageId, current: currentUsageId }
-        },
-        meta,
-        this.service
-      );
+    const usageIdError = guardUvUsageId(usage, payload.uvUsageId);
+    if (usageIdError) {
+      return withErrorMeta(usageIdError, meta, this.service);
     }
-    const overlapIssues = findUvOverlapIssues(usage);
     const overlapTargets = collectTextureTargets(payload.textures);
-    const blockingOverlaps = overlapIssues.filter((issue) => isIssueTarget(issue, overlapTargets));
-    if (blockingOverlaps.length > 0) {
-      const sample = blockingOverlaps[0];
-      const example = sample.example
-        ? ` Example: ${formatUvFaceRect(sample.example.a)} overlaps ${formatUvFaceRect(sample.example.b)}.`
-        : '';
-      const names = blockingOverlaps.slice(0, 3).map((issue) => `"${issue.textureName}"`).join(', ');
-      const suffix = blockingOverlaps.length > 3 ? ` (+${blockingOverlaps.length - 3} more)` : '';
-      return withErrorMeta(
-        {
-          code: 'invalid_state',
-          message:
-            `UV overlap detected for texture${blockingOverlaps.length === 1 ? '' : 's'} ${names}${suffix}. ` +
-            `Only identical UV rects may overlap.` +
-            example,
-          fix: 'Adjust UVs so only identical rects overlap, then call preflight_texture and retry.',
-          details: {
-            overlaps: blockingOverlaps.map((issue) => ({
-              textureId: issue.textureId ?? undefined,
-              textureName: issue.textureName,
-              conflictCount: issue.conflictCount,
-              example: issue.example
-            }))
-          }
-        },
-        meta,
-        this.service
-      );
+    const overlapError = guardUvOverlaps(usage, overlapTargets);
+    if (overlapError) {
+      return withErrorMeta(overlapError, meta, this.service);
     }
     const stateRes = this.service.getProjectState({ detail: 'full' });
     if (!stateRes.ok) return withErrorMeta(stateRes.error, meta, this.service);
     const project = stateRes.value.project;
-    const scaleResult = findUvScaleIssues(
-      usage,
-      (project.cubes ?? []).map((cube) => toDomainCube(cube)),
-      project.textureResolution,
-      this.service.getUvPolicy()
-    );
     const scaleTargets = collectTextureTargets(payload.textures);
-    const blockingScale = scaleResult.issues.filter((issue) => isIssueTarget(issue, scaleTargets));
-    if (blockingScale.length > 0) {
-      const sample = blockingScale[0];
-      const example = sample.example
-        ? ` Example: ${sample.example.cubeName} (${sample.example.face}) actual ${sample.example.actual.width}x${sample.example.actual.height} vs expected ${sample.example.expected.width}x${sample.example.expected.height}.`
-        : '';
-      const names = blockingScale.slice(0, 3).map((issue) => `"${issue.textureName}"`).join(', ');
-      const suffix = blockingScale.length > 3 ? ` (+${blockingScale.length - 3} more)` : '';
-      return withErrorMeta(
-        {
-          code: 'invalid_state',
-          message:
-            `UV scale mismatch detected for texture${blockingScale.length === 1 ? '' : 's'} ${names}${suffix}.` +
-            example,
-          fix: 'Run auto_uv_atlas (apply=true), then preflight_texture, then repaint.',
-          details: {
-            mismatches: blockingScale.map((issue) => ({
-              textureId: issue.textureId ?? undefined,
-              textureName: issue.textureName,
-              mismatchCount: issue.mismatchCount,
-              example: issue.example
-            }))
-          }
-        },
-        meta,
-        this.service
-      );
+    const scaleError = guardUvScale({
+      usage,
+      cubes: (project.cubes ?? []).map((cube) => toDomainCube(cube)),
+      resolution: project.textureResolution,
+      policy: this.service.getUvPolicy(),
+      targets: scaleTargets
+    });
+    if (scaleError) {
+      return withErrorMeta(scaleError, meta, this.service);
     }
     return this.runWithoutRevisionGuard(async () => {
       const report = createApplyReport();
@@ -200,18 +140,9 @@ export class ProxyRouter {
       const usageRes = this.service.getTextureUsage({});
       if (!usageRes.ok) return withErrorMeta(usageRes.error, meta, this.service);
       const usage = toDomainTextureUsage(usageRes.value);
-      const currentUsageId = computeTextureUsageId(usage);
-      if (currentUsageId !== payload.uvUsageId) {
-        return withErrorMeta(
-          {
-            code: 'invalid_state',
-            message: 'UV usage changed since preflight_texture. Refresh preflight and retry.',
-            fix: 'Call preflight_texture without texture filters and retry with the new uvUsageId.',
-            details: { expected: payload.uvUsageId, current: currentUsageId }
-          },
-          meta,
-          this.service
-        );
+      const usageIdError = guardUvUsageId(usage, payload.uvUsageId);
+      if (usageIdError) {
+        return withErrorMeta(usageIdError, meta, this.service);
       }
       const stateRes = this.service.getProjectState({ detail: 'full' });
       if (!stateRes.ok) return withErrorMeta(stateRes.error, meta, this.service);
@@ -225,71 +156,17 @@ export class ProxyRouter {
       if (!planRes.ok) return withErrorMeta(planRes.error, meta, this.service);
 
       const targets = collectTextureTargets(planRes.data.touchedTextures);
-      const overlapIssues = findUvOverlapIssues(planRes.data.usage);
-      const blockingOverlaps = overlapIssues.filter((issue) => isIssueTarget(issue, targets));
-      if (blockingOverlaps.length > 0) {
-        const sample = blockingOverlaps[0];
-        const example = sample.example
-          ? ` Example: ${formatUvFaceRect(sample.example.a)} overlaps ${formatUvFaceRect(sample.example.b)}.`
-          : '';
-        const names = blockingOverlaps.slice(0, 3).map((issue) => `"${issue.textureName}"`).join(', ');
-        const suffix = blockingOverlaps.length > 3 ? ` (+${blockingOverlaps.length - 3} more)` : '';
-        return withErrorMeta(
-          {
-            code: 'invalid_state',
-            message:
-              `UV overlap detected for texture${blockingOverlaps.length === 1 ? '' : 's'} ${names}${suffix}. ` +
-              `Only identical UV rects may overlap.` +
-              example,
-            fix: 'Adjust UVs so only identical rects overlap, then call preflight_texture and retry.',
-            details: {
-              overlaps: blockingOverlaps.map((issue) => ({
-                textureId: issue.textureId ?? undefined,
-                textureName: issue.textureName,
-                conflictCount: issue.conflictCount,
-                example: issue.example
-              }))
-            }
-          },
-          meta,
-          this.service
-        );
-      }
+      const overlapError = guardUvOverlaps(planRes.data.usage, targets);
+      if (overlapError) return withErrorMeta(overlapError, meta, this.service);
 
-      const scaleResult = findUvScaleIssues(
-        planRes.data.usage,
-        (project.cubes ?? []).map((cube) => toDomainCube(cube)),
-        project.textureResolution,
-        this.service.getUvPolicy()
-      );
-      const blockingScale = scaleResult.issues.filter((issue) => isIssueTarget(issue, targets));
-      if (blockingScale.length > 0) {
-        const sample = blockingScale[0];
-        const example = sample.example
-          ? ` Example: ${sample.example.cubeName} (${sample.example.face}) actual ${sample.example.actual.width}x${sample.example.actual.height} vs expected ${sample.example.expected.width}x${sample.example.expected.height}.`
-          : '';
-        const names = blockingScale.slice(0, 3).map((issue) => `"${issue.textureName}"`).join(', ');
-        const suffix = blockingScale.length > 3 ? ` (+${blockingScale.length - 3} more)` : '';
-        return withErrorMeta(
-          {
-            code: 'invalid_state',
-            message:
-              `UV scale mismatch detected for texture${blockingScale.length === 1 ? '' : 's'} ${names}${suffix}.` +
-              example,
-            fix: 'Run auto_uv_atlas (apply=true), then preflight_texture, then repaint.',
-            details: {
-              mismatches: blockingScale.map((issue) => ({
-                textureId: issue.textureId ?? undefined,
-                textureName: issue.textureName,
-                mismatchCount: issue.mismatchCount,
-                example: issue.example
-              }))
-            }
-          },
-          meta,
-          this.service
-        );
-      }
+      const scaleError = guardUvScale({
+        usage: planRes.data.usage,
+        cubes: (project.cubes ?? []).map((cube) => toDomainCube(cube)),
+        resolution: project.textureResolution,
+        policy: this.service.getUvPolicy(),
+        targets
+      });
+      if (scaleError) return withErrorMeta(scaleError, meta, this.service);
 
       for (const update of planRes.data.updates) {
         const res = this.service.setFaceUv({
@@ -376,88 +253,30 @@ export class ProxyRouter {
         const usageRes = this.service.getTextureUsage({});
         if (!usageRes.ok) return withErrorMeta(usageRes.error, meta, this.service);
         const usage = toDomainTextureUsage(usageRes.value);
-        const currentUsageId = computeTextureUsageId(usage);
-        if (currentUsageId !== payload.uvUsageId) {
+        if (!payload.uvUsageId) {
           return withErrorMeta(
-            {
-              code: 'invalid_state',
-              message: 'UV usage changed since preflight_texture. Refresh preflight and retry.',
-              fix: 'Call preflight_texture without texture filters and retry with the new uvUsageId.',
-              details: { expected: payload.uvUsageId, current: currentUsageId }
-            },
+            { code: 'invalid_payload', message: 'uvUsageId is required when textures are provided' },
             meta,
             this.service
           );
         }
-        const overlapIssues = findUvOverlapIssues(usage);
-        const overlapTargets = collectTextureTargets(payload.textures);
-        const blockingOverlaps = overlapIssues.filter((issue) => isIssueTarget(issue, overlapTargets));
-        if (blockingOverlaps.length > 0) {
-          const sample = blockingOverlaps[0];
-          const example = sample.example
-            ? ` Example: ${formatUvFaceRect(sample.example.a)} overlaps ${formatUvFaceRect(sample.example.b)}.`
-            : '';
-          const names = blockingOverlaps.slice(0, 3).map((issue) => `"${issue.textureName}"`).join(', ');
-          const suffix = blockingOverlaps.length > 3 ? ` (+${blockingOverlaps.length - 3} more)` : '';
-          return withErrorMeta(
-            {
-              code: 'invalid_state',
-              message:
-                `UV overlap detected for texture${blockingOverlaps.length === 1 ? '' : 's'} ${names}${suffix}. ` +
-                `Only identical UV rects may overlap.` +
-                example,
-              fix: 'Adjust UVs so only identical rects overlap, then call preflight_texture and retry.',
-              details: {
-                overlaps: blockingOverlaps.map((issue) => ({
-                  textureId: issue.textureId ?? undefined,
-                  textureName: issue.textureName,
-                  conflictCount: issue.conflictCount,
-                  example: issue.example
-                }))
-              }
-            },
-            meta,
-            this.service
-          );
-        }
+        const usageIdError = guardUvUsageId(usage, payload.uvUsageId);
+        if (usageIdError) return withErrorMeta(usageIdError, meta, this.service);
+
+        const targets = collectTextureTargets(payload.textures);
+        const overlapError = guardUvOverlaps(usage, targets);
+        if (overlapError) return withErrorMeta(overlapError, meta, this.service);
         const stateRes = this.service.getProjectState({ detail: 'full' });
         if (!stateRes.ok) return withErrorMeta(stateRes.error, meta, this.service);
         const project = stateRes.value.project;
-        const scaleResult = findUvScaleIssues(
+        const scaleError = guardUvScale({
           usage,
-          (project.cubes ?? []).map((cube) => toDomainCube(cube)),
-          project.textureResolution,
-          this.service.getUvPolicy()
-        );
-        const scaleTargets = collectTextureTargets(payload.textures);
-        const blockingScale = scaleResult.issues.filter((issue) => isIssueTarget(issue, scaleTargets));
-        if (blockingScale.length > 0) {
-          const sample = blockingScale[0];
-          const example = sample.example
-            ? ` Example: ${sample.example.cubeName} (${sample.example.face}) actual ${sample.example.actual.width}x${sample.example.actual.height} vs expected ${sample.example.expected.width}x${sample.example.expected.height}.`
-            : '';
-          const names = blockingScale.slice(0, 3).map((issue) => `"${issue.textureName}"`).join(', ');
-          const suffix = blockingScale.length > 3 ? ` (+${blockingScale.length - 3} more)` : '';
-          return withErrorMeta(
-            {
-              code: 'invalid_state',
-              message:
-                `UV scale mismatch detected for texture${blockingScale.length === 1 ? '' : 's'} ${names}${suffix}.` +
-                example,
-              fix: 'Run auto_uv_atlas (apply=true), then preflight_texture, then repaint.',
-              details: {
-                mismatches: blockingScale.map((issue) => ({
-                  textureId: issue.textureId ?? undefined,
-                  textureName: issue.textureName,
-                  mismatchCount: issue.mismatchCount,
-                  example: issue.example
-                }))
-              }
-            },
-            meta,
-            this.service
-          );
-        }
+          cubes: (project.cubes ?? []).map((cube) => toDomainCube(cube)),
+          resolution: project.textureResolution,
+          policy: this.service.getUvPolicy(),
+          targets
+        });
+        if (scaleError) return withErrorMeta(scaleError, meta, this.service);
         const report = createApplyReport();
         const textureRes = await applyTextureSpecSteps(
           this.service,

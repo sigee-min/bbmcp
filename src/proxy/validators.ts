@@ -67,16 +67,16 @@ export const validateTextureSpec = (payload: ApplyTextureSpecPayload, limits: Li
       return err('invalid_payload', `targetId or targetName is required (${label})`);
     }
     const size = resolveTextureSpecSize(tex);
-    if (!Number.isFinite(size.width) || size.width <= 0) {
+    const width = size.width;
+    const height = size.height;
+    if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0) {
       return err('invalid_payload', `texture width must be > 0 (${label})`);
     }
-    if (!Number.isFinite(size.height) || size.height <= 0) {
+    if (typeof height !== 'number' || !Number.isFinite(height) || height <= 0) {
       return err('invalid_payload', `texture height must be > 0 (${label})`);
     }
-    if (Number.isFinite(size.width) && Number.isFinite(size.height)) {
-      if (size.width > limits.maxTextureSize || size.height > limits.maxTextureSize) {
-        return err('invalid_payload', `texture size exceeds max ${limits.maxTextureSize} (${label})`);
-      }
+    if (width > limits.maxTextureSize || height > limits.maxTextureSize) {
+      return err('invalid_payload', `texture size exceeds max ${limits.maxTextureSize} (${label})`);
     }
     const ops = Array.isArray(tex.ops) ? tex.ops : [];
     if (ops.length > MAX_TEX_OPS) {

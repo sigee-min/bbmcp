@@ -6,7 +6,8 @@ import {
   SidecarRequestMessage,
   SidecarResponseMessage
 } from '../../transport/protocol';
-import { ToolError, ToolResponse } from '../../types';
+import { ToolError, ToolResponse, ToolName } from '../../types';
+import type { ProxyTool } from '../../spec';
 
 type Readable = {
   on(event: 'data', handler: (chunk: string | Uint8Array) => void): void;
@@ -86,7 +87,7 @@ export class SidecarClient {
     };
   }
 
-  request(tool: string, payload: unknown, mode?: 'direct' | 'proxy'): Promise<ToolResponse<unknown>> {
+  request(tool: ToolName | ProxyTool, payload: unknown, mode?: 'direct' | 'proxy'): Promise<ToolResponse<unknown>> {
     if (!this.canAccept()) {
       return Promise.resolve({
         ok: false,

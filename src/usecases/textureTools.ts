@@ -11,17 +11,14 @@ import { TextureRendererPort } from '../ports/textureRenderer';
 import { SessionState } from '../session';
 import { UsecaseResult, fail, ok } from './result';
 import { resolveTextureTarget } from '../services/lookup';
-import { computeTextureUsageId } from '../domain/textureUsage';
 import { TexturePresetResult, computeCoverage, generateTexturePreset } from '../domain/texturePresets';
 import { resolveUvPaintRects, validateUvPaintSpec } from '../domain/uvPaint';
 import { applyUvPaintPixels } from '../domain/uvPaintPixels';
-import { findUvOverlapIssues, formatUvFaceRect } from '../domain/uvOverlap';
-import { findUvScaleIssues } from '../domain/uvScale';
-import { collectSingleTarget, isIssueTarget } from '../domain/uvTargets';
+import { guardUvOverlaps, guardUvScale, guardUvUsageId } from '../domain/uvGuards';
+import { collectSingleTarget } from '../domain/uvTargets';
 import { buildUvAtlasPlan } from '../domain/uvAtlas';
 import { UvPolicyConfig } from '../domain/uvPolicy';
 import { toDomainSnapshot, toDomainTextureUsage } from './domainMappers';
-import type { TextureUsage } from '../domain/model';
 
 export type TextureToolContext = {
   ensureActive: () => ToolError | null;
@@ -92,47 +89,25 @@ export const runGenerateTexturePreset = (
   const usageRaw = usageRes.result ?? { textures: [] };
   const usage = toDomainTextureUsage(usageRaw);
   const snapshot = ctx.getSnapshot();
-  const currentUsageId = computeTextureUsageId(usage);
-  if (currentUsageId !== payload.uvUsageId) {
-    return fail({
-      code: 'invalid_state',
-      message: 'UV usage changed since preflight_texture. Refresh preflight and retry.',
-      fix: 'Call preflight_texture without texture filters and retry with the new uvUsageId.',
-      details: { expected: payload.uvUsageId, current: currentUsageId }
-    });
-  }
-  const overlap = findOverlapIssueForTarget(usage, payload);
-  if (overlap) {
-    const example = overlap.example
-      ? ` Example: ${formatUvFaceRect(overlap.example.a)} overlaps ${formatUvFaceRect(overlap.example.b)}.`
-      : '';
-    return fail({
-      code: 'invalid_state',
-      message:
-        `UV overlap detected for texture "${overlap.textureName}" (${overlap.conflictCount} conflict${overlap.conflictCount === 1 ? '' : 's'}). ` +
-        `Only identical UV rects may overlap.` +
-        example,
-      fix: 'Adjust UVs so only identical rects overlap, then call preflight_texture and retry.',
-      details: { overlap }
-    });
-  }
+  const usageIdError = guardUvUsageId(usage, payload.uvUsageId);
+  if (usageIdError) return fail(usageIdError);
+  const targets = collectSingleTarget({
+    targetId: payload.targetId,
+    targetName: payload.targetName,
+    name: payload.name
+  });
+  const overlapError = guardUvOverlaps(usage, targets);
+  if (overlapError) return fail(overlapError);
   const resolution = ctx.editor.getProjectTextureResolution() ?? { width, height };
   const domainSnapshot = toDomainSnapshot(snapshot);
-  const scaleResult = findUvScaleIssues(usage, domainSnapshot.cubes, resolution, ctx.getUvPolicyConfig());
-  const scaleIssue = findScaleIssueForTarget(scaleResult.issues, payload);
-  if (scaleIssue) {
-    const example = scaleIssue.example
-      ? ` Example: ${scaleIssue.example.cubeName} (${scaleIssue.example.face}) actual ${scaleIssue.example.actual.width}x${scaleIssue.example.actual.height} vs expected ${scaleIssue.example.expected.width}x${scaleIssue.example.expected.height}.`
-      : '';
-    return fail({
-      code: 'invalid_state',
-      message:
-        `UV scale mismatch detected for texture "${scaleIssue.textureName}" (${scaleIssue.mismatchCount}).` +
-        example,
-      fix: 'Run auto_uv_atlas (apply=true), then preflight_texture, then repaint.',
-      details: { mismatch: scaleIssue }
-    });
-  }
+  const scaleError = guardUvScale({
+    usage,
+    cubes: domainSnapshot.cubes,
+    resolution,
+    policy: ctx.getUvPolicyConfig(),
+    targets
+  });
+  if (scaleError) return fail(scaleError);
   const mode = payload.mode ?? (payload.targetId || payload.targetName ? 'update' : 'create');
   if (mode === 'create' && !payload.name) {
     return fail({
@@ -194,7 +169,10 @@ export const runGenerateTexturePreset = (
     config: {
       rects: rectRes.data.rects,
       mapping: uvPaintSpec.mapping ?? 'stretch',
-      padding: Number.isFinite(uvPaintSpec.padding) ? Math.max(0, uvPaintSpec.padding) : 0,
+      padding:
+        typeof uvPaintSpec.padding === 'number' && Number.isFinite(uvPaintSpec.padding)
+          ? Math.max(0, uvPaintSpec.padding)
+          : 0,
       anchor: Array.isArray(uvPaintSpec.anchor) ? uvPaintSpec.anchor : [0, 0]
     },
     label
@@ -274,7 +252,10 @@ export const runAutoUvAtlas = (
       message: 'Project textureResolution is missing. Set it before atlas packing.'
     });
   }
-  const padding = Number.isFinite(payload.padding) ? Math.max(0, Math.trunc(payload.padding)) : 0;
+  const padding =
+    typeof payload.padding === 'number' && Number.isFinite(payload.padding)
+      ? Math.max(0, Math.trunc(payload.padding))
+      : 0;
   const snapshot = ctx.getSnapshot();
   const domainSnapshot = toDomainSnapshot(snapshot);
   const planRes = buildUvAtlasPlan({
@@ -317,31 +298,4 @@ export const runAutoUvAtlas = (
     resolution: plan.resolution,
     textures: plan.textures
   });
-};
-
-const findOverlapIssueForTarget = (
-  usage: TextureUsage,
-  payload: GenerateTexturePresetPayload
-) => {
-  const issues = findUvOverlapIssues(usage);
-  if (issues.length === 0) return null;
-  const targets = collectSingleTarget({
-    targetId: payload.targetId,
-    targetName: payload.targetName,
-    name: payload.name
-  });
-  return issues.find((issue) => isIssueTarget(issue, targets)) ?? null;
-};
-
-const findScaleIssueForTarget = (
-  issues: ReturnType<typeof findUvScaleIssues>['issues'],
-  payload: GenerateTexturePresetPayload
-) => {
-  if (issues.length === 0) return null;
-  const targets = collectSingleTarget({
-    targetId: payload.targetId,
-    targetName: payload.targetName,
-    name: payload.name
-  });
-  return issues.find((issue) => isIssueTarget(issue, targets)) ?? null;
 };

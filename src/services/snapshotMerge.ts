@@ -72,7 +72,7 @@ function mergeTexture(
     ...sessionTex,
     ...liveTex,
     id: pickString(liveTex.id, sessionTex.id),
-    name: pickString(liveTex.name, sessionTex.name),
+    name: liveTex.name ?? sessionTex.name,
     path: pickString(liveTex.path, sessionTex.path),
     width: pickSize(liveTex.width, sessionTex.width),
     height: pickSize(liveTex.height, sessionTex.height),
@@ -92,7 +92,7 @@ function pickString(primary?: string, fallback?: string): string | undefined {
 }
 
 function pickSize(primary?: number, fallback?: number): number | undefined {
-  if (Number.isFinite(primary) && primary > 0) return primary;
-  if (Number.isFinite(fallback) && fallback > 0) return fallback;
+  if (typeof primary === 'number' && Number.isFinite(primary) && primary > 0) return primary;
+  if (typeof fallback === 'number' && Number.isFinite(fallback) && fallback > 0) return fallback;
   return primary ?? fallback;
 }

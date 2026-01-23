@@ -50,10 +50,10 @@ export const renderTextureSpec = (
   const size = resolveTextureSpecSize(spec, base);
   const width = size.width;
   const height = size.height;
-  if (!Number.isFinite(width) || width <= 0) {
+  if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0) {
     return err('invalid_payload', `texture width must be > 0 (${label})`);
   }
-  if (!Number.isFinite(height) || height <= 0) {
+  if (typeof height !== 'number' || !Number.isFinite(height) || height <= 0) {
     return err('invalid_payload', `texture height must be > 0 (${label})`);
   }
   if (width > limits.maxTextureSize || height > limits.maxTextureSize) {
@@ -86,10 +86,10 @@ export const renderTextureSpec = (
   if (uvPaint) {
     const sourceWidth = uvPaint.source.width;
     const sourceHeight = uvPaint.source.height;
-    if (!Number.isFinite(sourceWidth) || sourceWidth <= 0) {
+    if (typeof sourceWidth !== 'number' || !Number.isFinite(sourceWidth) || sourceWidth <= 0) {
       return err('invalid_payload', `uvPaint source width must be > 0 (${label})`);
     }
-    if (!Number.isFinite(sourceHeight) || sourceHeight <= 0) {
+    if (typeof sourceHeight !== 'number' || !Number.isFinite(sourceHeight) || sourceHeight <= 0) {
       return err('invalid_payload', `uvPaint source height must be > 0 (${label})`);
     }
     if (sourceWidth > limits.maxTextureSize || sourceHeight > limits.maxTextureSize) {
@@ -146,8 +146,14 @@ export const resolveTextureBase = async (
     image = await loadImageFromDataUri(source.dataUri);
   }
   if (!image) return err('not_implemented', 'Texture base image unavailable');
-  const width = Number.isFinite(source.width) && source.width > 0 ? source.width : resolveImageDim(image, 'width');
-  const height = Number.isFinite(source.height) && source.height > 0 ? source.height : resolveImageDim(image, 'height');
+  const width =
+    typeof source.width === 'number' && Number.isFinite(source.width) && source.width > 0
+      ? source.width
+      : resolveImageDim(image, 'width');
+  const height =
+    typeof source.height === 'number' && Number.isFinite(source.height) && source.height > 0
+      ? source.height
+      : resolveImageDim(image, 'height');
   if (!width || !height) return err('invalid_payload', 'Texture base size unavailable');
   return { ok: true, data: { image, width, height } };
 };
@@ -180,7 +186,7 @@ const applyTextureOp = (ctx: CanvasRenderingContext2D, op: TextureOp): ToolRespo
       return { ok: true, data: { ok: true } };
     }
     default:
-      return err('invalid_payload', `unsupported texture op: ${op.op}`);
+      return err('invalid_payload', 'unsupported texture op');
   }
 };
 
@@ -342,7 +348,7 @@ const resolveImageDim = (image: CanvasImageSource, key: 'width' | 'height'): num
   const candidate = image as { width?: unknown; height?: unknown; naturalWidth?: unknown; naturalHeight?: unknown };
   const natural = key === 'width' ? candidate.naturalWidth : candidate.naturalHeight;
   const value = natural ?? candidate[key] ?? 0;
-  return Number.isFinite(value) ? value : 0;
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 };
 
 const isFiniteNumber = (value: unknown): value is number => Number.isFinite(value);

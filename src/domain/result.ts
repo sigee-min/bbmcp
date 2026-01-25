@@ -1,17 +1,8 @@
-export type DomainErrorCode =
-  | 'unsupported_format'
-  | 'not_implemented'
-  | 'invalid_state'
-  | 'invalid_payload'
-  | 'no_change'
-  | 'io_error'
-  | 'unknown';
+import type { ToolError, ToolErrorCode } from '../types';
 
-export type DomainError = {
-  code: DomainErrorCode;
-  message: string;
-  details?: Record<string, unknown>;
-};
+export type DomainErrorCode = ToolErrorCode;
+
+export type DomainError = ToolError;
 
 export type DomainResult<T> =
   | { ok: true; data: T }
@@ -22,8 +13,9 @@ export const ok = <T>(data: T): DomainResult<T> => ({ ok: true, data });
 export const fail = <T = never>(
   code: DomainErrorCode,
   message: string,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
+  fix?: string
 ): DomainResult<T> => ({
   ok: false,
-  error: { code, message, ...(details ? { details } : {}) }
+  error: { code, message, ...(details ? { details } : {}), ...(fix ? { fix } : {}) }
 });

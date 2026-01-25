@@ -25,7 +25,8 @@ const tests = [
   'versionConsistency.test.ts',
   'domPort.test.ts',
   'proxyMetaPipeline.test.ts',
-  'proxyTexture.test.ts'
+  'proxyTexture.test.ts',
+  'sidecarCodec.test.ts'
 ];
 
 (async () => {

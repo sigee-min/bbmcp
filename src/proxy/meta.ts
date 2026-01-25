@@ -1,6 +1,7 @@
 import { ProjectStateDetail, ToolError, ToolResponse } from '../types';
 import { ToolService } from '../usecases/ToolService';
 import { decideRevision } from '../services/revisionGuard';
+import { errFromDomain } from '../services/toolResponse';
 
 export type MetaOptions = {
   includeState: boolean;
@@ -61,9 +62,9 @@ export const withErrorMeta = <T = unknown>(
   service: ToolService
 ): ToolResponse<T> => {
   const extra = buildMeta(meta, service);
-  if (Object.keys(extra).length === 0) return { ok: false, error };
+  if (Object.keys(extra).length === 0) return errFromDomain(error);
   const details = { ...(error.details ?? {}), ...extra };
-  return { ok: false, error: { ...error, details } };
+  return errFromDomain({ ...error, details });
 };
 
 export const guardRevision = (

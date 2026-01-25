@@ -31,15 +31,15 @@ import {
 import { callTool, readResource, refTool } from './mcp/nextActions';
 import { decideRevision } from './services/revisionGuard';
 import { attachStateToResponse } from './services/attachState';
-import { toToolResponse } from './services/toolResponse';
+import { err, errFromDomain, toToolResponse } from './services/toolResponse';
 
 const respondOk = <T>(data: T): ToolResponse<T> => ({ ok: true, data });
-const respondError = <T>(error: ToolError): ToolResponse<T> => ({ ok: false, error });
+const respondError = <T>(error: ToolError): ToolResponse<T> => errFromDomain(error);
 const respondErrorSimple = (
   code: ToolErrorCode,
   message: string,
   details?: Record<string, unknown>
-): ToolResponse<unknown> => respondError({ code, message, details });
+): ToolResponse<unknown> => err(code, message, details);
 
 type BaseResult<K extends ToolName> = ToolResultMap[K] extends WithState<infer R> ? R : ToolResultMap[K];
 

@@ -10,7 +10,7 @@ import { ToolService } from '../usecases/ToolService';
 import { buildRigTemplate } from '../templates';
 import { buildMeta, MetaOptions } from './meta';
 import { renderTextureSpec, resolveTextureBase, resolveTextureSpecSize, TextureCoverage, UvPaintRenderConfig } from './texture';
-import { toToolResponse } from '../services/toolResponse';
+import { errFromDomain, toToolResponse } from '../services/toolResponse';
 import { isZeroSize } from '../domain/geometry';
 import { TextureUsage } from '../domain/model';
 import { resolveUvPaintRects } from './uvPaint';
@@ -262,7 +262,7 @@ const withReportError = (
 ): ToolResponse<ApplyReport> => {
   const nextReport = recordApplyError(report, step, item, error.message);
   const details: Record<string, unknown> = { ...(error.details ?? {}), report: nextReport, ...buildMeta(meta, service) };
-  return { ok: false, error: { ...error, details } };
+  return errFromDomain({ ...error, details });
 };
 
 const recordApplyError = (

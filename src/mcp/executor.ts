@@ -2,6 +2,7 @@ import { Dispatcher, ToolName, ToolPayloadMap, ToolResponse } from '../types';
 import { ProxyRouter } from '../proxy';
 import { ProxyTool } from '../spec';
 import { PROXY_TOOL_NAMES } from '../shared/toolConstants';
+import { errFromDomain } from '../services/toolResponse';
 
 export interface ToolExecutor {
   callTool: (name: string, args: unknown) => Promise<ToolResponse<unknown>>;
@@ -32,7 +33,7 @@ const normalizeToolResponse = (response: ToolResponse<unknown>): ToolResponse<un
   if (typeof details.reason !== 'string' || details.reason.length === 0) {
     details.reason = response.error.code;
   }
-  return { ok: false, error: { ...response.error, details } };
+  return errFromDomain({ ...response.error, details });
 };
 
 const PROXY_TOOL_SET = new Set<string>(PROXY_TOOL_NAMES);

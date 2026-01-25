@@ -20,7 +20,7 @@ import type { DomPort } from '../ports/dom';
 import { buildRenderPreviewContent, buildRenderPreviewStructured } from '../mcp/content';
 import { callTool } from '../mcp/nextActions';
 import { applyModelSpecSteps, createApplyReport } from './apply';
-import { toToolResponse } from '../services/toolResponse';
+import { err, toToolResponse } from '../services/toolResponse';
 import { validateModelSpec } from './validators';
 import { createProxyPipeline } from './pipeline';
 import { applyTextureSpecProxy, applyUvSpecProxy, texturePipelineProxy, type ProxyPipelineDeps } from './texturePipeline';
@@ -128,12 +128,12 @@ export class ProxyRouter {
             toToolResponse(this.service.validate(payload as ToolPayloadMap['validate']))
           );
         default:
-          return { ok: false, error: { code: 'unknown', message: `Unknown proxy tool ${tool}` } };
+          return err('unknown', `Unknown proxy tool ${tool}`);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       this.log.error('proxy handle error', { tool, message });
-      return { ok: false, error: { code: 'unknown', message } };
+      return err('unknown', message);
     }
   }
 

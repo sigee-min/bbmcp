@@ -8,6 +8,7 @@ import { createProxyPipeline } from './pipeline';
 import { validateEntitySpec } from './validators';
 import { ProxyPipelineDeps, tryRecoverUvForTextureSpec } from './texturePipeline';
 import { ToolResponse } from '../types';
+import { err } from '../services/toolResponse';
 
 export const applyEntitySpecProxy = async (
   deps: ProxyPipelineDeps,
@@ -16,7 +17,7 @@ export const applyEntitySpecProxy = async (
   const v = validateEntitySpec(payload, deps.limits);
   if (!v.ok) return v;
   if (payload.format !== 'geckolib') {
-    return { ok: false, error: { code: 'not_implemented', message: `Format not implemented: ${payload.format}` } };
+    return err('not_implemented', `Format not implemented: ${payload.format}`);
   }
   const pipeline = createProxyPipeline({
     service: deps.service,

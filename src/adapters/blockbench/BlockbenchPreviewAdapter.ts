@@ -1,5 +1,6 @@
 import { errorMessage, Logger } from '../../logging';
 import { RenderPreviewOutputKind, RenderPreviewPayload, RenderPreviewResult, ToolError } from '../../types';
+import { toolError } from '../../services/toolResponse';
 import { PreviewItem } from '../../types/blockbench';
 import { readGlobals } from './blockbenchUtils';
 import { getAnimations } from './BlockbenchAnimationAdapter';
@@ -304,7 +305,7 @@ const applyAnimationState = (
   const animations = getAnimations();
   const clip = animations.find((a) => a.name === clipName);
   if (!clip) {
-    return { ok: false, error: { code: 'invalid_payload', message: `animation clip not found: ${clipName}` } };
+    return { ok: false, error: toolError('invalid_payload', `animation clip not found: ${clipName}`) };
   }
   const maxTime = Number(clip?.length ?? clip?.animation_length ?? clip?.duration ?? NaN);
   const clampedTime = Number.isFinite(maxTime) && maxTime > 0 ? Math.min(Math.max(timeSeconds, 0), maxTime) : timeSeconds;

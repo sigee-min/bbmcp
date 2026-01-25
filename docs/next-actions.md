@@ -41,7 +41,7 @@ Example:
 
 Some nextActions require values that are not yet known at the time the server emits the suggestion (for example `ifRevision`, `uvUsageId`, or a list of cube names).
 
-Instead of placeholder strings like `"<from get_project_state>"`, this project uses a structured reference form:
+Historically this project used placeholder strings like `"<from get_project_state>"`. This project now uses a structured reference form:
 
 ### Reference to another tool's output
 

@@ -1,4 +1,4 @@
-import { Logger, LogLevel, LogLevelProvider } from '../logging';
+import { Logger, LogLevel, LogLevelProvider, safeFormatMeta } from '../logging';
 
 const LOG_LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error'];
 
@@ -13,7 +13,8 @@ export class StderrLogger implements Logger {
 
   log(level: LogLevel, message: string, meta?: Record<string, unknown>): void {
     if (!this.shouldLog(level)) return;
-    const payload = meta ? `${message} ${JSON.stringify(meta)}` : message;
+    const formatted = safeFormatMeta(meta);
+    const payload = formatted ? `${message} ${formatted}` : message;
     const line = `[${this.prefix}] [${level}] ${payload}\n`;
     if (typeof process !== 'undefined' && process.stderr?.write) {
       process.stderr.write(line);

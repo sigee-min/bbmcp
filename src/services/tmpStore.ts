@@ -1,6 +1,7 @@
 import type { ToolError } from '../types';
 import type { TmpSaveResult, TmpStorePort } from '../ports/tmpStore';
 import { errorMessage } from '../logging';
+import { toolError } from './toolResponse';
 
 type FsModule = {
   mkdirSync: (path: string, options?: { recursive?: boolean }) => void;
@@ -72,12 +73,12 @@ export const saveDataUriToTmp = (
 ): { ok: true; data: TmpSaveResult } | { ok: false; error: ToolError } => {
   const parsed = parseDataUri(dataUri);
   if (!parsed) {
-    return { ok: false, error: { code: 'invalid_payload', message: 'Invalid dataUri for image snapshot.' } };
+    return { ok: false, error: toolError('invalid_payload', 'Invalid dataUri for image snapshot.') };
   }
   const fs = loadModule<FsModule>('fs');
   const path = loadModule<PathModule>('path');
   if (!fs || !path) {
-    return { ok: false, error: { code: 'not_implemented', message: 'Filesystem access unavailable.' } };
+    return { ok: false, error: toolError('not_implemented', 'Filesystem access unavailable.') };
   }
   const root = options?.cwd ?? (typeof process !== 'undefined' && process.cwd ? process.cwd() : '.');
   const baseDir = path.resolve(root, '.bbmcp', 'tmp');
@@ -85,7 +86,7 @@ export const saveDataUriToTmp = (
     fs.mkdirSync(baseDir, { recursive: true });
   } catch (err) {
     const message = errorMessage(err, 'Failed to create tmp directory.');
-    return { ok: false, error: { code: 'io_error', message } };
+    return { ok: false, error: toolError('io_error', message) };
   }
   const prefix = sanitizeName(options?.prefix ?? 'image');
   const nameHint = sanitizeName(options?.nameHint ?? '');
@@ -99,13 +100,13 @@ export const saveDataUriToTmp = (
   try {
     buffer = Buffer.from(parsed.base64, 'base64');
   } catch (err) {
-    return { ok: false, error: { code: 'invalid_payload', message: 'Image base64 decode failed.' } };
+    return { ok: false, error: toolError('invalid_payload', 'Image base64 decode failed.') };
   }
   try {
     fs.writeFileSync(filePath, buffer);
   } catch (err) {
     const message = errorMessage(err, 'Failed to write image snapshot.');
-    return { ok: false, error: { code: 'io_error', message } };
+    return { ok: false, error: toolError('io_error', message) };
   }
   return { ok: true, data: { path: filePath, mimeType: parsed.mimeType, byteLength: buffer.byteLength } };
 };

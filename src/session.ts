@@ -1,4 +1,5 @@
 import { FormatKind, ToolResponse, ToolError } from './types';
+import { err } from './services/toolResponse';
 import { TextureFrameOrderType, TextureMeta, TexturePbrChannel, TextureRenderMode, TextureRenderSides } from './types/texture';
 
 export interface TrackedBone {
@@ -115,7 +116,7 @@ export class ProjectSession {
 
   attach(snapshot: SessionState): ToolResponse<{ id: string; format: FormatKind; name: string | null }> {
     if (!snapshot.format) {
-      return { ok: false, error: { code: 'invalid_state', message: 'No active project.' } };
+      return err<{ id: string; format: FormatKind; name: string | null }>('invalid_state', 'No active project.');
     }
     const id = snapshot.id ?? `${Date.now()}`;
     const format = snapshot.format;

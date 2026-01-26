@@ -10,11 +10,10 @@ import {
   ProjectStateDetail,
   ReadTextureResult,
   RenderPreviewResult,
-  ToolPayloadMap,
-  ToolError
+  ToolPayloadMap
 } from '../types';
 import { ProjectSession } from '../session';
-import { CubeFaceDirection, EditorPort, FaceUvMap, TextureSource, TriggerChannel } from '../ports/editor';
+import { CubeFaceDirection, EditorPort, TextureSource, TriggerChannel } from '../ports/editor';
 import { TextureMeta } from '../types/texture';
 import { FormatPort } from '../ports/formats';
 import { SnapshotPort } from '../ports/snapshot';
@@ -34,7 +33,6 @@ import { RevisionStore } from '../services/revision';
 import { HostPort } from '../ports/host';
 import { ResourceStore } from '../ports/resources';
 import { TextureRendererPort } from '../ports/textureRenderer';
-import { BlockPipelineMode, BlockPipelineOnConflict, BlockPipelineTextures, BlockVariant } from '../types/blockPipeline';
 import type { TmpStorePort } from '../ports/tmpStore';
 import type { ToolPolicies } from './policies';
 import { PolicyContext } from './PolicyContext';

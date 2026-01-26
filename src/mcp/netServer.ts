@@ -1,8 +1,7 @@
-import { Logger } from '../logging';
+import { errorMessage, Logger } from '../logging';
 import { McpRouter } from './router';
 import { ResponsePlan, SseConnection } from './types';
 import { openSseConnection } from './transport';
-import { errorMessage } from '../logging';
 import type { Server, Socket } from 'net';
 
 const MAX_BODY_BYTES = 5_000_000;
@@ -76,7 +75,6 @@ const writePlan = (
   socket: Socket,
   plan: ResponsePlan,
   closeAfter: boolean,
-  log: Logger,
   onOpen?: (conn: SseConnection) => void | (() => void)
 ) => {
   if (plan.kind === 'sse') {
@@ -167,7 +165,7 @@ export const startMcpNetServer = (net: NetModule, config: NetServerConfig, route
           const parsed = parseRequestHead(headText);
           if (!parsed.ok) {
             const plan = jsonPlan(400, { error: { code: 'invalid_payload', message: parsed.message } });
-            writePlan(socket, plan, true, log);
+    writePlan(socket, plan, true);
             closeSocket();
             return;
           }
@@ -175,7 +173,7 @@ export const startMcpNetServer = (net: NetModule, config: NetServerConfig, route
           const { contentLength, shouldClose } = parsed.value;
           if (contentLength > MAX_BODY_BYTES) {
             const plan = jsonPlan(413, { error: { code: 'payload_too_large', message: 'payload too large' } });
-            writePlan(socket, plan, true, log);
+    writePlan(socket, plan, true);
             closeSocket();
             return;
           }
@@ -191,7 +189,7 @@ export const startMcpNetServer = (net: NetModule, config: NetServerConfig, route
             headers: parsed.value.headers,
             body
           });
-          writePlan(socket, plan, shouldClose, log);
+    writePlan(socket, plan, shouldClose);
           if (shouldClose || (plan.kind === 'sse' && !plan.close)) {
             if (plan.kind === 'sse' && !plan.close) {
               return;

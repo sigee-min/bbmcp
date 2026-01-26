@@ -1,7 +1,6 @@
 import { Logger } from '../logging';
 import {
   ApplyModelSpecPayload,
-  ApplyTextureSpecPayload,
   TextureSpec
 } from '../spec';
 import { Limits, ToolError, ToolResponse } from '../types';

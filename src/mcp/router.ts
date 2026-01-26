@@ -14,7 +14,6 @@ import { encodeSseComment, encodeSseEvent } from './sse';
 import { ResourceStore } from '../ports/resources';
 import {
   DEFAULT_PROTOCOL_VERSION,
-  DEFAULT_SESSION_TTL_MS,
   DEFAULT_SUPPORTED_PROTOCOLS,
   IMPLICIT_SESSION_METHODS,
   SESSION_PRUNE_INTERVAL_MS,
@@ -327,6 +326,7 @@ export class McpRouter {
       return { type: 'response', response: jsonRpcResult(id, result), status: 200 };
     } catch (err) {
       const messageText = errorMessage(err, 'tool execution failed');
+      this.log.error('tool execution failed', { tool: name, message: messageText });
       const result = { isError: true, content: makeTextContent(messageText) };
       return { type: 'response', response: jsonRpcResult(id, result), status: 200 };
     }

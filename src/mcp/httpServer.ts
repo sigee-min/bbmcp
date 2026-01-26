@@ -1,8 +1,7 @@
-import { Logger } from '../logging';
+import { errorMessage, Logger } from '../logging';
 import { McpRouter } from './router';
 import { HttpRequest, ResponsePlan } from './types';
 import { openSseConnection } from './transport';
-import { errorMessage } from '../logging';
 import type { IncomingMessage, Server, ServerResponse } from 'http';
 
 const MAX_BODY_BYTES = 5_000_000;
@@ -114,7 +113,7 @@ const applyHeaders = (res: ServerResponse, headers: Record<string, string>) => {
   }
 };
 
-const writePlan = (plan: ResponsePlan, res: ServerResponse, log: Logger) => {
+const writePlan = (plan: ResponsePlan, res: ServerResponse) => {
   if (plan.kind === 'sse') {
     res.statusCode = plan.status;
     applyHeaders(res, plan.headers);
@@ -186,5 +185,5 @@ export const createMcpHttpServer = (http: HttpModule, router: McpRouter, log: Lo
     }
 
     const plan = await router.handle({ method, url, headers, body } as HttpRequest);
-    writePlan(plan, res, log);
+    writePlan(plan, res);
   });

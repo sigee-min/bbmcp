@@ -10,7 +10,7 @@ import { Capabilities } from './capabilities';
 import { BlockPipelineMode, BlockPipelineOnConflict, BlockPipelineTextures, BlockVariant } from './blockPipeline';
 import { ProjectState, WithState } from './project';
 import { RenderPreviewPayload, RenderPreviewResult } from './preview';
-import type { UvPaintMapping, UvPaintScope, UvPaintSource, UvPaintSpec, UvPaintTarget } from '../domain/uvPaintSpec';
+import type { UvPaintSpec } from '../domain/uvPaintSpec';
 import type { CubeFaceDirection, FaceUvMap } from '../domain/model';
 import type {
   EnsureProjectMatch,

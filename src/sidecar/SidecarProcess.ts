@@ -5,6 +5,7 @@ import { SidecarHost } from './transport/SidecarHost';
 import { SidecarLaunchConfig } from './types';
 import { PLUGIN_ID } from '../config';
 import { resolveRegisteredPluginPath } from '../adapters/blockbench/pluginRegistry';
+import { DEFAULT_TOOL_PROFILE } from '../mcp/tools';
 
 type NativeModuleLoader = (name: string, options?: { message?: string; optional?: boolean }) => unknown;
 declare const requireNativeModule: NativeModuleLoader | undefined;
@@ -113,7 +114,7 @@ export class SidecarProcess {
       '--path',
       this.config.path,
       '--tool-profile',
-      this.config.toolProfile ?? 'texture_minimal'
+      this.config.toolProfile ?? DEFAULT_TOOL_PROFILE
     ];
 
     let child: ChildProcessHandle;

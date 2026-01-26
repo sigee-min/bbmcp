@@ -19,6 +19,11 @@ const getArg = (args: string[], name: string, fallback?: string): string | undef
   return args[index + 1] ?? fallback;
 };
 
+const parseToolProfile = (value: string | undefined): 'full' | 'texture_minimal' => {
+  if (value === 'full' || value === 'texture_minimal') return value;
+  return DEFAULT_TOOL_PROFILE;
+};
+
 const args = process.argv.slice(2);
 const portValue = parseInt(getArg(args, '--port', '8787') ?? '8787', 10);
 const config = {
@@ -26,7 +31,7 @@ const config = {
   port: Number.isFinite(portValue) ? portValue : 8787,
   path: getArg(args, '--path', '/mcp') ?? '/mcp',
   token: getArg(args, '--token'),
-  toolProfile: (getArg(args, '--tool-profile') ?? DEFAULT_TOOL_PROFILE) as 'full' | 'texture_minimal'
+  toolProfile: parseToolProfile(getArg(args, '--tool-profile'))
 };
 
 const log = new StderrLogger('bbmcp-sidecar', 'info');

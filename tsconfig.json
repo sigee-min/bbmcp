@@ -12,7 +12,9 @@
     "outDir": "dist",
     "types": ["node"],
     "lib": ["ES2020", "DOM"],
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
   },
   "include": ["src/**/*"]
 }

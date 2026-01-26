@@ -39,7 +39,6 @@ import { InMemoryResourceStore } from '../services/resources';
 import { LocalTmpStore } from '../services/tmpStore';
 import { startServer } from '../server';
 import { readGlobals } from '../adapters/blockbench/blockbenchUtils';
-import { UnknownRecord } from '../types/blockbench';
 import { deleteGlobalValue, readGlobalValue, writeGlobalValue } from '../services/globalState';
 import { TOOL_REGISTRY_COUNT, TOOL_REGISTRY_HASH } from '../mcp/tools';
 import { registerDebugMenu, registerDevReloadAction, registerInspectorAction, registerServerConfigAction } from './menus';

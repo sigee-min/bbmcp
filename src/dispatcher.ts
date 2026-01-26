@@ -31,10 +31,9 @@ import {
 import { callTool, readResource, refTool } from './mcp/nextActions';
 import { decideRevision } from './services/revisionGuard';
 import { attachStateToResponse } from './services/attachState';
-import { err, errFromDomain, toToolResponse } from './services/toolResponse';
+import { err, toToolResponse } from './services/toolResponse';
 
 const respondOk = <T>(data: T): ToolResponse<T> => ({ ok: true, data });
-const respondError = <T>(error: ToolError): ToolResponse<T> => errFromDomain(error);
 const respondErrorSimple = (
   code: ToolErrorCode,
   message: string,

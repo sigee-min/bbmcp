@@ -15,7 +15,6 @@ import type { FaceUvMap } from './domain/model';
 import type {
   EntityFormat,
   GeckoLibTargetVersion,
-  ProxyTool,
   RigTemplateKind
 } from './shared/toolConstants';
 

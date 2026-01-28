@@ -28,11 +28,12 @@ import {
   buildTextureContent,
   buildTextureStructured
 } from './mcp/content';
-import { callTool, readResource, refTool } from './mcp/nextActions';
+import { askUser, callTool, readResource, refTool, refUser } from './mcp/nextActions';
 import { decideRevision } from './services/revisionGuard';
 import { attachStateToResponse } from './services/attachState';
 import { err, toToolResponse } from './services/toolResponse';
 import { guardOptionalRevision } from './services/optionalRevision';
+import { ADAPTER_PROJECT_DIALOG_INPUT_REQUIRED } from './shared/messages';
 
 const respondOk = <T>(data: T): ToolResponse<T> => ({ ok: true, data });
 const respondErrorSimple = (
@@ -268,11 +269,15 @@ export class ToolDispatcherImpl implements Dispatcher {
     call: (payload: ToolPayloadMap[TName]) => UsecaseResult<BaseResult<TName>>
   ): ToolResponse<ToolResultMap[TName]> {
     const { result, payload: retryPayload } = this.callWithAutoRetry(tool, payload, call);
-    return this.logGuardFailure(
-      tool,
-      retryPayload,
-      this.attachStateForTool(retryPayload, toToolResponse(result))
-    );
+    const response = this.attachStateForTool(retryPayload, toToolResponse(result));
+    const withDialogActions =
+      tool === 'ensure_project'
+        ? attachEnsureProjectDialogNextActions(
+            retryPayload as ToolPayloadMap['ensure_project'],
+            response as ToolResponse<ToolResultMap['ensure_project']>
+          )
+        : response;
+    return this.logGuardFailure(tool, retryPayload, withDialogActions);
   }
 
   private handleStateful<TName extends StatefulToolName>(
@@ -495,5 +500,42 @@ function attachPreflightNextActions(
     );
   }
 
+  return { ...response, nextActions: actions };
+}
+
+function attachEnsureProjectDialogNextActions(
+  payload: ToolPayloadMap['ensure_project'],
+  response: ToolResponse<ToolResultMap['ensure_project']>
+): ToolResponse<ToolResultMap['ensure_project']> {
+  if (response.ok) return response;
+  if (response.error.message !== ADAPTER_PROJECT_DIALOG_INPUT_REQUIRED) return response;
+  const missingRaw = response.error.details?.missing;
+  const missing = Array.isArray(missingRaw) ? missingRaw.filter((item) => typeof item === 'string') : [];
+  const missingHint = missing.length > 0 ? missing.join(', ') : 'required fields';
+  const fieldsRaw = response.error.details?.fields;
+  const fields = fieldsRaw && typeof fieldsRaw === 'object' ? (fieldsRaw as Record<string, unknown>) : null;
+  const missingSnapshot =
+    fields && missing.length > 0
+      ? ` Current values: ${JSON.stringify(Object.fromEntries(missing.map((key) => [key, fields[key]])))}.`
+      : '';
+  const actions = [
+    callTool('get_project_state', { detail: 'summary' }, 'Get latest ifRevision before retrying project creation.', 1),
+    askUser(
+      `Provide ensure_project.dialog values for: ${missingHint}.${missingSnapshot} Reply with a JSON object only. (Example: {"format":"<id>","parent":"<id>"})`,
+      'Project dialog requires input.',
+      2
+    ),
+    callTool(
+      'ensure_project',
+      {
+        ...payload,
+        confirmDialog: true,
+        dialog: refUser(`dialog values for ${missingHint}`),
+        ifRevision: refTool('get_project_state', '/project/revision')
+      },
+      'Retry ensure_project with dialog values.',
+      3
+    )
+  ];
   return { ...response, nextActions: actions };
 }

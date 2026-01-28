@@ -17,6 +17,8 @@ This server can include suggested follow-up actions in tool responses.
 
 Pipelines may return `ask_user` actions when the payload is underspecified and set `planOnly=true` in the structured output.
 
+`ensure_project` may return `ask_user` actions when the Blockbench new-project dialog requires input. The response includes a missing-field list so the client can fill `ensure_project.dialog` and retry with the same payload.
+
 ### MCP response example
 ```json
 {
@@ -49,6 +51,25 @@ Pipelines may return `ask_user` actions when the payload is underspecified and s
   "data": { "applied": true },
   "nextActions": [
     { "type": "call_tool", "tool": "render_preview", "arguments": { "mode": "fixed" } }
+  ]
+}
+```
+
+### Example: ensure_project dialog retry
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_state",
+    "message": "Project dialog requires input.",
+    "details": { "missing": ["format", "parent"] }
+  },
+  "nextActions": [
+    {
+      "type": "ask_user",
+      "question": "Provide ensure_project.dialog values for: format, parent. (Example: {\"format\":\"<id>\",\"parent\":\"<id>\"})",
+      "reason": "Project dialog requires input."
+    }
   ]
 }
 ```

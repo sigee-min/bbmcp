@@ -177,6 +177,7 @@ const tryAutoConfirmProjectDialog = (
       error: {
         code: 'invalid_state',
         message: ADAPTER_PROJECT_DIALOG_INPUT_REQUIRED,
+        fix: `Provide ensure_project.dialog values for: ${missing.join(', ')}. Use the exact field keys.`,
         details: { fields: remaining, missing }
       }
     };

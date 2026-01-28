@@ -236,6 +236,6 @@ export interface EditorPort {
   writeFile: (path: string, contents: string) => ToolError | null;
   listTextures: () => TextureStat[];
   getProjectTextureResolution: () => TextureResolution | null;
-    setProjectTextureResolution: (width: number, height: number, modifyUv?: boolean) => ToolError | null;
+  setProjectTextureResolution: (width: number, height: number, modifyUv?: boolean) => ToolError | null;
   getTextureUsage: (params: TextureUsageQuery) => { result?: TextureUsageResult; error?: ToolError };
 }

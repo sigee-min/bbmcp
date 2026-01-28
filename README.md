@@ -41,6 +41,7 @@ http://127.0.0.1:8787/mcp
 
 ## Core Flow (Recommended)
 1) `ensure_project` (or `get_project_state`) to confirm an active project and read `revision`.
+   - When `confirmDialog=true`, always supply `ensure_project.dialog` with required fields. If missing, the server returns a required-field list via error details and `nextActions`.
 2) Prefer high-level pipelines (`model_pipeline`, `texture_pipeline`, `entity_pipeline`, `block_pipeline`) with `ifRevision`.
 3) `validate` to catch issues early.
 4) `render_preview` for images.

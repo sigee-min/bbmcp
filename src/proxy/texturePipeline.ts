@@ -1,4 +1,4 @@
-export type { ProxyPipelineDeps } from './texturePipeline/types';
+export type { ProxyPipelineDeps } from './types';
 
 export { applyTextureSpecProxy } from './texturePipeline/applyTextureSpecProxy';
 export { applyUvSpecProxy } from './texturePipeline/applyUvSpecProxy';

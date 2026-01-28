@@ -1,5 +1,6 @@
 import { FormatKind, ToolResponse, ToolError } from './types';
 import { err } from './services/toolResponse';
+import { PROJECT_NO_ACTIVE } from './shared/messages';
 import { TextureFrameOrderType, TextureMeta, TexturePbrChannel, TextureRenderMode, TextureRenderSides } from './types/texture';
 
 export interface TrackedBone {
@@ -9,6 +10,7 @@ export interface TrackedBone {
   pivot: [number, number, number];
   rotation?: [number, number, number];
   scale?: [number, number, number];
+  visibility?: boolean;
 }
 
 export interface TrackedCube {
@@ -17,9 +19,14 @@ export interface TrackedCube {
   from: [number, number, number];
   to: [number, number, number];
   bone: string;
+  origin?: [number, number, number];
+  rotation?: [number, number, number];
   uv?: [number, number];
+  uvOffset?: [number, number];
   inflate?: number;
   mirror?: boolean;
+  visibility?: boolean;
+  boxUv?: boolean;
 }
 
 export interface TrackedTexture {
@@ -65,6 +72,24 @@ export interface TrackedAnimation {
   channels?: TrackedAnimationChannel[];
   triggers?: TrackedAnimationTrigger[];
 }
+
+const cloneAnimationChannel = (channel: TrackedAnimationChannel): TrackedAnimationChannel => ({
+  ...channel,
+  keys: [...channel.keys]
+});
+
+const cloneAnimationTrigger = (trigger: TrackedAnimationTrigger): TrackedAnimationTrigger => ({
+  ...trigger,
+  keys: [...trigger.keys]
+});
+
+const cloneAnimation = (anim: TrackedAnimation): TrackedAnimation => ({
+  ...anim,
+  channels: anim.channels ? anim.channels.map(cloneAnimationChannel) : undefined,
+  triggers: anim.triggers ? anim.triggers.map(cloneAnimationTrigger) : undefined
+});
+
+const cloneAnimations = (animations: TrackedAnimation[]): TrackedAnimation[] => animations.map(cloneAnimation);
 
 export interface SessionState {
   id: string | null;
@@ -116,7 +141,7 @@ export class ProjectSession {
 
   attach(snapshot: SessionState): ToolResponse<{ id: string; format: FormatKind; name: string | null }> {
     if (!snapshot.format) {
-      return err<{ id: string; format: FormatKind; name: string | null }>('invalid_state', 'No active project.');
+      return err<{ id: string; format: FormatKind; name: string | null }>('invalid_state', PROJECT_NO_ACTIVE);
     }
     const id = snapshot.id ?? `${Date.now()}`;
     const format = snapshot.format;
@@ -130,11 +155,7 @@ export class ProjectSession {
       bones: [...snapshot.bones],
       cubes: [...snapshot.cubes],
       textures: [...snapshot.textures],
-      animations: snapshot.animations.map((anim) => ({
-        ...anim,
-        channels: anim.channels ? anim.channels.map((ch) => ({ ...ch, keys: [...ch.keys] })) : undefined,
-        triggers: anim.triggers ? anim.triggers.map((tr) => ({ ...tr, keys: [...tr.keys] })) : undefined
-      })),
+      animations: cloneAnimations(snapshot.animations),
       animationsStatus: snapshot.animationsStatus ?? 'available'
     };
     return { ok: true, data: { id, format, name } };
@@ -162,18 +183,14 @@ export class ProjectSession {
       bones: [...this.state.bones],
       cubes: [...this.state.cubes],
       textures: [...this.state.textures],
-      animations: this.state.animations.map((anim) => ({
-        ...anim,
-        channels: anim.channels ? anim.channels.map((ch) => ({ ...ch, keys: [...ch.keys] })) : undefined,
-        triggers: anim.triggers ? anim.triggers.map((tr) => ({ ...tr, keys: [...tr.keys] })) : undefined
-      })),
+      animations: cloneAnimations(this.state.animations),
       animationsStatus: this.state.animationsStatus
     };
   }
 
   ensureActive(): ToolError | null {
     if (!this.state.id || !this.state.format) {
-      return { code: 'invalid_state', message: 'No active project.', details: { reason: 'no_active_project' } };
+      return { code: 'invalid_state', message: PROJECT_NO_ACTIVE, details: { reason: 'no_active_project' } };
     }
     return null;
   }
@@ -191,6 +208,7 @@ export class ProjectSession {
       pivot?: [number, number, number];
       rotation?: [number, number, number];
       scale?: [number, number, number];
+      visibility?: boolean;
     }
   ): boolean {
     const bone = this.state.bones.find((b) => b.name === name);
@@ -213,6 +231,7 @@ export class ProjectSession {
     if (updates.pivot) bone.pivot = updates.pivot;
     if (updates.rotation) bone.rotation = updates.rotation;
     if (updates.scale) bone.scale = updates.scale;
+    if (typeof updates.visibility === 'boolean') bone.visibility = updates.visibility;
     return true;
   }
 
@@ -240,9 +259,14 @@ export class ProjectSession {
       bone?: string;
       from?: [number, number, number];
       to?: [number, number, number];
+      origin?: [number, number, number];
+      rotation?: [number, number, number];
       uv?: [number, number];
+      uvOffset?: [number, number];
       inflate?: number;
       mirror?: boolean;
+      visibility?: boolean;
+      boxUv?: boolean;
     }
   ): boolean {
     const cube = this.state.cubes.find((c) => c.name === name);
@@ -252,9 +276,14 @@ export class ProjectSession {
     if (updates.bone) cube.bone = updates.bone;
     if (updates.from) cube.from = updates.from;
     if (updates.to) cube.to = updates.to;
+    if (updates.origin) cube.origin = updates.origin;
+    if (updates.rotation) cube.rotation = updates.rotation;
     if (updates.uv) cube.uv = updates.uv;
+    if (updates.uvOffset) cube.uvOffset = updates.uvOffset;
     if (typeof updates.inflate === 'number') cube.inflate = updates.inflate;
     if (typeof updates.mirror === 'boolean') cube.mirror = updates.mirror;
+    if (typeof updates.visibility === 'boolean') cube.visibility = updates.visibility;
+    if (typeof updates.boxUv === 'boolean') cube.boxUv = updates.boxUv;
     return true;
   }
 

@@ -2,6 +2,12 @@ import { ExportPort, ExportNativeParams } from '../../ports/exporter';
 import { ToolError } from '../../types';
 import { errorMessage, Logger } from '../../logging';
 import { FormatEntry, readBlockbenchGlobals } from '../../types/blockbench';
+import {
+  ADAPTER_BLOCKBENCH_WRITEFILE_UNAVAILABLE,
+  ADAPTER_NATIVE_COMPILER_ASYNC_UNSUPPORTED,
+  ADAPTER_NATIVE_COMPILER_EMPTY,
+  ADAPTER_NATIVE_COMPILER_UNAVAILABLE
+} from '../../shared/messages';
 
 export class BlockbenchExport implements ExportPort {
   private readonly log: Logger;
@@ -14,19 +20,19 @@ export class BlockbenchExport implements ExportPort {
     try {
       const blockbench = readBlockbenchGlobals().Blockbench;
       if (!blockbench?.writeFile) {
-        return { code: 'not_implemented', message: 'Blockbench.writeFile not available' };
+        return { code: 'not_implemented', message: ADAPTER_BLOCKBENCH_WRITEFILE_UNAVAILABLE };
       }
       const format = getFormatById(params.formatId);
       const compiler = resolveCompiler(format);
       if (!compiler) {
-        return { code: 'not_implemented', message: `Native compiler not available for ${params.formatId}` };
+        return { code: 'not_implemented', message: ADAPTER_NATIVE_COMPILER_UNAVAILABLE(params.formatId) };
       }
       const compiled = compiler();
       if (compiled === null || compiled === undefined) {
-        return { code: 'not_implemented', message: 'Native compiler returned empty result' };
+        return { code: 'not_implemented', message: ADAPTER_NATIVE_COMPILER_EMPTY };
       }
       if (isThenable(compiled)) {
-        return { code: 'not_implemented', message: 'Async compiler not supported' };
+        return { code: 'not_implemented', message: ADAPTER_NATIVE_COMPILER_ASYNC_UNSUPPORTED };
       }
       const serialized = typeof compiled === 'string' ? compiled : JSON.stringify(compiled ?? {}, null, 2);
       blockbench.writeFile(params.destPath, { content: serialized, savetype: 'text' });

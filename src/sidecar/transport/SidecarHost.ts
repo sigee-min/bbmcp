@@ -1,7 +1,7 @@
 import { Dispatcher, ToolName, ToolPayloadMap, ToolResponse } from '../../types';
 import { ProxyRouter } from '../../proxy';
+import type { ProxyToolPayloadMap } from '../../proxy/types';
 import { errorMessage, Logger } from '../../logging';
-import { createLineDecoder, encodeMessage } from '../../transport/codec';
 import {
   PROTOCOL_VERSION,
   SidecarMessage,
@@ -10,61 +10,39 @@ import {
 } from '../../transport/protocol';
 import { ProxyTool } from '../../spec';
 import { toolError } from '../../services/toolResponse';
-
-type Readable = {
-  on(event: 'data', handler: (chunk: string | Uint8Array) => void): void;
-  on(event: 'error', handler: (err: Error) => void): void;
-  on(event: 'end', handler: () => void): void;
-  removeListener?(event: 'data', handler: (chunk: string | Uint8Array) => void): void;
-};
-
-type Writable = {
-  write: (data: string) => void;
-};
+import { attachIpcReadable, createIpcDecoder, detachIpcReadable, IpcReadable, IpcWritable, sendIpcMessage } from './ipc';
 
 type DispatcherToolName = ToolName;
 type DispatcherPayload = ToolPayloadMap[ToolName];
 
 export class SidecarHost {
-  private readonly readable: Readable;
-  private readonly writable: Writable;
+  private readonly readable: IpcReadable;
+  private readonly writable: IpcWritable;
   private readonly dispatcher: Dispatcher;
   private readonly proxy: ProxyRouter;
   private readonly log: Logger;
-  private readonly decoder;
   private readonly onData: (chunk: string | Uint8Array) => void;
 
-  constructor(readable: Readable, writable: Writable, dispatcher: Dispatcher, proxy: ProxyRouter, log: Logger) {
+  constructor(readable: IpcReadable, writable: IpcWritable, dispatcher: Dispatcher, proxy: ProxyRouter, log: Logger) {
     this.readable = readable;
     this.writable = writable;
     this.dispatcher = dispatcher;
     this.proxy = proxy;
     this.log = log;
-    this.decoder = createLineDecoder(
-      (message) => this.handleMessage(message),
-      (err) => this.log.error('sidecar ipc decode error', { message: err.message })
-    );
-    this.onData = (chunk: string | Uint8Array) => this.decoder.push(chunk);
+    const { onData } = createIpcDecoder(this.log, (message) => this.handleMessage(message));
+    this.onData = onData;
 
-    this.readable.on('data', this.onData);
-    this.readable.on('error', (err: Error) => {
-      this.log.error('sidecar ipc stream error', { message: errorMessage(err) });
+    attachIpcReadable(this.readable, this.onData, this.log, {
+      onEnd: () => this.log.warn('sidecar ipc stream ended')
     });
-    this.readable.on('end', () => this.log.warn('sidecar ipc stream ended'));
   }
 
   send(message: SidecarMessage) {
-    try {
-      this.writable.write(encodeMessage(message));
-    } catch (err) {
-      this.log.error('sidecar ipc send failed', { message: errorMessage(err) });
-    }
+    sendIpcMessage(this.writable, message, this.log);
   }
 
   dispose() {
-    if (this.readable.removeListener) {
-      this.readable.removeListener('data', this.onData);
-    }
+    detachIpcReadable(this.readable, this.onData);
   }
 
   private handleMessage(message: SidecarMessage) {
@@ -86,7 +64,7 @@ export class SidecarHost {
     try {
       result =
         mode === 'proxy'
-          ? await this.proxy.handle(message.tool as ProxyTool, message.payload)
+          ? await this.proxy.handle(message.tool as ProxyTool, message.payload as ProxyToolPayloadMap[ProxyTool])
           : this.dispatcher.handle(message.tool as DispatcherToolName, message.payload as DispatcherPayload);
     } catch (err) {
       const msg = errorMessage(err, 'handler error');

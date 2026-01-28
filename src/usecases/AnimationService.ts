@@ -2,10 +2,19 @@ import type { Capabilities, ToolError } from '../types';
 import { ProjectSession, SessionState } from '../session';
 import { EditorPort, TriggerChannel } from '../ports/editor';
 import { ok, fail, UsecaseResult } from './result';
-import { resolveAnimationTarget } from '../services/lookup';
 import { createId } from '../services/id';
-import { ensureIdNameMatch, ensureNonBlankString } from '../services/validation';
+import { resolveAnimationOrError } from '../services/targetGuards';
+import { ensureNonBlankString } from '../services/validation';
 import { ensureActiveAndRevision } from './guards';
+import {
+  ANIMATION_CLIP_EXISTS,
+  ANIMATION_CLIP_NAME_REQUIRED,
+  ANIMATION_FPS_POSITIVE,
+  ANIMATION_ID_EXISTS,
+  ANIMATION_LENGTH_EXCEEDS_MAX,
+  ANIMATION_LENGTH_POSITIVE,
+  ANIMATION_UNSUPPORTED_FORMAT
+} from '../shared/messages';
 
 export interface AnimationServiceDeps {
   session: ProjectSession;
@@ -43,39 +52,36 @@ export class AnimationService {
   }): UsecaseResult<{ id: string; name: string }> {
     const guardErr = ensureActiveAndRevision(this.ensureActive, this.ensureRevisionMatch, payload.ifRevision);
     if (guardErr) return fail(guardErr);
-    const format = this.session.snapshot().format;
-    const capability = this.capabilities.formats.find((f) => f.format === format);
-    if (!capability || !capability.animations) {
-      return fail({ code: 'unsupported_format', message: 'Animations are not supported for this format' });
-    }
+    const supportErr = this.ensureAnimationsSupported();
+    if (supportErr) return fail(supportErr);
     if (!payload.name) {
-      return fail({ code: 'invalid_payload', message: 'Animation name is required' });
+      return fail({ code: 'invalid_payload', message: ANIMATION_CLIP_NAME_REQUIRED });
     }
     const nameBlankErr = ensureNonBlankString(payload.name, 'Animation name');
     if (nameBlankErr) return fail(nameBlankErr);
     const idBlankErr = ensureNonBlankString(payload.id, 'Animation id');
     if (idBlankErr) return fail(idBlankErr);
     if (!Number.isFinite(payload.length) || payload.length <= 0) {
-      return fail({ code: 'invalid_payload', message: 'Animation length must be > 0' });
+      return fail({ code: 'invalid_payload', message: ANIMATION_LENGTH_POSITIVE });
     }
     if (!Number.isFinite(payload.fps) || payload.fps <= 0) {
-      return fail({ code: 'invalid_payload', message: 'Animation fps must be > 0' });
+      return fail({ code: 'invalid_payload', message: ANIMATION_FPS_POSITIVE });
     }
     if (payload.length > this.capabilities.limits.maxAnimationSeconds) {
       return fail({
         code: 'invalid_payload',
-        message: `Animation length exceeds max ${this.capabilities.limits.maxAnimationSeconds} seconds`
+        message: ANIMATION_LENGTH_EXCEEDS_MAX(this.capabilities.limits.maxAnimationSeconds)
       });
     }
     const snapshot = this.getSnapshot();
     const nameConflict = snapshot.animations.some((a) => a.name === payload.name);
     if (nameConflict) {
-      return fail({ code: 'invalid_payload', message: `Animation clip already exists: ${payload.name}` });
+      return fail({ code: 'invalid_payload', message: ANIMATION_CLIP_EXISTS(payload.name) });
     }
     const id = payload.id ?? createId('anim');
     const idConflict = snapshot.animations.some((a) => a.id && a.id === id);
     if (idConflict) {
-      return fail({ code: 'invalid_payload', message: `Animation id already exists: ${id}` });
+      return fail({ code: 'invalid_payload', message: ANIMATION_ID_EXISTS(id) });
     }
     const err = this.editor.createAnimation({
       id,
@@ -107,11 +113,8 @@ export class AnimationService {
   }): UsecaseResult<{ id: string; name: string }> {
     const guardErr = ensureActiveAndRevision(this.ensureActive, this.ensureRevisionMatch, payload.ifRevision);
     if (guardErr) return fail(guardErr);
-    const format = this.session.snapshot().format;
-    const capability = this.capabilities.formats.find((f) => f.format === format);
-    if (!capability || !capability.animations) {
-      return fail({ code: 'unsupported_format', message: 'Animations are not supported for this format' });
-    }
+    const supportErr = this.ensureAnimationsSupported();
+    if (supportErr) return fail(supportErr);
     const snapshot = this.getSnapshot();
     const idBlankErr = ensureNonBlankString(payload.id, 'Animation clip id');
     if (idBlankErr) return fail(idBlankErr);
@@ -119,40 +122,30 @@ export class AnimationService {
     if (nameBlankErr) return fail(nameBlankErr);
     const newNameBlankErr = ensureNonBlankString(payload.newName, 'Animation clip newName');
     if (newNameBlankErr) return fail(newNameBlankErr);
-    if (!payload.id && !payload.name) {
-      return fail({ code: 'invalid_payload', message: 'Animation clip id or name is required' });
-    }
-    const mismatchErr = ensureIdNameMatch(snapshot.animations, payload.id, payload.name, {
-      kind: 'Animation clip',
-      plural: 'clips'
-    });
-    if (mismatchErr) return fail(mismatchErr);
-    const target = resolveAnimationTarget(snapshot.animations, payload.id, payload.name);
-    if (!target) {
-      const label = payload.id ?? payload.name ?? 'unknown';
-      return fail({ code: 'invalid_payload', message: `Animation clip not found: ${label}` });
-    }
+    const resolved = resolveAnimationOrError(snapshot.animations, payload.id, payload.name);
+    if (resolved.error) return fail(resolved.error);
+    const target = resolved.target!;
     const targetName = target.name;
     const targetId = target.id ?? payload.id ?? createId('anim');
     if (payload.newName && payload.newName !== targetName) {
       const conflict = snapshot.animations.some((a) => a.name === payload.newName && a.name !== targetName);
       if (conflict) {
-        return fail({ code: 'invalid_payload', message: `Animation clip already exists: ${payload.newName}` });
+        return fail({ code: 'invalid_payload', message: ANIMATION_CLIP_EXISTS(payload.newName) });
       }
     }
     if (payload.length !== undefined) {
       if (!Number.isFinite(payload.length) || payload.length <= 0) {
-        return fail({ code: 'invalid_payload', message: 'Animation length must be > 0' });
+        return fail({ code: 'invalid_payload', message: ANIMATION_LENGTH_POSITIVE });
       }
       if (payload.length > this.capabilities.limits.maxAnimationSeconds) {
         return fail({
           code: 'invalid_payload',
-          message: `Animation length exceeds max ${this.capabilities.limits.maxAnimationSeconds} seconds`
+          message: ANIMATION_LENGTH_EXCEEDS_MAX(this.capabilities.limits.maxAnimationSeconds)
         });
       }
     }
     if (payload.fps !== undefined && (!Number.isFinite(payload.fps) || payload.fps <= 0)) {
-      return fail({ code: 'invalid_payload', message: 'Animation fps must be > 0' });
+      return fail({ code: 'invalid_payload', message: ANIMATION_FPS_POSITIVE });
     }
     const err = this.editor.updateAnimation({
       id: targetId,
@@ -176,29 +169,16 @@ export class AnimationService {
   deleteAnimationClip(payload: { id?: string; name?: string; ifRevision?: string }): UsecaseResult<{ id: string; name: string }> {
     const guardErr = ensureActiveAndRevision(this.ensureActive, this.ensureRevisionMatch, payload.ifRevision);
     if (guardErr) return fail(guardErr);
-    const format = this.session.snapshot().format;
-    const capability = this.capabilities.formats.find((f) => f.format === format);
-    if (!capability || !capability.animations) {
-      return fail({ code: 'unsupported_format', message: 'Animations are not supported for this format' });
-    }
+    const supportErr = this.ensureAnimationsSupported();
+    if (supportErr) return fail(supportErr);
     const snapshot = this.getSnapshot();
     const idBlankErr = ensureNonBlankString(payload.id, 'Animation clip id');
     if (idBlankErr) return fail(idBlankErr);
     const nameBlankErr = ensureNonBlankString(payload.name, 'Animation clip name');
     if (nameBlankErr) return fail(nameBlankErr);
-    if (!payload.id && !payload.name) {
-      return fail({ code: 'invalid_payload', message: 'Animation clip id or name is required' });
-    }
-    const mismatchErr = ensureIdNameMatch(snapshot.animations, payload.id, payload.name, {
-      kind: 'Animation clip',
-      plural: 'clips'
-    });
-    if (mismatchErr) return fail(mismatchErr);
-    const target = resolveAnimationTarget(snapshot.animations, payload.id, payload.name);
-    if (!target) {
-      const label = payload.id ?? payload.name ?? 'unknown';
-      return fail({ code: 'invalid_payload', message: `Animation clip not found: ${label}` });
-    }
+    const resolved = resolveAnimationOrError(snapshot.animations, payload.id, payload.name);
+    if (resolved.error) return fail(resolved.error);
+    const target = resolved.target!;
     const err = this.editor.deleteAnimation({ id: target.id ?? payload.id, name: target.name });
     if (err) return fail(err);
     this.session.removeAnimations([target.name]);
@@ -216,22 +196,13 @@ export class AnimationService {
     const guardErr = ensureActiveAndRevision(this.ensureActive, this.ensureRevisionMatch, payload.ifRevision);
     if (guardErr) return fail(guardErr);
     const snapshot = this.getSnapshot();
-    const clipIdBlankErr = ensureNonBlankString(payload.clipId, 'Animation clip id');
-    if (clipIdBlankErr) return fail(clipIdBlankErr);
-    const clipBlankErr = ensureNonBlankString(payload.clip, 'Animation clip name');
-    if (clipBlankErr) return fail(clipBlankErr);
+    const selectorErr = this.ensureClipSelector(payload.clipId, payload.clip);
+    if (selectorErr) return fail(selectorErr);
     const boneBlankErr = ensureNonBlankString(payload.bone, 'Animation bone');
     if (boneBlankErr) return fail(boneBlankErr);
-    const mismatchErr = ensureIdNameMatch(snapshot.animations, payload.clipId, payload.clip, {
-      kind: 'Animation clip',
-      plural: 'clips'
-    });
-    if (mismatchErr) return fail(mismatchErr);
-    const anim = resolveAnimationTarget(snapshot.animations, payload.clipId, payload.clip);
-    if (!anim) {
-      const label = payload.clipId ?? payload.clip;
-      return fail({ code: 'invalid_payload', message: `Animation clip not found: ${label}` });
-    }
+    const resolved = this.resolveClipTarget(snapshot, payload.clipId, payload.clip);
+    if (!resolved.ok) return resolved;
+    const anim = resolved.value;
     const err = this.editor.setKeyframes({
       clipId: anim.id,
       clip: anim.name,
@@ -258,20 +229,11 @@ export class AnimationService {
     const guardErr = ensureActiveAndRevision(this.ensureActive, this.ensureRevisionMatch, payload.ifRevision);
     if (guardErr) return fail(guardErr);
     const snapshot = this.getSnapshot();
-    const clipIdBlankErr = ensureNonBlankString(payload.clipId, 'Animation clip id');
-    if (clipIdBlankErr) return fail(clipIdBlankErr);
-    const clipBlankErr = ensureNonBlankString(payload.clip, 'Animation clip name');
-    if (clipBlankErr) return fail(clipBlankErr);
-    const mismatchErr = ensureIdNameMatch(snapshot.animations, payload.clipId, payload.clip, {
-      kind: 'Animation clip',
-      plural: 'clips'
-    });
-    if (mismatchErr) return fail(mismatchErr);
-    const anim = resolveAnimationTarget(snapshot.animations, payload.clipId, payload.clip);
-    if (!anim) {
-      const label = payload.clipId ?? payload.clip;
-      return fail({ code: 'invalid_payload', message: `Animation clip not found: ${label}` });
-    }
+    const selectorErr = this.ensureClipSelector(payload.clipId, payload.clip);
+    if (selectorErr) return fail(selectorErr);
+    const resolved = this.resolveClipTarget(snapshot, payload.clipId, payload.clip);
+    if (!resolved.ok) return resolved;
+    const anim = resolved.value;
     const err = this.editor.setTriggerKeyframes({
       clipId: anim.id,
       clip: anim.name,
@@ -284,5 +246,32 @@ export class AnimationService {
       keys: payload.keys
     });
     return ok({ clip: anim.name, clipId: anim.id ?? undefined, channel: payload.channel });
+  }
+
+  private resolveClipTarget(
+    snapshot: SessionState,
+    clipId: string | undefined,
+    clip: string | undefined
+  ): UsecaseResult<SessionState['animations'][number]> {
+    const resolved = resolveAnimationOrError(snapshot.animations, clipId, clip);
+    if (resolved.error) return fail(resolved.error);
+    return ok(resolved.target!);
+  }
+
+  private ensureAnimationsSupported(): ToolError | null {
+    const format = this.session.snapshot().format;
+    const capability = this.capabilities.formats.find((f) => f.format === format);
+    if (!capability || !capability.animations) {
+      return { code: 'unsupported_format', message: ANIMATION_UNSUPPORTED_FORMAT };
+    }
+    return null;
+  }
+
+  private ensureClipSelector(clipId?: string, clip?: string): ToolError | null {
+    const clipIdBlankErr = ensureNonBlankString(clipId, 'Animation clip id');
+    if (clipIdBlankErr) return clipIdBlankErr;
+    const clipBlankErr = ensureNonBlankString(clip, 'Animation clip name');
+    if (clipBlankErr) return clipBlankErr;
+    return null;
   }
 }

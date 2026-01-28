@@ -14,11 +14,11 @@ import { CubeFaceDirection, EditorPort, FaceUvMap, TextureSource } from '../port
 import { TextureMeta } from '../types/texture';
 import { computeTextureUsageId } from '../domain/textureUsage';
 import { findUvOverlapIssues, formatUvFaceRect } from '../domain/uvOverlap';
-import { checkDimensions } from '../domain/dimensions';
+import { checkDimensions, mapDimensionError } from '../domain/dimensions';
 import { runAutoUvAtlas, runGenerateTexturePreset, TextureToolContext } from './textureTools';
 import { ok, fail, UsecaseResult } from './result';
 import { TextureCrudService } from './TextureCrudService';
-import { resolveCubeTarget, resolveTextureTarget } from '../services/lookup';
+import { resolveTextureOrError } from '../services/targetGuards';
 import { toDomainTextureUsage } from './domainMappers';
 import { validateUvBounds } from '../domain/uvBounds';
 import { validateUvAssignments } from '../domain/uvAssignments';
@@ -34,6 +34,25 @@ import {
   resolveCubeTargets,
   summarizeTextureUsage
 } from '../services/textureUtils';
+import {
+  TEXTURE_ASSIGN_FACES_INVALID,
+  TEXTURE_ASSIGN_NO_TARGETS,
+  TEXTURE_ASSIGN_TARGET_REQUIRED,
+  TEXTURE_ASSIGN_TARGET_REQUIRED_FIX,
+  TEXTURE_FACE_UV_BOUNDS_FIX,
+  TEXTURE_FACE_UV_FACES_FIX,
+  TEXTURE_FACE_UV_TARGET_FIX,
+  MODEL_CUBE_NOT_FOUND,
+  TEXTURE_NOT_FOUND,
+  TEXTURE_PREFLIGHT_BOUNDS_EXCEED,
+  TEXTURE_PREFLIGHT_NO_UV_RECTS,
+  TEXTURE_PREFLIGHT_OVERLAP_WARNING,
+  TEXTURE_PREFLIGHT_UNRESOLVED_REFS,
+  TEXTURE_RESOLUTION_EXCEEDS_MAX,
+  TEXTURE_RESOLUTION_EXCEEDS_MAX_FIX,
+  TEXTURE_RESOLUTION_INTEGER,
+  TEXTURE_RESOLUTION_POSITIVE
+} from '../shared/messages';
 
 export interface TextureServiceDeps {
   session: ProjectSession;
@@ -97,18 +116,20 @@ export class TextureService {
     const maxSize = this.capabilities.limits.maxTextureSize;
     const sizeCheck = checkDimensions(width, height, { requireInteger: true, maxSize });
     if (!sizeCheck.ok) {
-      if (sizeCheck.reason === 'non_positive') {
-        return fail({ code: 'invalid_payload', message: 'width and height must be positive numbers.' });
-      }
-      if (sizeCheck.reason === 'non_integer') {
-        return fail({ code: 'invalid_payload', message: 'width and height must be integers.' });
-      }
-      return fail({
-        code: 'invalid_payload',
-        message: `Texture resolution exceeds max size (${maxSize}).`,
-        fix: `Use width/height <= ${maxSize}.`,
-        details: { width, height, maxSize }
+      const sizeMessage = mapDimensionError(sizeCheck, {
+        nonPositive: (_axis) => TEXTURE_RESOLUTION_POSITIVE,
+        nonInteger: (_axis) => TEXTURE_RESOLUTION_INTEGER,
+        exceedsMax: (limit) => TEXTURE_RESOLUTION_EXCEEDS_MAX(limit || maxSize)
       });
+      if (sizeCheck.reason === 'exceeds_max') {
+        return fail({
+          code: 'invalid_payload',
+          message: sizeMessage ?? TEXTURE_RESOLUTION_EXCEEDS_MAX(maxSize),
+          fix: TEXTURE_RESOLUTION_EXCEEDS_MAX_FIX(maxSize),
+          details: { width, height, maxSize }
+        });
+      }
+      return fail({ code: 'invalid_payload', message: sizeMessage ?? TEXTURE_RESOLUTION_POSITIVE });
     }
     const err = this.editor.setProjectTextureResolution(width, height, modifyUv);
     if (err) return fail(err);
@@ -127,10 +148,8 @@ export class TextureService {
   }> {
     const activeErr = ensureActiveOnly(this.ensureActive);
     if (activeErr) return fail(activeErr);
-    const idBlankErr = ensureNonBlankString(payload.textureId, 'textureId');
-    if (idBlankErr) return fail(idBlankErr);
-    const nameBlankErr = ensureNonBlankString(payload.textureName, 'textureName');
-    if (nameBlankErr) return fail(nameBlankErr);
+    const selectorErr = this.ensureTextureSelector(payload.textureId, payload.textureName);
+    if (selectorErr) return fail(selectorErr);
     const res = this.editor.getTextureUsage(payload);
     if (res.error) return fail(res.error);
     return ok(res.result!);
@@ -139,33 +158,48 @@ export class TextureService {
   preflightTexture(payload: { textureId?: string; textureName?: string; includeUsage?: boolean }): UsecaseResult<PreflightTextureResult> {
     const activeErr = ensureActiveOnly(this.ensureActive);
     if (activeErr) return fail(activeErr);
-    const idBlankErr = ensureNonBlankString(payload.textureId, 'textureId');
-    if (idBlankErr) return fail(idBlankErr);
-    const nameBlankErr = ensureNonBlankString(payload.textureName, 'textureName');
-    if (nameBlankErr) return fail(nameBlankErr);
-    const usageRes = this.editor.getTextureUsage({ textureId: payload.textureId, textureName: payload.textureName });
+    const selectorErr = this.ensureTextureSelector(payload.textureId, payload.textureName);
+    if (selectorErr) return fail(selectorErr);
+    const usageRes = this.editor.getTextureUsage({});
     if (usageRes.error) return fail(usageRes.error);
-    const usageRaw = usageRes.result ?? { textures: [] };
+    const usageRawFull = usageRes.result ?? { textures: [] };
+    const uvUsageId = computeTextureUsageId(toDomainTextureUsage(usageRawFull));
+    let usageRaw = usageRawFull;
+    if (payload.textureId || payload.textureName) {
+      const label = payload.textureId ?? payload.textureName ?? 'texture';
+      const match = usageRawFull.textures.find(
+        (entry) =>
+          (payload.textureId && entry.id === payload.textureId) ||
+          (payload.textureName && entry.name === payload.textureName)
+      );
+      if (!match) {
+        return fail({ code: 'invalid_payload', message: TEXTURE_NOT_FOUND(label) });
+      }
+      usageRaw = {
+        textures: [match],
+        ...(usageRawFull.unresolved ? { unresolved: usageRawFull.unresolved } : {})
+      };
+    }
     const usage = toDomainTextureUsage(usageRaw);
-    const usageIdSource =
-      payload.textureId || payload.textureName ? this.editor.getTextureUsage({}) : usageRes;
-    if (usageIdSource.error) return fail(usageIdSource.error);
-    const usageIdRaw = usageIdSource.result ?? { textures: [] };
-    const uvUsageId = computeTextureUsageId(toDomainTextureUsage(usageIdRaw));
     const textureResolution = this.editor.getProjectTextureResolution() ?? undefined;
     const usageSummary = summarizeTextureUsage(usageRaw);
     const uvBounds = computeUvBounds(usageRaw);
     const warnings: string[] = [];
     if (!uvBounds) {
-      warnings.push('No UV rects found; preflight cannot compute UV bounds.');
+      warnings.push(TEXTURE_PREFLIGHT_NO_UV_RECTS);
     }
     if (usageSummary.unresolvedCount > 0) {
-      warnings.push(`Unresolved texture references detected (${usageSummary.unresolvedCount}).`);
+      warnings.push(TEXTURE_PREFLIGHT_UNRESOLVED_REFS(usageSummary.unresolvedCount));
     }
     if (textureResolution && uvBounds) {
       if (uvBounds.maxX > textureResolution.width || uvBounds.maxY > textureResolution.height) {
         warnings.push(
-          `UV bounds exceed textureResolution (${uvBounds.maxX}x${uvBounds.maxY} > ${textureResolution.width}x${textureResolution.height}).`
+          TEXTURE_PREFLIGHT_BOUNDS_EXCEED(
+            uvBounds.maxX,
+            uvBounds.maxY,
+            textureResolution.width,
+            textureResolution.height
+          )
         );
       }
     }
@@ -175,9 +209,7 @@ export class TextureService {
         ? ` Example: ${formatUvFaceRect(overlap.example.a)} overlaps ${formatUvFaceRect(overlap.example.b)}.`
         : '';
       warnings.push(
-        `UV overlap detected for texture "${overlap.textureName}" (${overlap.conflictCount} conflict${overlap.conflictCount === 1 ? '' : 's'}).` +
-          ` Only identical UV rects may overlap.` +
-          example
+        TEXTURE_PREFLIGHT_OVERLAP_WARNING(overlap.textureName, overlap.conflictCount, example)
       );
     });
     const recommendedResolution = recommendResolution(uvBounds, textureResolution, this.capabilities.limits.maxTextureSize);
@@ -246,28 +278,23 @@ export class TextureService {
   }): UsecaseResult<{ textureId?: string; textureName: string; cubeCount: number; faces?: CubeFaceDirection[] }> {
     const guardErr = ensureActiveAndRevision(this.ensureActive, this.ensureRevisionMatch, payload.ifRevision);
     if (guardErr) return fail(guardErr);
-    if (!payload.textureId && !payload.textureName) {
-      return fail({
-        code: 'invalid_payload',
-        message: 'textureId or textureName is required',
-        fix: 'Provide textureId or textureName from list_textures.'
-      });
-    }
     const snapshot = this.getSnapshot();
-    const texture = resolveTextureTarget(snapshot.textures, payload.textureId, payload.textureName);
-    if (!texture) {
-      const label = payload.textureId ?? payload.textureName ?? 'unknown';
-      return fail({ code: 'invalid_payload', message: `Texture not found: ${label}` });
-    }
+    const resolved = resolveTextureOrError(snapshot.textures, payload.textureId, payload.textureName, {
+      idLabel: 'textureId',
+      nameLabel: 'textureName',
+      required: { message: TEXTURE_ASSIGN_TARGET_REQUIRED, fix: TEXTURE_ASSIGN_TARGET_REQUIRED_FIX }
+    });
+    if (resolved.error) return fail(resolved.error);
+    const texture = resolved.target!;
     const cubes = resolveCubeTargets(snapshot.cubes, payload.cubeIds, payload.cubeNames);
     if (cubes.length === 0) {
-      return fail({ code: 'invalid_payload', message: 'No target cubes found' });
+      return fail({ code: 'invalid_payload', message: TEXTURE_ASSIGN_NO_TARGETS });
     }
     const faces = normalizeCubeFaces(payload.faces);
     if (payload.faces && payload.faces.length > 0 && !faces) {
       return fail({
         code: 'invalid_payload',
-        message: 'faces must include valid directions (north/south/east/west/up/down)'
+        message: TEXTURE_ASSIGN_FACES_INVALID
       });
     }
     const cubeIds = Array.from(new Set(cubes.map((cube) => cube.id).filter(Boolean) as string[]));
@@ -300,25 +327,28 @@ export class TextureService {
       { cubeId: payload.cubeId, cubeName: payload.cubeName, faces: payload.faces }
     ]);
     if (!assignmentRes.ok) {
-      if (assignmentRes.error.message.includes('cubeId') || assignmentRes.error.message.includes('cubeName')) {
+      const reason = assignmentRes.error.details?.reason;
+      if (reason === 'target_required' || reason === 'cube_ids_string_array' || reason === 'cube_names_string_array') {
         return fail({
           ...assignmentRes.error,
-          fix: 'Provide cubeId or cubeName from get_project_state.'
+          fix: TEXTURE_FACE_UV_TARGET_FIX
         });
       }
-      if (assignmentRes.error.message.includes('faces must include at least one mapping')) {
+      if (reason === 'faces_required' || reason === 'faces_non_empty') {
         return fail({
           ...assignmentRes.error,
-          fix: 'Provide a faces map with at least one face (e.g., {"north":[0,0,4,4]}).'
+          fix: TEXTURE_FACE_UV_FACES_FIX
         });
       }
       return fail(assignmentRes.error);
     }
     const snapshot = this.getSnapshot();
-    const target = resolveCubeTarget(snapshot.cubes, payload.cubeId, payload.cubeName);
+    const target = snapshot.cubes.find((cube) => cube.id === payload.cubeId || cube.name === payload.cubeName);
     if (!target) {
-      const label = payload.cubeId ?? payload.cubeName ?? 'unknown';
-      return fail({ code: 'invalid_payload', message: `Cube not found: ${label}` });
+      return fail({
+        code: 'invalid_payload',
+        message: MODEL_CUBE_NOT_FOUND(payload.cubeId ?? payload.cubeName ?? 'unknown')
+      });
     }
     const faces: CubeFaceDirection[] = [];
     const normalized: FaceUvMap = {};
@@ -349,7 +379,7 @@ export class TextureService {
     if (reason === 'out_of_bounds') {
       return {
         ...boundsErr.error,
-        fix: 'Use get_project_state to read textureResolution and adjust UVs or change the project texture resolution.'
+        fix: TEXTURE_FACE_UV_BOUNDS_FIX
       };
     }
     return boundsErr.error;
@@ -367,5 +397,13 @@ export class TextureService {
       importTexture: (payload) => this.importTexture(payload),
       updateTexture: (payload) => this.updateTexture(payload)
     };
+  }
+
+  private ensureTextureSelector(textureId?: string, textureName?: string): ToolError | null {
+    const idBlankErr = ensureNonBlankString(textureId, 'textureId');
+    if (idBlankErr) return idBlankErr;
+    const nameBlankErr = ensureNonBlankString(textureName, 'textureName');
+    if (nameBlankErr) return nameBlankErr;
+    return null;
   }
 }

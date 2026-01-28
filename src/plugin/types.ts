@@ -11,4 +11,5 @@ export type ServerSettings = SidecarLaunchConfig & {
   autoIncludeDiff: boolean;
   requireRevision: boolean;
   autoRetryRevision: boolean;
+  exposeLowLevelTools: boolean;
 };

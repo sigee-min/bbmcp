@@ -1,19 +1,25 @@
 import { Logger } from '../logging';
-import {
-  ApplyModelSpecPayload,
-  TextureSpec
-} from '../spec';
+import { TextureSpec } from '../spec';
 import { Limits, ToolError, ToolResponse } from '../types';
 import type { DomPort } from '../ports/dom';
 import { ToolService } from '../usecases/ToolService';
-import { buildRigTemplate } from '../templates';
 import { buildMeta, MetaOptions } from './meta';
 import { renderTextureSpec, resolveTextureBase, resolveTextureSpecSize, TextureCoverage, UvPaintRenderConfig } from './texture';
 import { errFromDomain, toToolResponse } from '../services/toolResponse';
-import { isZeroSize } from '../domain/geometry';
 import { TextureUsage } from '../domain/model';
 import { resolveUvPaintRects } from './uvPaint';
 import { validateUvPaintSourceSize } from '../domain/uvPaintSource';
+import {
+  TEXTURE_COVERAGE_LOW_FIX,
+  TEXTURE_COVERAGE_LOW_HINT,
+  TEXTURE_COVERAGE_LOW_MESSAGE,
+  TEXTURE_CONTENT_UNCHANGED,
+  TEXTURE_MODE_UNSUPPORTED,
+  TEXTURE_SIZE_MISMATCH_FIX,
+  TEXTURE_SIZE_MISMATCH_MESSAGE,
+  TEXTURE_UPDATE_TARGET_REQUIRED,
+  UV_PAINT_MAPPING_REQUIRED
+} from '../shared/messages';
 
 type ApplyErrorEntry = {
   step: string;
@@ -41,46 +47,6 @@ export const createApplyReport = (): ApplyReport => ({
   errors: []
 });
 
-export const applyModelSpecSteps = (
-  service: ToolService,
-  log: Logger,
-  payload: ApplyModelSpecPayload,
-  report: ApplyReport,
-  meta: MetaOptions
-): ToolResponse<ApplyReport> => {
-  const templatedParts = buildRigTemplate(payload.model.rigTemplate, payload.model.parts);
-  for (const part of templatedParts) {
-    const boneRes = service.addBone({
-      id: part.id,
-      name: part.id,
-      parent: part.parent,
-      pivot: part.pivot ?? [0, 0, 0]
-    });
-    if (!boneRes.ok) return withReportError(boneRes.error, report, 'add_bone', part.id, meta, service);
-    report.applied.bones.push(part.id);
-    if (isZeroSize(part.size)) continue;
-    const from: [number, number, number] = [...part.offset];
-    const to: [number, number, number] = [
-      part.offset[0] + part.size[0],
-      part.offset[1] + part.size[1],
-      part.offset[2] + part.size[2]
-    ];
-    const cubeRes = service.addCube({
-      id: part.id,
-      name: part.id,
-      from,
-      to,
-      bone: part.id,
-      inflate: part.inflate,
-      mirror: part.mirror
-    });
-    if (!cubeRes.ok) return withReportError(cubeRes.error, report, 'add_cube', part.id, meta, service);
-    report.applied.cubes.push(part.id);
-  }
-  log.info('applyModelSpec applied', { parts: templatedParts.length });
-  return { ok: true, data: report };
-};
-
 export const applyTextureSpecSteps = async (
   service: ToolService,
   dom: DomPort,
@@ -94,6 +60,7 @@ export const applyTextureSpecSteps = async (
   for (const texture of textures) {
     const label = texture.name ?? texture.targetName ?? texture.targetId ?? 'texture';
     const mode = texture.mode ?? 'create';
+    const detectNoChange = texture.detectNoChange === true;
     log?.info('applyTextureSpec ops', { texture: label, mode, ops: summarizeOps(texture.ops) });
     const size = resolveTextureSpecSize(texture);
     const ops = Array.isArray(texture.ops) ? texture.ops : [];
@@ -105,7 +72,7 @@ export const applyTextureSpecSteps = async (
         return withReportError(
           {
             code: 'invalid_state',
-            message: 'UV mapping is required before painting. Assign the texture and set per-face UVs, then call preflight_texture.'
+            message: UV_PAINT_MAPPING_REQUIRED
           },
           report,
           'uv_paint',
@@ -177,7 +144,7 @@ export const applyTextureSpecSteps = async (
     }
     if (mode !== 'update') {
       return withReportError(
-        { code: 'invalid_payload', message: `unsupported texture mode: ${mode}` },
+        { code: 'invalid_payload', message: TEXTURE_MODE_UNSUPPORTED(mode) },
         report,
         'texture_update',
         label,
@@ -187,7 +154,7 @@ export const applyTextureSpecSteps = async (
     }
     if (!texture.targetId && !texture.targetName) {
       return withReportError(
-        { code: 'invalid_payload', message: 'targetId or targetName is required for update' },
+        { code: 'invalid_payload', message: TEXTURE_UPDATE_TARGET_REQUIRED },
         report,
         'texture_update',
         label,
@@ -204,7 +171,9 @@ export const applyTextureSpecSteps = async (
         log?.warn('applyTextureSpec base missing', { texture: label, code: baseRes.error.code });
         return withReportError(baseRes.error, report, 'read_texture', label, meta, service);
       }
-      baseDataUri = baseRes.data.dataUri ?? null;
+      if (detectNoChange) {
+        baseDataUri = baseRes.data.dataUri ?? null;
+      }
       const resolved = await resolveTextureBase(dom, baseRes.data);
       if (!resolved.ok) {
         log?.warn('applyTextureSpec base unresolved', { texture: label, code: resolved.error.code });
@@ -222,11 +191,11 @@ export const applyTextureSpecSteps = async (
       return withReportError(renderRes.error, report, 'render_texture', label, meta, service);
     }
     recordTextureCoverage(report, texture, renderRes.data, 'update', label);
-    if (baseDataUri) {
+    if (detectNoChange && baseDataUri) {
       const renderedDataUri = renderRes.data.canvas.toDataURL('image/png');
       if (renderedDataUri === baseDataUri) {
         return withReportError(
-          { code: 'no_change', message: 'Texture content is unchanged.' },
+          { code: 'no_change', message: TEXTURE_CONTENT_UNCHANGED },
           report,
           'texture_update',
           label,
@@ -297,11 +266,11 @@ const guardTextureCoverage = (
   return withReportError(
     {
       code: 'invalid_payload',
-      message: `Texture coverage too low for "${label}" (${ratio}% opaque).`,
-      fix: 'Fill a larger opaque area, use an opaque background, or set per-face UVs to the painted bounds.',
+      message: TEXTURE_COVERAGE_LOW_MESSAGE(label, ratio),
+      fix: TEXTURE_COVERAGE_LOW_FIX,
       details: {
         coverage: effectiveCoverage,
-        hint: 'Low opaque coverage + full-face UVs yields transparent results.'
+        hint: TEXTURE_COVERAGE_LOW_HINT
       }
     },
     report,
@@ -341,8 +310,8 @@ const ensureTextureSizeMatches = (
     return withReportError(
       {
         code: 'invalid_state',
-        message: `Texture size mismatch for "${name}": expected ${expectedWidth}x${expectedHeight}, got ${actualWidth}x${actualHeight}.`,
-        fix: 'Call set_project_texture_resolution to match the target size, then recreate the texture.',
+        message: TEXTURE_SIZE_MISMATCH_MESSAGE(name, expectedWidth, expectedHeight, actualWidth, actualHeight),
+        fix: TEXTURE_SIZE_MISMATCH_FIX,
         details: {
           expected: { width: expectedWidth, height: expectedHeight },
           actual: { width: actualWidth, height: actualHeight },

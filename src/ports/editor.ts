@@ -1,5 +1,12 @@
 import { FormatKind, RenderPreviewPayload, RenderPreviewResult, ToolError } from '../types';
 import type { CubeFaceDirection, FaceUvMap } from '../domain/model';
+import type {
+  TextureUsageResult,
+  TextureUsageQuery,
+  TextureUsageEntry,
+  TextureUsageCube,
+  TextureUsageUnresolved
+} from '../types/textureUsage';
 
 export type { CubeFaceDirection, FaceUvMap } from '../domain/model';
 import {
@@ -34,36 +41,7 @@ export type TextureResolution = {
   height: number;
 };
 
-export type TextureUsageCube = {
-  id?: string;
-  name: string;
-  faces: Array<{ face: CubeFaceDirection; uv?: [number, number, number, number] }>;
-};
-
-export type TextureUsageEntry = {
-  id?: string;
-  name: string;
-  cubeCount: number;
-  faceCount: number;
-  cubes: TextureUsageCube[];
-};
-
-export type TextureUsageUnresolved = {
-  textureRef: string;
-  cubeId?: string;
-  cubeName: string;
-  face: CubeFaceDirection;
-};
-
-export type TextureUsageResult = {
-  textures: TextureUsageEntry[];
-  unresolved?: TextureUsageUnresolved[];
-};
-
-export type TextureUsageQuery = {
-  textureId?: string;
-  textureName?: string;
-};
+export type { TextureUsageResult, TextureUsageQuery, TextureUsageEntry, TextureUsageCube, TextureUsageUnresolved };
 
 export type TextureMetaInput = {
   namespace?: string;
@@ -132,6 +110,7 @@ export type BoneCommand = {
   pivot: Vec3;
   rotation?: Vec3;
   scale?: Vec3;
+  visibility?: boolean;
 };
 
 export type UpdateBoneCommand = {
@@ -143,6 +122,7 @@ export type UpdateBoneCommand = {
   pivot?: Vec3;
   rotation?: Vec3;
   scale?: Vec3;
+  visibility?: boolean;
 };
 
 export type DeleteBoneCommand = {
@@ -156,9 +136,14 @@ export type CubeCommand = {
   from: Vec3;
   to: Vec3;
   bone?: string;
+  origin?: Vec3;
+  rotation?: Vec3;
   uv?: Vec2;
+  uvOffset?: Vec2;
   inflate?: number;
   mirror?: boolean;
+  visibility?: boolean;
+  boxUv?: boolean;
 };
 
 export type UpdateCubeCommand = {
@@ -169,9 +154,14 @@ export type UpdateCubeCommand = {
   boneRoot?: boolean;
   from?: Vec3;
   to?: Vec3;
+  origin?: Vec3;
+  rotation?: Vec3;
   uv?: Vec2;
+  uvOffset?: Vec2;
   inflate?: number;
   mirror?: boolean;
+  visibility?: boolean;
+  boxUv?: boolean;
 };
 
 export type DeleteCubeCommand = {

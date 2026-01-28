@@ -2,6 +2,14 @@ import type { ToolError } from '../types';
 import type { TmpSaveResult, TmpStorePort } from '../ports/tmpStore';
 import { errorMessage } from '../logging';
 import { toolError } from './toolResponse';
+import {
+  TMP_STORE_BASE64_DECODE_FAILED,
+  TMP_STORE_DATA_URI_INVALID,
+  TMP_STORE_DIR_CREATE_FAILED,
+  TMP_STORE_FILESYSTEM_UNAVAILABLE,
+  TMP_STORE_PERMISSION_MESSAGE,
+  TMP_STORE_WRITE_FAILED
+} from '../shared/messages';
 
 type FsModule = {
   mkdirSync: (path: string, options?: { recursive?: boolean }) => void;
@@ -22,7 +30,7 @@ const loadModule = <T>(name: string): T | null => {
   if (typeof requireNativeModule === 'function') {
     try {
       const mod = requireNativeModule(name, {
-        message: 'bbmcp needs filesystem access to store image snapshots.',
+        message: TMP_STORE_PERMISSION_MESSAGE,
         optional: true
       });
       if (mod) return mod as T;
@@ -73,19 +81,19 @@ export const saveDataUriToTmp = (
 ): { ok: true; data: TmpSaveResult } | { ok: false; error: ToolError } => {
   const parsed = parseDataUri(dataUri);
   if (!parsed) {
-    return { ok: false, error: toolError('invalid_payload', 'Invalid dataUri for image snapshot.') };
+    return { ok: false, error: toolError('invalid_payload', TMP_STORE_DATA_URI_INVALID) };
   }
   const fs = loadModule<FsModule>('fs');
   const path = loadModule<PathModule>('path');
   if (!fs || !path) {
-    return { ok: false, error: toolError('not_implemented', 'Filesystem access unavailable.') };
+    return { ok: false, error: toolError('not_implemented', TMP_STORE_FILESYSTEM_UNAVAILABLE) };
   }
   const root = options?.cwd ?? (typeof process !== 'undefined' && process.cwd ? process.cwd() : '.');
   const baseDir = path.resolve(root, '.bbmcp', 'tmp');
   try {
     fs.mkdirSync(baseDir, { recursive: true });
   } catch (err) {
-    const message = errorMessage(err, 'Failed to create tmp directory.');
+    const message = errorMessage(err, TMP_STORE_DIR_CREATE_FAILED);
     return { ok: false, error: toolError('io_error', message) };
   }
   const prefix = sanitizeName(options?.prefix ?? 'image');
@@ -100,12 +108,12 @@ export const saveDataUriToTmp = (
   try {
     buffer = Buffer.from(parsed.base64, 'base64');
   } catch (err) {
-    return { ok: false, error: toolError('invalid_payload', 'Image base64 decode failed.') };
+    return { ok: false, error: toolError('invalid_payload', TMP_STORE_BASE64_DECODE_FAILED) };
   }
   try {
     fs.writeFileSync(filePath, buffer);
   } catch (err) {
-    const message = errorMessage(err, 'Failed to write image snapshot.');
+    const message = errorMessage(err, TMP_STORE_WRITE_FAILED);
     return { ok: false, error: toolError('io_error', message) };
   }
   return { ok: true, data: { path: filePath, mimeType: parsed.mimeType, byteLength: buffer.byteLength } };

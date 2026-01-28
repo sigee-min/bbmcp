@@ -1,6 +1,5 @@
 import type { ToolError } from '../types';
 import type { FormatOverrides } from '../services/format';
-import type { RigMergeStrategy } from '../domain/rig';
 import type { ExportPolicy, SnapshotPolicy } from './policies';
 import type { UvPolicyConfig } from '../domain/uvPolicy';
 
@@ -12,7 +11,6 @@ export interface PolicyContextLike {
   getAutoAttachActiveProject(): boolean | undefined;
   isRevisionRequired(): boolean;
   isAutoRetryRevisionEnabled(): boolean;
-  getRigMergeStrategy(): RigMergeStrategy | undefined;
   getUvPolicyConfig(): UvPolicyConfig;
 }
 

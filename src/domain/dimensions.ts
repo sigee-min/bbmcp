@@ -5,6 +5,12 @@ export type DimensionCheckResult =
   | { ok: true }
   | { ok: false; reason: DimensionCheckReason; axis?: DimensionAxis; maxSize?: number };
 
+export type DimensionErrorMapper<T> = {
+  nonPositive: (axis: DimensionAxis) => T;
+  nonInteger?: (axis: DimensionAxis) => T;
+  exceedsMax: (maxSize: number) => T;
+};
+
 export const checkDimensions = (
   width: number,
   height: number,
@@ -32,6 +38,24 @@ export const checkDimensions = (
     }
   }
   return { ok: true };
+};
+
+export const mapDimensionError = <T>(check: DimensionCheckResult, mapper: DimensionErrorMapper<T>): T | null => {
+  if (check.ok) return null;
+  const axis = check.axis ?? 'width';
+  if (check.reason === 'non_positive') {
+    return mapper.nonPositive(axis);
+  }
+  if (check.reason === 'non_integer') {
+    const handler = mapper.nonInteger ?? mapper.nonPositive;
+    return handler(axis);
+  }
+  return mapper.exceedsMax(check.maxSize ?? 0);
+};
+
+export const formatDimensionAxis = (axis?: DimensionAxis): string => {
+  if (!axis) return 'width/height';
+  return axis === 'height' ? 'height' : 'width';
 };
 
 const isFinitePositive = (value: number): boolean =>

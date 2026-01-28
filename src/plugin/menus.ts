@@ -1,6 +1,16 @@
 import { PLUGIN_ID } from '../config';
 import type { Capabilities } from '../types';
 import type { ReadGlobals, ServerSettings } from './types';
+import {
+  PLUGIN_UI_CAPABILITIES_TITLE,
+  PLUGIN_UI_DEVRELOAD_UNAVAILABLE,
+  PLUGIN_UI_ENDPOINT_MESSAGE,
+  PLUGIN_UI_PLUGIN_STATE_TITLE,
+  PLUGIN_UI_PROMPT_HOST,
+  PLUGIN_UI_PROMPT_PATH,
+  PLUGIN_UI_PROMPT_PORT,
+  PLUGIN_UI_UNLOADED
+} from './messages';
 
 export const registerDebugMenu = (deps: { readGlobals: ReadGlobals; capabilities: Capabilities }) => {
   const globals = deps.readGlobals();
@@ -12,7 +22,7 @@ export const registerDebugMenu = (deps: { readGlobals: ReadGlobals; capabilities
     name: 'bbmcp: show capabilities',
     icon: 'info',
     click: () => {
-      blockbench.textPrompt?.('bbmcp capabilities', JSON.stringify(deps.capabilities, null, 2), () => {});
+      blockbench.textPrompt?.(PLUGIN_UI_CAPABILITIES_TITLE, JSON.stringify(deps.capabilities, null, 2), () => {});
     }
   };
   menuBar.addAction(action, 'help');
@@ -31,9 +41,9 @@ export const registerDevReloadAction = (deps: { readGlobals: ReadGlobals }) => {
     click: () => {
       if (typeof plugins?.devReload === 'function') {
         plugins.devReload();
-        blockbench.showQuickMessage?.('bbmcp unloaded', 1200);
+        blockbench.showQuickMessage?.(PLUGIN_UI_UNLOADED, 1200);
       } else {
-        blockbench.showQuickMessage?.('Plugins.devReload not available', 1200);
+        blockbench.showQuickMessage?.(PLUGIN_UI_DEVRELOAD_UNAVAILABLE, 1200);
       }
     }
   };
@@ -57,7 +67,7 @@ export const registerInspectorAction = (deps: { readGlobals: ReadGlobals }) => {
         path: path ?? null,
         registeredKeys: registered ? Object.keys(registered) : null
       };
-      blockbench.textPrompt?.('bbmcp plugin state', JSON.stringify(payload, null, 2), () => {});
+      blockbench.textPrompt?.(PLUGIN_UI_PLUGIN_STATE_TITLE, JSON.stringify(payload, null, 2), () => {});
     }
   };
   menuBar.addAction(action, 'help');
@@ -77,22 +87,22 @@ export const registerServerConfigAction = (deps: {
     name: 'bbmcp: set MCP endpoint',
     icon: 'settings',
     click: async () => {
-      const host = await blockbench.textPrompt?.('MCP host', deps.serverConfig.host, () => {});
+      const host = await blockbench.textPrompt?.(PLUGIN_UI_PROMPT_HOST, deps.serverConfig.host, () => {});
       if (typeof host === 'string' && host.length > 0) {
         deps.serverConfig.host = host;
       }
-      const portStr = await blockbench.textPrompt?.('MCP port', String(deps.serverConfig.port), () => {});
+      const portStr = await blockbench.textPrompt?.(PLUGIN_UI_PROMPT_PORT, String(deps.serverConfig.port), () => {});
       const portNum = parseInt(portStr ?? `${deps.serverConfig.port}`, 10);
       if (!Number.isNaN(portNum)) {
         deps.serverConfig.port = portNum;
       }
-      const path = await blockbench.textPrompt?.('MCP path', deps.serverConfig.path, () => {});
+      const path = await blockbench.textPrompt?.(PLUGIN_UI_PROMPT_PATH, deps.serverConfig.path, () => {});
       if (typeof path === 'string' && path.length > 0) {
         deps.serverConfig.path = path.startsWith('/') ? path : `/${path}`;
       }
       deps.restartServer();
       blockbench.showQuickMessage?.(
-        `MCP endpoint: ${deps.serverConfig.host}:${deps.serverConfig.port}${deps.serverConfig.path}`,
+        PLUGIN_UI_ENDPOINT_MESSAGE(deps.serverConfig.host, deps.serverConfig.port, deps.serverConfig.path),
         1500
       );
     }

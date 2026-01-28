@@ -10,7 +10,7 @@ import { EditorPort } from '../ports/editor';
 import { TextureRendererPort } from '../ports/textureRenderer';
 import { SessionState } from '../session';
 import { UsecaseResult, fail, ok } from './result';
-import { resolveTextureTarget } from '../services/lookup';
+import { resolveTextureOrError } from '../services/targetGuards';
 import { TexturePresetResult, computeCoverage, generateTexturePreset } from '../domain/texturePresets';
 import { resolveUvPaintRects, validateUvPaintSpec, type UvPaintRect } from '../domain/uvPaint';
 import { applyUvPaintPixels } from '../domain/uvPaintPixels';
@@ -19,12 +19,28 @@ import { collectSingleTarget } from '../domain/uvTargets';
 import { buildUvAtlasPlan } from '../domain/uvAtlas';
 import { UvPolicyConfig } from '../domain/uvPolicy';
 import { toDomainSnapshot, toDomainTextureUsage } from './domainMappers';
-import { checkDimensions, type DimensionAxis } from '../domain/dimensions';
+import { checkDimensions, mapDimensionError } from '../domain/dimensions';
 import { requireUvUsageId } from '../domain/uvUsageId';
 import { ensureActiveAndRevision, ensureActiveOnly } from './guards';
-import { ensureIdNameMatch, ensureNonBlankString } from '../services/validation';
+import { ensureNonBlankString } from '../services/validation';
 import { validateUvPaintSourceSize } from '../domain/uvPaintSource';
 import { fromDomainResult } from './fromDomain';
+import {
+  DIMENSION_INTEGER_MESSAGE,
+  DIMENSION_POSITIVE_MESSAGE,
+  TEXTURE_ALREADY_EXISTS,
+  TEXTURE_AUTO_UV_NO_TEXTURES,
+  TEXTURE_AUTO_UV_RESOLUTION_MISSING,
+  TEXTURE_AUTO_UV_UNRESOLVED_REFS,
+  TEXTURE_PRESET_MODE_INVALID,
+  TEXTURE_PRESET_NAME_REQUIRED,
+  TEXTURE_PRESET_SIZE_EXCEEDS_MAX,
+  TEXTURE_PRESET_SIZE_EXCEEDS_MAX_FIX,
+  TEXTURE_PRESET_TARGET_REQUIRED,
+  TEXTURE_PRESET_UV_USAGE_REQUIRED,
+  TEXTURE_RENDERER_NO_IMAGE,
+  TEXTURE_RENDERER_UNAVAILABLE
+} from '../shared/messages';
 
 export type TextureToolContext = {
   ensureActive: () => ToolError | null;
@@ -93,20 +109,20 @@ export const runAutoUvAtlas = (
   const usageRaw = usageRes.result ?? { textures: [] };
   const usage = toDomainTextureUsage(usageRaw);
   if (usage.textures.length === 0) {
-    return fail({ code: 'invalid_state', message: 'No textures are assigned to any cube faces.' });
+    return fail({ code: 'invalid_state', message: TEXTURE_AUTO_UV_NO_TEXTURES });
   }
   const unresolvedCount = usage.unresolved?.length ?? 0;
   if (unresolvedCount > 0) {
     return fail({
       code: 'invalid_state',
-      message: `Unresolved texture references detected (${unresolvedCount}). Assign textures before atlas packing.`
+      message: TEXTURE_AUTO_UV_UNRESOLVED_REFS(unresolvedCount)
     });
   }
   const resolution = ctx.editor.getProjectTextureResolution();
   if (!resolution) {
     return fail({
       code: 'invalid_state',
-      message: 'Project textureResolution is missing. Set it before atlas packing.'
+      message: TEXTURE_AUTO_UV_RESOLUTION_MISSING
     });
   }
   const padding =
@@ -166,30 +182,24 @@ type TexturePresetContext = {
   uvPaintSpec: ReturnType<typeof resolveUvPaintSpec>;
   rects: UvPaintRect[];
   mode: 'create' | 'update';
-  target: ReturnType<typeof resolveTextureTarget>;
+  target: TextureTarget | null;
   preset: TexturePresetResult;
 };
 
+type TextureTarget = { id?: string; name: string };
+
 const resolveUvPaintSpec = (payload: GenerateTexturePresetPayload) =>
   payload.uvPaint ?? { scope: 'rects', mapping: 'stretch' };
-
-const formatDimensionLabel = (axis?: DimensionAxis) => axis ?? 'width/height';
-
-const positiveNumberMessage = (label: string, axis?: DimensionAxis) =>
-  `${label} must be ${axis ? 'a positive number' : 'positive numbers'}.`;
-
-const integerMessage = (label: string, axis?: DimensionAxis) =>
-  `${label} must be ${axis ? 'an integer' : 'integers'}.`;
 
 const validateTexturePresetContext = (
   ctx: TextureToolContext,
   payload: GenerateTexturePresetPayload
 ): UsecaseResult<TexturePresetContext> => {
   if (!ctx.textureRenderer) {
-    return fail({ code: 'not_implemented', message: 'Texture renderer unavailable.' });
+    return fail({ code: 'not_implemented', message: TEXTURE_RENDERER_UNAVAILABLE });
   }
   if (payload.mode && payload.mode !== 'create' && payload.mode !== 'update') {
-    return fail({ code: 'invalid_payload', message: `mode must be create or update (${payload.mode}).` });
+    return fail({ code: 'invalid_payload', message: TEXTURE_PRESET_MODE_INVALID(payload.mode) });
   }
   const nameBlankErr = ensureNonBlankString(payload.name, 'name');
   if (nameBlankErr) return fail(nameBlankErr);
@@ -201,13 +211,7 @@ const validateTexturePresetContext = (
   if (mode === 'create' && !payload.name) {
     return fail({
       code: 'invalid_payload',
-      message: 'name is required when mode=create.'
-    });
-  }
-  if (mode === 'update' && !payload.targetId && !payload.targetName) {
-    return fail({
-      code: 'invalid_payload',
-      message: 'targetId or targetName is required when mode=update.'
+      message: TEXTURE_PRESET_NAME_REQUIRED
     });
   }
   let label =
@@ -217,7 +221,7 @@ const validateTexturePresetContext = (
   const uvPaintLabel = payload.targetName ?? payload.targetId ?? label;
   const usageIdRes = requireUvUsageId(
     payload.uvUsageId,
-    'uvUsageId is required. Call preflight_texture before generate_texture_preset.'
+    TEXTURE_PRESET_UV_USAGE_REQUIRED
   );
   if (!usageIdRes.ok) return fail(usageIdRes.error);
   const uvUsageId = usageIdRes.data;
@@ -226,19 +230,20 @@ const validateTexturePresetContext = (
   const maxSize = ctx.capabilities.limits.maxTextureSize;
   const sizeCheck = checkDimensions(width, height, { requireInteger: true, maxSize });
   if (!sizeCheck.ok) {
-    const axisLabel = formatDimensionLabel(sizeCheck.axis);
-    if (sizeCheck.reason === 'non_positive') {
-      return fail({ code: 'invalid_payload', message: positiveNumberMessage(axisLabel, sizeCheck.axis) });
-    }
-    if (sizeCheck.reason === 'non_integer') {
-      return fail({ code: 'invalid_payload', message: integerMessage(axisLabel, sizeCheck.axis) });
-    }
-    return fail({
-      code: 'invalid_payload',
-      message: `Texture size exceeds max ${maxSize}.`,
-      fix: `Use width/height <= ${maxSize}.`,
-      details: { width, height, maxSize }
+    const sizeMessage = mapDimensionError(sizeCheck, {
+      nonPositive: (axis) => DIMENSION_POSITIVE_MESSAGE(axis, axis),
+      nonInteger: (axis) => DIMENSION_INTEGER_MESSAGE(axis, axis),
+      exceedsMax: (limit) => TEXTURE_PRESET_SIZE_EXCEEDS_MAX(limit || maxSize)
     });
+    if (sizeCheck.reason === 'exceeds_max') {
+      return fail({
+        code: 'invalid_payload',
+        message: sizeMessage ?? TEXTURE_PRESET_SIZE_EXCEEDS_MAX(maxSize),
+        fix: TEXTURE_PRESET_SIZE_EXCEEDS_MAX_FIX(maxSize),
+        details: { width, height, maxSize }
+      });
+    }
+    return fail({ code: 'invalid_payload', message: sizeMessage ?? DIMENSION_POSITIVE_MESSAGE('width/height') });
   }
   const uvPaintSpec = resolveUvPaintSpec(payload);
   const uvPaintValidation = validateUvPaintSpec(uvPaintSpec, ctx.capabilities.limits, uvPaintLabel);
@@ -250,32 +255,28 @@ const validateTexturePresetContext = (
   const usageIdError = guardUvUsageId(usage, uvUsageId);
   if (usageIdError) return fail(usageIdError);
   const snapshot = ctx.getSnapshot();
-  if (mode === 'update' && payload.targetId && payload.targetName) {
-    const mismatchErr = ensureIdNameMatch(snapshot.textures, payload.targetId, payload.targetName, {
-      kind: 'Texture',
-      plural: 'textures',
+  let target: TextureTarget | null = null;
+  if (mode === 'update') {
+    const resolved = resolveTextureOrError(snapshot.textures, payload.targetId, payload.targetName, {
       idLabel: 'targetId',
-      nameLabel: 'targetName'
+      nameLabel: 'targetName',
+      required: { message: TEXTURE_PRESET_TARGET_REQUIRED }
     });
-    if (mismatchErr) return fail(mismatchErr);
-  }
-  const target = mode === 'update' ? resolveTextureTarget(snapshot.textures, payload.targetId, payload.targetName) : null;
-  if (mode === 'update' && !target) {
-    const targetLabel = payload.targetId ?? payload.targetName ?? 'unknown';
-    return fail({ code: 'invalid_payload', message: `Texture not found: ${targetLabel}` });
+    if (resolved.error) return fail(resolved.error);
+    target = resolved.target!;
   }
   if (mode === 'update' && payload.name && payload.name !== target?.name) {
     const conflict = snapshot.textures.some(
       (texture) => texture.name === payload.name && texture.id !== target?.id
     );
     if (conflict) {
-      return fail({ code: 'invalid_payload', message: `Texture already exists: ${payload.name}` });
+      return fail({ code: 'invalid_payload', message: TEXTURE_ALREADY_EXISTS(payload.name) });
     }
   }
   if (mode === 'create' && payload.name) {
     const conflict = snapshot.textures.some((texture) => texture.name === payload.name);
     if (conflict) {
-      return fail({ code: 'invalid_payload', message: `Texture already exists: ${payload.name}` });
+      return fail({ code: 'invalid_payload', message: TEXTURE_ALREADY_EXISTS(payload.name) });
     }
   }
   label = target?.name ?? uvPaintLabel;
@@ -366,7 +367,7 @@ const buildPaintedTexture = (
   });
   if (renderRes?.error) return fail(renderRes.error);
   if (!renderRes?.result) {
-    return fail({ code: 'not_implemented', message: 'Texture renderer failed to produce an image.' });
+    return fail({ code: 'not_implemented', message: TEXTURE_RENDERER_NO_IMAGE });
   }
   return ok({ image: renderRes.result.image, coverage });
 };

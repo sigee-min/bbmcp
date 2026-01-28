@@ -1,8 +1,8 @@
-import { IncludeStateOption } from './shared';
+import { IfRevisionOption, IncludeStateOption } from './shared';
 
 export type RenderPreviewOutputKind = 'single' | 'sequence';
 
-export interface RenderPreviewPayload extends IncludeStateOption {
+export interface RenderPreviewPayload extends IncludeStateOption, IfRevisionOption {
   mode: 'fixed' | 'turntable';
   angle?: [number, number] | [number, number, number];
   clip?: string;
@@ -55,3 +55,14 @@ export interface RenderPreviewResult {
     }>;
   };
 }
+
+export type PreviewImageMeta = Omit<PreviewImage, 'dataUri'>;
+export type PreviewFrameMeta = Omit<PreviewFrame, 'dataUri'>;
+
+export type RenderPreviewStructured = {
+  kind: RenderPreviewOutputKind;
+  frameCount: number;
+  image?: PreviewImageMeta;
+  frames?: PreviewFrameMeta[];
+  saved?: RenderPreviewResult['saved'];
+};

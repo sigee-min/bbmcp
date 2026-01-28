@@ -1,10 +1,26 @@
 import type { ToolError } from '../types';
+import { ID_NAME_MISMATCH_MESSAGE, NON_EMPTY_STRING_MESSAGE } from '../shared/messages';
 
 export const isBlankString = (value?: string): boolean => typeof value === 'string' && value.trim().length === 0;
 
 export const ensureNonBlankString = (value: unknown, label: string): ToolError | null => {
   if (typeof value === 'string' && value.trim().length === 0) {
-    return { code: 'invalid_payload', message: `${label} must be a non-empty string.` };
+    return { code: 'invalid_payload', message: NON_EMPTY_STRING_MESSAGE(label) };
+  }
+  return null;
+};
+
+export const ensureIdOrName = (
+  id: unknown,
+  name: unknown,
+  options: { message: string; fix?: string }
+): ToolError | null => {
+  if (!id && !name) {
+    return {
+      code: 'invalid_payload',
+      message: options.message,
+      ...(options.fix ? { fix: options.fix } : {})
+    };
   }
   return null;
 };
@@ -25,7 +41,7 @@ export const ensureIdNameMatch = <T extends IdNameItem>(
     const nameLabel = options.nameLabel ?? 'name';
     return {
       code: 'invalid_payload',
-      message: `${options.kind} ${idLabel} and ${nameLabel} refer to different ${options.plural} (${id}, ${name}).`
+      message: ID_NAME_MISMATCH_MESSAGE(options.kind, idLabel, nameLabel, options.plural, id, name)
     };
   }
   return null;

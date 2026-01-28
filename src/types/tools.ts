@@ -12,6 +12,7 @@ import { ProjectState, WithState } from './project';
 import { RenderPreviewPayload, RenderPreviewResult } from './preview';
 import type { UvPaintSpec } from '../domain/uvPaintSpec';
 import type { CubeFaceDirection, FaceUvMap } from '../domain/model';
+import type { TextureUsageResult } from './textureUsage';
 import type {
   EnsureProjectMatch,
   EnsureProjectOnMismatch,
@@ -36,7 +37,7 @@ export interface EnsureProjectPayload extends IncludeStateOption, IncludeDiffOpt
   confirmDialog?: boolean;
 }
 
-export interface GenerateBlockPipelinePayload {
+export interface BlockPipelinePayload {
   name: string;
   texture: string;
   namespace?: string;
@@ -81,6 +82,7 @@ export interface ReloadPluginsPayload {
 
 export interface GetProjectStatePayload {
   detail?: ProjectStateDetail;
+  includeUsage?: boolean;
 }
 
 export interface SetProjectTextureResolutionPayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
@@ -122,6 +124,7 @@ export interface AddBonePayload extends IncludeStateOption, IncludeDiffOption, I
   pivot: [number, number, number];
   rotation?: [number, number, number];
   scale?: [number, number, number];
+  visibility?: boolean;
 }
 
 export interface UpdateBonePayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
@@ -134,6 +137,7 @@ export interface UpdateBonePayload extends IncludeStateOption, IncludeDiffOption
   pivot?: [number, number, number];
   rotation?: [number, number, number];
   scale?: [number, number, number];
+  visibility?: boolean;
 }
 
 export interface DeleteBonePayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
@@ -148,8 +152,13 @@ export interface AddCubePayload extends IncludeStateOption, IncludeDiffOption, I
   to: [number, number, number];
   bone?: string;
   boneId?: string;
+  origin?: [number, number, number];
+  rotation?: [number, number, number];
   inflate?: number;
   mirror?: boolean;
+  visibility?: boolean;
+  boxUv?: boolean;
+  uvOffset?: [number, number];
 }
 
 export interface UpdateCubePayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
@@ -161,8 +170,13 @@ export interface UpdateCubePayload extends IncludeStateOption, IncludeDiffOption
   boneRoot?: boolean;
   from?: [number, number, number];
   to?: [number, number, number];
+  origin?: [number, number, number];
+  rotation?: [number, number, number];
   inflate?: number;
   mirror?: boolean;
+  visibility?: boolean;
+  boxUv?: boolean;
+  uvOffset?: [number, number];
 }
 
 export interface DeleteCubePayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
@@ -170,16 +184,12 @@ export interface DeleteCubePayload extends IncludeStateOption, IncludeDiffOption
   name?: string;
 }
 
-export interface ApplyRigTemplatePayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
-  templateId: string;
-}
-
-export interface ExportPayload extends IncludeStateOption {
+export interface ExportPayload extends IncludeStateOption, IfRevisionOption {
   format: 'java_block_item_json' | 'gecko_geo_anim' | 'animated_java';
   destPath: string;
 }
 
-export interface ValidatePayload extends IncludeStateOption {}
+export interface ValidatePayload extends IncludeStateOption, IfRevisionOption {}
 
 export interface ToolPayloadMap {
   list_capabilities: Record<string, never>;
@@ -191,7 +201,7 @@ export interface ToolPayloadMap {
   set_project_texture_resolution: SetProjectTextureResolutionPayload;
   preflight_texture: PreflightTexturePayload;
   ensure_project: EnsureProjectPayload;
-  generate_block_pipeline: GenerateBlockPipelinePayload;
+  block_pipeline: BlockPipelinePayload;
   delete_texture: DeleteTexturePayload;
   assign_texture: AssignTexturePayload;
   set_face_uv: SetFaceUvPayload;
@@ -201,7 +211,6 @@ export interface ToolPayloadMap {
   add_cube: AddCubePayload;
   update_cube: UpdateCubePayload;
   delete_cube: DeleteCubePayload;
-  apply_rig_template: ApplyRigTemplatePayload;
   export: ExportPayload;
   render_preview: RenderPreviewPayload;
   validate: ValidatePayload;
@@ -217,20 +226,26 @@ export interface EnsureProjectResult {
   };
 }
 
-export type GenerateBlockPipelineResource = {
+export type BlockPipelineResource = {
   uri: string;
   kind: 'blockstate' | 'model' | 'item';
   name: string;
   mimeType: string;
 };
 
-export interface GenerateBlockPipelineResult {
+export interface BlockPipelineResult {
+  applied: true;
+  steps: {
+    generate: {
+      resources: number;
+    };
+  };
   name: string;
   namespace: string;
   variants: BlockVariant[];
   mode: BlockPipelineMode;
   onConflict: BlockPipelineOnConflict;
-  resources: GenerateBlockPipelineResource[];
+  resources: BlockPipelineResource[];
   assets: {
     blockstates: Record<string, unknown>;
     models: Record<string, unknown>;
@@ -316,32 +331,6 @@ export interface SetProjectTextureResolutionResult {
   height: number;
 }
 
-export interface GetTextureUsageCube {
-  id?: string;
-  name: string;
-  faces: Array<{ face: CubeFaceDirection; uv?: [number, number, number, number] }>;
-}
-
-export interface GetTextureUsageEntry {
-  id?: string;
-  name: string;
-  cubeCount: number;
-  faceCount: number;
-  cubes: GetTextureUsageCube[];
-}
-
-export interface GetTextureUsageUnresolved {
-  textureRef: string;
-  cubeId?: string;
-  cubeName: string;
-  face: CubeFaceDirection;
-}
-
-export interface GetTextureUsageResult {
-  textures: GetTextureUsageEntry[];
-  unresolved?: GetTextureUsageUnresolved[];
-}
-
 export interface PreflightUvBounds {
   minX: number;
   minY: number;
@@ -366,7 +355,7 @@ export interface PreflightTextureResult {
   uvBounds?: PreflightUvBounds;
   recommendedResolution?: { width: number; height: number; reason: string };
   warnings?: string[];
-  textureUsage?: GetTextureUsageResult;
+  textureUsage?: TextureUsageResult;
 }
 
 export interface ExportResult {
@@ -393,7 +382,7 @@ export interface ToolResultMap {
   set_project_texture_resolution: WithState<SetProjectTextureResolutionResult>;
   preflight_texture: PreflightTextureResult;
   ensure_project: WithState<EnsureProjectResult>;
-  generate_block_pipeline: WithState<GenerateBlockPipelineResult>;
+  block_pipeline: WithState<BlockPipelineResult>;
   delete_texture: WithState<{ id: string; name: string }>;
   assign_texture: WithState<{ textureId?: string; textureName: string; cubeCount: number; faces?: CubeFaceDirection[] }>;
   set_face_uv: WithState<{ cubeId?: string; cubeName: string; faces: CubeFaceDirection[] }>;
@@ -403,7 +392,6 @@ export interface ToolResultMap {
   add_cube: WithState<{ id: string; name: string }>;
   update_cube: WithState<{ id: string; name: string }>;
   delete_cube: WithState<{ id: string; name: string }>;
-  apply_rig_template: WithState<{ templateId: string }>;
   export: WithState<ExportResult>;
   render_preview: WithState<RenderPreviewResult>;
   validate: WithState<ValidateResult>;

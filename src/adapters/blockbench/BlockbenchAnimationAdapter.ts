@@ -10,6 +10,11 @@ import { errorMessage, Logger } from '../../logging';
 import { toolError } from '../../services/toolResponse';
 import { AnimationClip } from '../../types/blockbench';
 import {
+  ADAPTER_ANIMATION_API_UNAVAILABLE,
+  ADAPTER_ANIMATOR_API_UNAVAILABLE,
+  ANIMATION_CLIP_NOT_FOUND
+} from '../../shared/messages';
+import {
   assignAnimationLength,
   readAnimationId,
   readGlobals,
@@ -44,7 +49,7 @@ export class BlockbenchAnimationAdapter {
     try {
       const { Animation: AnimationCtor } = readGlobals();
       if (typeof AnimationCtor === 'undefined') {
-        return { code: 'not_implemented', message: 'Animation API not available' };
+        return { code: 'not_implemented', message: ADAPTER_ANIMATION_API_UNAVAILABLE };
       }
       withUndo({ animations: true }, 'Create animation', () => {
         const anim = new AnimationCtor({
@@ -71,7 +76,7 @@ export class BlockbenchAnimationAdapter {
       const target = this.findAnimationRef(params.name, params.id, animations);
       if (!target) {
         const label = params.id ?? params.name ?? 'unknown';
-        return { code: 'invalid_payload', message: `Animation clip not found: ${label}` };
+        return { code: 'invalid_payload', message: ANIMATION_CLIP_NOT_FOUND(label) };
       }
       if (params.id) target.bbmcpId = params.id;
       withUndo({ animations: true }, 'Update animation', () => {
@@ -111,7 +116,7 @@ export class BlockbenchAnimationAdapter {
       const target = this.findAnimationRef(params.name, params.id, animations);
       if (!target) {
         const label = params.id ?? params.name ?? 'unknown';
-        return { code: 'invalid_payload', message: `Animation clip not found: ${label}` };
+        return { code: 'invalid_payload', message: ANIMATION_CLIP_NOT_FOUND(label) };
       }
       withUndo({ animations: true }, 'Delete animation', () => {
         if (removeEntity(target)) return;
@@ -133,13 +138,13 @@ export class BlockbenchAnimationAdapter {
     try {
       const { Animator: AnimatorCtor } = readGlobals();
       if (typeof AnimatorCtor === 'undefined') {
-        return { code: 'not_implemented', message: 'Animator API not available' };
+        return { code: 'not_implemented', message: ADAPTER_ANIMATOR_API_UNAVAILABLE };
       }
       const animations = getAnimations();
       const clip = this.findAnimationRef(params.clip, params.clipId, animations);
       if (!clip) {
         const label = params.clipId ?? params.clip;
-        return { code: 'invalid_payload', message: `Animation clip not found: ${label}` };
+        return { code: 'invalid_payload', message: ANIMATION_CLIP_NOT_FOUND(label) };
       }
       withUndo({ animations: true, keyframes: [] }, 'Set keyframes', () => {
         if (clip) {
@@ -168,13 +173,13 @@ export class BlockbenchAnimationAdapter {
     try {
       const { Animator: AnimatorCtor } = readGlobals();
       if (typeof AnimatorCtor === 'undefined') {
-        return { code: 'not_implemented', message: 'Animator API not available' };
+        return { code: 'not_implemented', message: ADAPTER_ANIMATOR_API_UNAVAILABLE };
       }
       const animations = getAnimations();
       const clip = this.findAnimationRef(params.clip, params.clipId, animations);
       if (!clip) {
         const label = params.clipId ?? params.clip;
-        return { code: 'invalid_payload', message: `Animation clip not found: ${label}` };
+        return { code: 'invalid_payload', message: ANIMATION_CLIP_NOT_FOUND(label) };
       }
       withUndo({ animations: true, keyframes: [] }, 'Set trigger keyframes', () => {
         const animator = resolveEffectAnimator(clip, AnimatorCtor);

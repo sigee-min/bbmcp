@@ -1,5 +1,4 @@
 import {
-  computeCapabilities,
   PLUGIN_ID,
   PLUGIN_VERSION,
   TOOL_SCHEMA_VERSION,
@@ -7,40 +6,26 @@ import {
   DEFAULT_SERVER_PORT,
   DEFAULT_SERVER_PATH
 } from '../config';
-import { ProjectSession } from '../session';
-import { ToolDispatcherImpl } from '../dispatcher';
+import type { ProjectSession } from '../session';
 import { Capabilities, Dispatcher, ExportPayload, FormatKind } from '../types';
 import { ProxyRouter } from '../proxy';
 import { ConsoleLogger, errorMessage, LogLevel } from '../logging';
-import {
-  ApplyEntitySpecPayload,
-  ApplyModelSpecPayload,
-  ApplyTextureSpecPayload,
-  ApplyUvSpecPayload,
-  ProxyTool
-} from '../spec';
+import { ProxyTool } from '../spec';
+import type { ProxyToolPayloadMap } from '../proxy/types';
 import { SidecarProcess } from '../sidecar/SidecarProcess';
 import { SidecarLaunchConfig } from '../sidecar/types';
-import { ToolService } from '../usecases/ToolService';
 import type { ExportPolicy } from '../usecases/policies';
-import { BlockbenchEditor } from '../adapters/blockbench/BlockbenchEditor';
-import { BlockbenchHost } from '../adapters/blockbench/BlockbenchHost';
-import { BlockbenchFormats } from '../adapters/blockbench/BlockbenchFormats';
-import { BlockbenchSnapshot } from '../adapters/blockbench/BlockbenchSnapshot';
-import { BlockbenchExport } from '../adapters/blockbench/BlockbenchExport';
-import { BlockbenchTextureRenderer } from '../adapters/blockbench/BlockbenchTextureRenderer';
-import { BlockbenchDom } from '../adapters/blockbench/BlockbenchDom';
+import type { BlockbenchFormats } from '../adapters/blockbench/BlockbenchFormats';
 import { FormatOverrides, resolveFormatId } from '../services/format';
 import { buildInternalExport } from '../services/exporters';
 import { DEFAULT_UV_POLICY } from '../domain/uvPolicy';
+import { buildToolRegistry } from '../mcp/tools';
 import { BLOCK_PIPELINE_RESOURCE_TEMPLATES } from '../services/blockPipeline';
 import { GUIDE_RESOURCE_TEMPLATES, GUIDE_RESOURCES } from '../services/guides';
 import { InMemoryResourceStore } from '../services/resources';
-import { LocalTmpStore } from '../services/tmpStore';
 import { startServer } from '../server';
 import { readGlobals } from '../adapters/blockbench/blockbenchUtils';
 import { deleteGlobalValue, readGlobalValue, writeGlobalValue } from '../services/globalState';
-import { TOOL_REGISTRY_COUNT, TOOL_REGISTRY_HASH } from '../mcp/tools';
 import { registerDebugMenu, registerDevReloadAction, registerInspectorAction, registerServerConfigAction } from './menus';
 import {
   registerExportPolicySetting,
@@ -49,6 +34,25 @@ import {
   registerSettings
 } from './settings';
 import type { ServerSettings } from './types';
+import { buildRuntimeServices } from './runtimeServices';
+import {
+  PLUGIN_LOG_INLINE_SERVER_UNAVAILABLE,
+  PLUGIN_LOG_LOADING,
+  PLUGIN_LOG_PREVIOUS_CLEANUP_FAILED,
+  PLUGIN_LOG_SERVER_WEB_MODE,
+  PLUGIN_LOG_SIDECAR_FAILED,
+  PLUGIN_UI_EXPORT_COMPLETE,
+  PLUGIN_UI_EXPORT_FAILED,
+  PLUGIN_UI_EXPORT_FAILED_GENERIC,
+  PLUGIN_UI_LOADED,
+  PLUGIN_UI_UNLOADED
+} from './messages';
+import {
+  ADAPTER_NATIVE_COMPILER_ASYNC_UNSUPPORTED,
+  ADAPTER_NATIVE_COMPILER_EMPTY,
+  ADAPTER_NATIVE_COMPILER_UNAVAILABLE,
+  EXPORT_FORMAT_ID_MISSING_FOR_KIND
+} from '../shared/messages';
 
 type BbmcpBridge = {
   invoke: Dispatcher['handle'];
@@ -67,7 +71,6 @@ GUIDE_RESOURCES.forEach((resource) => resourceStore.put(resource));
 const policies = {
   formatOverrides,
   snapshotPolicy: 'hybrid' as const,
-  rigMergeStrategy: 'skip_existing' as const,
   exportPolicy: 'strict' as ExportPolicy,
   uvPolicy: { ...DEFAULT_UV_POLICY },
   autoDiscardUnsaved: true,
@@ -75,7 +78,8 @@ const policies = {
   autoIncludeState: false,
   autoIncludeDiff: false,
   requireRevision: true,
-  autoRetryRevision: true
+  autoRetryRevision: true,
+  exposeLowLevelTools: false
 };
 
 let logLevel: LogLevel = 'info';
@@ -91,6 +95,7 @@ const serverConfig: ServerSettings = {
   autoIncludeDiff: false,
   requireRevision: true,
   autoRetryRevision: true,
+  exposeLowLevelTools: false,
   execPath: undefined
 };
 
@@ -98,6 +103,7 @@ let sidecar: SidecarProcess | null = null;
 let inlineServerStop: (() => void) | null = null;
 let globalDispatcher: Dispatcher | null = null;
 let globalProxy: ProxyRouter | null = null;
+let globalCapabilities: Capabilities | null = null;
 
 const INSTANCE_KEY = '__bbmcp_instance__';
 type RuntimeInstance = { cleanup: () => void; version: string };
@@ -105,6 +111,14 @@ type RuntimeInstance = { cleanup: () => void; version: string };
 const cleanupBridge = () => {
   deleteGlobalValue('bbmcp');
   deleteGlobalValue('bbmcpVersion');
+};
+
+const updateToolRegistry = () => {
+  const registry = buildToolRegistry({ includeLowLevel: serverConfig.exposeLowLevelTools });
+  if (globalCapabilities) {
+    globalCapabilities.toolRegistry = { hash: registry.hash, count: registry.count };
+  }
+  return registry;
 };
 
 const cleanupRuntime = () => {
@@ -129,7 +143,7 @@ const claimSingleton = () => {
     } catch (err) {
       const message = errorMessage(err, 'cleanup failed');
       try {
-        new ConsoleLogger(PLUGIN_ID, () => logLevel).warn('previous instance cleanup failed', { message });
+        new ConsoleLogger(PLUGIN_ID, () => logLevel).warn(PLUGIN_LOG_PREVIOUS_CLEANUP_FAILED, { message });
       } catch (logErr) {
         // Last resort: avoid crashing during startup.
       }
@@ -170,14 +184,14 @@ function registerCodecs(capabilities: Capabilities, session: ProjectSession, for
           const snapshot = session.snapshot();
           return { ok: true, data: buildInternalExport(exportKind, snapshot).data };
         }
-        return { ok: false, message: 'Native compiler returned empty result' };
+        return { ok: false, message: ADAPTER_NATIVE_COMPILER_EMPTY };
       }
       if (isThenable(compiled)) {
         if (policies.exportPolicy === 'best_effort') {
           const snapshot = session.snapshot();
           return { ok: true, data: buildInternalExport(exportKind, snapshot).data };
         }
-        return { ok: false, message: 'Async compiler not supported' };
+        return { ok: false, message: ADAPTER_NATIVE_COMPILER_ASYNC_UNSUPPORTED };
       }
       return { ok: true, data: compiled };
     }
@@ -185,7 +199,9 @@ function registerCodecs(capabilities: Capabilities, session: ProjectSession, for
       const snapshot = session.snapshot();
       return { ok: true, data: buildInternalExport(exportKind, snapshot).data };
     }
-    const reason = formatId ? 'Native compiler not available for ' + formatId : 'No format ID for ' + kind;
+    const reason = formatId
+      ? ADAPTER_NATIVE_COMPILER_UNAVAILABLE(formatId)
+      : EXPORT_FORMAT_ID_MISSING_FOR_KIND(kind);
     return { ok: false, message: reason };
   };
 
@@ -197,7 +213,7 @@ function registerCodecs(capabilities: Capabilities, session: ProjectSession, for
       compile() {
         const result = compileFor(kind, exportKind);
         if (!result.ok) {
-          throw new Error(result.message);
+          throw new Error(result.message ?? PLUGIN_UI_EXPORT_FAILED_GENERIC);
         }
         return result.data;
       },
@@ -205,16 +221,17 @@ function registerCodecs(capabilities: Capabilities, session: ProjectSession, for
         try {
           const result = compileFor(kind, exportKind);
           if (!result.ok) {
-            blockbench.showQuickMessage?.('bbmcp export failed: ' + result.message, 2000);
+            const message = result.message ?? PLUGIN_UI_EXPORT_FAILED_GENERIC;
+            blockbench.showQuickMessage?.(PLUGIN_UI_EXPORT_FAILED(message), 2000);
             return;
           }
           blockbench.exportFile?.(
             { content: result.data, name: 'model.json' },
-            () => blockbench.showQuickMessage?.('bbmcp export complete', 1500)
+            () => blockbench.showQuickMessage?.(PLUGIN_UI_EXPORT_COMPLETE, 1500)
           );
         } catch (err) {
-          const message = err instanceof Error ? err.message : 'export failed';
-          blockbench.showQuickMessage?.('bbmcp export failed: ' + message, 2000);
+          const message = err instanceof Error ? err.message : PLUGIN_UI_EXPORT_FAILED_GENERIC;
+          blockbench.showQuickMessage?.(PLUGIN_UI_EXPORT_FAILED(message), 2000);
         }
       }
     });
@@ -252,32 +269,35 @@ function restartServer() {
   const globals = readGlobals();
   const blockbench = globals.Blockbench;
   if (blockbench?.isWeb) {
-    logger.warn('MCP server not started (web mode)');
+    logger.warn(PLUGIN_LOG_SERVER_WEB_MODE);
     return;
   }
   if (globalDispatcher && globalProxy) {
+    const toolRegistry = updateToolRegistry();
     const inlineStop = startServer(
       { host: serverConfig.host, port: serverConfig.port, path: serverConfig.path },
       globalDispatcher,
       globalProxy,
       logger,
-      resourceStore
+      resourceStore,
+      toolRegistry
     );
     if (inlineStop) {
       inlineServerStop = inlineStop;
       return;
     }
-    logger.warn('Inline MCP server unavailable; starting sidecar');
+    logger.warn(PLUGIN_LOG_INLINE_SERVER_UNAVAILABLE);
     const endpoint: SidecarLaunchConfig = {
       host: serverConfig.host,
       port: serverConfig.port,
       path: serverConfig.path,
-      execPath: serverConfig.execPath
+      execPath: serverConfig.execPath,
+      exposeLowLevelTools: serverConfig.exposeLowLevelTools
     };
     sidecar = new SidecarProcess(endpoint, globalDispatcher, globalProxy, logger);
     if (!sidecar.start()) {
       sidecar = null;
-      logger.warn('MCP sidecar failed to start');
+      logger.warn(PLUGIN_LOG_SIDECAR_FAILED);
     }
   }
 }
@@ -306,8 +326,8 @@ export const registerPlugin = () => {
 
 bbmcp exposes a clean MCP-facing tool surface for AI/agents:
 
-- High-level spec proxy: validate and normalize model/animation specs before applying.
-- Low-level tools: create/update textures via ops, add bones/cubes, create animation clips, set keyframes, export, preview, validate.
+- High-level pipelines: model_pipeline, texture_pipeline, entity_pipeline, block_pipeline.
+- Low-level tools are optional (Settings: "Expose Low-Level Tools") for expert/debug workflows.
   - Formats: Java Block/Item enabled by default; GeckoLib/Animated Java gated by capability flags.
 - MCP endpoint: configurable host/port/path via Settings or the Help menu action "bbmcp: set MCP endpoint".
 - Dev workflow: esbuild watch + Plugins.devReload, debug menu actions for capabilities/state logging.
@@ -326,9 +346,8 @@ Notes:
     onload() {
       claimSingleton();
       const blockbench = readGlobals().Blockbench;
-      const session = new ProjectSession();
       const logger = new ConsoleLogger(PLUGIN_ID, () => logLevel);
-      logger.info('plugin loading', { version: PLUGIN_VERSION, schema: TOOL_SCHEMA_VERSION });
+      logger.info(PLUGIN_LOG_LOADING, { version: PLUGIN_VERSION, schema: TOOL_SCHEMA_VERSION });
       registerSettings({ readGlobals, serverConfig, policies, restartServer });
     registerLogSettings({
       readGlobals,
@@ -339,49 +358,16 @@ Notes:
     });
     registerFormatSettings({ readGlobals, formatOverrides });
     registerExportPolicySetting({ readGlobals, policies });
-      const editor = new BlockbenchEditor(logger);
-      const host = new BlockbenchHost();
-      const formats = new BlockbenchFormats();
-      const snapshot = new BlockbenchSnapshot(logger);
-      const exporter = new BlockbenchExport(logger);
-      const textureRenderer = new BlockbenchTextureRenderer();
-      const dom = new BlockbenchDom();
-      const tmpStore = new LocalTmpStore();
-      const previewCapability = {
-        pngOnly: true,
-        fixedOutput: 'single' as const,
-        turntableOutput: 'sequence' as const,
-        response: 'content' as const
-      };
-      const capabilities = computeCapabilities(
-        blockbench?.version,
-        formats.listFormats(),
+      const runtime = buildRuntimeServices({
+        blockbenchVersion: blockbench?.version,
         formatOverrides,
-        previewCapability
-      );
-      capabilities.toolRegistry = { hash: TOOL_REGISTRY_HASH, count: TOOL_REGISTRY_COUNT };
-      const service = new ToolService({
-        session,
-        capabilities,
-        editor,
-        host,
-        formats,
-        snapshot,
-        exporter,
-        textureRenderer,
-        tmpStore,
-        resources: resourceStore,
-        policies
-      });
-      const dispatcher = new ToolDispatcherImpl(session, capabilities, service, {
-        includeStateByDefault: () => policies.autoIncludeState,
-        includeDiffByDefault: () => policies.autoIncludeDiff,
+        policies,
+        resourceStore,
         logger
       });
-      const proxy = new ProxyRouter(service, dom, logger, capabilities.limits, {
-        includeStateByDefault: () => policies.autoIncludeState,
-        includeDiffByDefault: () => policies.autoIncludeDiff
-      });
+      const { session, capabilities, dispatcher, proxy, formats } = runtime;
+      globalCapabilities = capabilities;
+      updateToolRegistry();
       globalDispatcher = dispatcher;
       globalProxy = proxy;
 
@@ -395,19 +381,19 @@ Notes:
       exposeBridge({
         invoke: dispatcher.handle.bind(dispatcher),
         invokeProxy: (tool: ProxyTool, payload: unknown) =>
-          proxy.handle(tool, payload as ApplyModelSpecPayload | ApplyTextureSpecPayload | ApplyUvSpecPayload | ApplyEntitySpecPayload),
+          proxy.handle(tool, payload as ProxyToolPayloadMap[ProxyTool]),
         capabilities,
         serverConfig: () => ({ ...serverConfig }),
         settings: () => ({ ...serverConfig })
       });
 
-      blockbench?.showQuickMessage?.('bbmcp v' + PLUGIN_VERSION + ' loaded', 1200);
+      blockbench?.showQuickMessage?.(PLUGIN_UI_LOADED(PLUGIN_VERSION), 1200);
     },
     onunload() {
       const blockbench = readGlobals().Blockbench;
       cleanupRuntime();
       deleteGlobalValue(INSTANCE_KEY);
-      blockbench?.showQuickMessage?.('bbmcp unloaded', 1200);
+      blockbench?.showQuickMessage?.(PLUGIN_UI_UNLOADED, 1200);
     }
   });
 };

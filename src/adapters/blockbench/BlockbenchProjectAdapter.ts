@@ -2,6 +2,13 @@ import { FormatKind, ToolError } from '../../types';
 import { errorMessage, Logger } from '../../logging';
 import { hasUnsavedChanges, markProjectSaved, readGlobals } from './blockbenchUtils';
 import { toolError } from '../../services/toolResponse';
+import {
+  ADAPTER_BLOCKBENCH_WRITEFILE_UNAVAILABLE,
+  ADAPTER_PROJECT_CREATE_UNAVAILABLE,
+  ADAPTER_PROJECT_DIALOG_INPUT_REQUIRED,
+  ADAPTER_PROJECT_UNSAVED_CHANGES,
+  PROJECT_NO_ACTIVE
+} from '../../shared/messages';
 
 export class BlockbenchProjectAdapter {
   private readonly log: Logger;
@@ -27,7 +34,7 @@ export class BlockbenchProjectAdapter {
         if (options?.confirmDiscard === false) {
           return {
             code: 'invalid_state',
-            message: 'Project has unsaved changes. Save or close it before creating a new project.'
+            message: ADAPTER_PROJECT_UNSAVED_CHANGES
           };
         }
         if (!options?.confirmDiscard) {
@@ -43,7 +50,7 @@ export class BlockbenchProjectAdapter {
         typeof blockbench?.newProject === 'function' ||
         typeof modelFormat?.new === 'function';
       if (!canCreate) {
-        return { code: 'not_implemented', message: 'Blockbench project creation unavailable' };
+        return { code: 'not_implemented', message: ADAPTER_PROJECT_CREATE_UNAVAILABLE };
       }
       if (typeof formatEntry?.new === 'function') {
         formatEntry.new();
@@ -72,7 +79,7 @@ export class BlockbenchProjectAdapter {
     try {
       const blockbench = readGlobals().Blockbench;
       if (!blockbench?.writeFile) {
-        return { code: 'not_implemented', message: 'Blockbench.writeFile not available' };
+        return { code: 'not_implemented', message: ADAPTER_BLOCKBENCH_WRITEFILE_UNAVAILABLE };
       }
       blockbench.writeFile(path, { content: contents, savetype: 'text' });
       return null;
@@ -103,7 +110,7 @@ export class BlockbenchProjectAdapter {
       const globals = readGlobals();
       const project = globals.Project ?? globals.Blockbench?.project ?? null;
       if (!project) {
-        return { code: 'invalid_state', message: 'No active project.' };
+        return { code: 'invalid_state', message: PROJECT_NO_ACTIVE };
       }
       const updateResolution = globals.updateProjectResolution;
       const normalizeUv = Boolean(modifyUv);
@@ -169,7 +176,7 @@ const tryAutoConfirmProjectDialog = (
       ok: false,
       error: {
         code: 'invalid_state',
-        message: 'Project dialog requires input. Provide ensure_project.dialog values and set confirmDialog=true.',
+        message: ADAPTER_PROJECT_DIALOG_INPUT_REQUIRED,
         details: { fields: remaining, missing }
       }
     };

@@ -4,6 +4,14 @@ import { findUvOverlapIssues, formatUvFaceRect } from './uvOverlap';
 import { findUvScaleIssues } from './uvScale';
 import { expandTextureTargets, isIssueTarget, type TextureTargetSet } from './uvTargets';
 import type { UvPolicyConfig } from './uvPolicy';
+import {
+  UV_OVERLAP_FIX,
+  UV_OVERLAP_MESSAGE,
+  UV_SCALE_FIX,
+  UV_SCALE_MESSAGE,
+  UV_USAGE_CHANGED_FIX,
+  UV_USAGE_CHANGED_MESSAGE
+} from '../shared/messages';
 
 export type UvGuardError = {
   code: 'invalid_state';
@@ -17,9 +25,9 @@ export const guardUvUsageId = (usage: TextureUsage, expectedUsageId: string): Uv
   if (currentUsageId === expectedUsageId) return null;
   return {
     code: 'invalid_state',
-    message: 'UV usage changed since preflight_texture. Refresh preflight and retry.',
-    fix: 'Call preflight_texture without texture filters and retry with the new uvUsageId.',
-    details: { expected: expectedUsageId, current: currentUsageId }
+    message: UV_USAGE_CHANGED_MESSAGE,
+    fix: UV_USAGE_CHANGED_FIX,
+    details: { reason: 'uv_usage_mismatch', expected: expectedUsageId, current: currentUsageId }
   };
 };
 
@@ -38,12 +46,10 @@ export const guardUvOverlaps = (usage: TextureUsage, targets: TextureTargetSet):
   const suffix = blocking.length > 3 ? ` (+${blocking.length - 3} more)` : '';
   return {
     code: 'invalid_state',
-    message:
-      `UV overlap detected for texture${blocking.length === 1 ? '' : 's'} ${names}${suffix}. ` +
-      `Only identical UV rects may overlap.` +
-      example,
-    fix: 'Adjust UVs so only identical rects overlap, then call preflight_texture and retry.',
+    message: UV_OVERLAP_MESSAGE(names, suffix, example, blocking.length !== 1),
+    fix: UV_OVERLAP_FIX,
     details: {
+      reason: 'uv_overlap',
       overlaps: blocking.map((issue) => ({
         textureId: issue.textureId ?? undefined,
         textureName: issue.textureName,
@@ -76,10 +82,10 @@ export const guardUvScale = (args: {
   const suffix = blocking.length > 3 ? ` (+${blocking.length - 3} more)` : '';
   return {
     code: 'invalid_state',
-    message:
-      `UV scale mismatch detected for texture${blocking.length === 1 ? '' : 's'} ${names}${suffix}.` + example,
-    fix: 'Run auto_uv_atlas (apply=true), then preflight_texture, then repaint.',
+    message: UV_SCALE_MESSAGE(names, suffix, example, blocking.length !== 1),
+    fix: UV_SCALE_FIX,
     details: {
+      reason: 'uv_scale_mismatch',
       mismatches: blocking.map((issue) => ({
         textureId: issue.textureId ?? undefined,
         textureName: issue.textureName,

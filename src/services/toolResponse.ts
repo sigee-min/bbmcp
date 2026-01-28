@@ -1,5 +1,5 @@
 import type { UsecaseResult } from '../usecases/result';
-import type { ToolError, ToolErrorCode, ToolResponse } from '../types';
+import type { ToolError, ToolErrorCode, ToolErrorResponse, ToolResponse } from '../types';
 import { applyToolErrorPolicy } from './toolError';
 
 export const toolError = (
@@ -19,7 +19,7 @@ export const err = <T = never>(
   error: toolError(code, message, details, fix)
 });
 
-export const errFromDomain = <T = never>(error: ToolError): ToolResponse<T> => ({
+export const errFromDomain = (error: ToolError): ToolErrorResponse => ({
   ok: false,
   error: applyToolErrorPolicy(error)
 });
@@ -28,3 +28,9 @@ export const toToolResponse = <T>(result: UsecaseResult<T>): ToolResponse<T> => 
   if (result.ok) return { ok: true, data: result.value };
   return errFromDomain(result.error);
 };
+
+export const errWithCode = <T = never>(
+  code: ToolErrorCode,
+  message: string,
+  details?: Record<string, unknown>
+): ToolResponse<T> => err(code, message, details);

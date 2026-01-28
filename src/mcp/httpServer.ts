@@ -3,6 +3,14 @@ import { McpRouter } from './router';
 import { HttpRequest, ResponsePlan } from './types';
 import { openSseConnection } from './transport';
 import type { IncomingMessage, Server, ServerResponse } from 'http';
+import {
+  MCP_PAYLOAD_READ_FAILED,
+  MCP_PAYLOAD_TOO_LARGE,
+  MCP_REQUEST_ABORTED,
+  MCP_REQUEST_CLOSED,
+  MCP_REQUEST_ERROR,
+  MCP_REQUEST_TIMEOUT
+} from '../shared/messages';
 
 const MAX_BODY_BYTES = 5_000_000;
 const BODY_READ_TIMEOUT_MS = 30_000;
@@ -20,11 +28,11 @@ class BodyReadError extends Error {
   }
 }
 
-  const normalizeBodyError = (err: unknown): { status: number; code: BodyErrorCode; message: string } => {
+const normalizeBodyError = (err: unknown): { status: number; code: BodyErrorCode; message: string } => {
   if (err instanceof BodyReadError) {
     return { status: err.status, code: err.code, message: err.message };
   }
-  const message = errorMessage(err, 'payload read failed');
+  const message = errorMessage(err, MCP_PAYLOAD_READ_FAILED);
   return { status: 400, code: 'invalid_payload', message };
 };
 
@@ -70,7 +78,7 @@ const readBody = (req: IncomingMessage): Promise<string> =>
       const size = Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(String(chunk));
       total += size;
       if (total > MAX_BODY_BYTES) {
-        fail(new BodyReadError('payload_too_large', 413, 'payload too large'));
+        fail(new BodyReadError('payload_too_large', 413, MCP_PAYLOAD_TOO_LARGE));
         req.destroy();
         return;
       }
@@ -80,18 +88,18 @@ const readBody = (req: IncomingMessage): Promise<string> =>
     const onEnd = () => finish(() => resolve(body));
 
     const onError = (err: Error) => {
-      const message = errorMessage(err, 'request error');
+      const message = errorMessage(err, MCP_REQUEST_ERROR);
       fail(new BodyReadError('invalid_payload', 400, message));
     };
 
     const onAborted = () => {
-      fail(new BodyReadError('request_aborted', 499, 'request aborted'));
+      fail(new BodyReadError('request_aborted', 499, MCP_REQUEST_ABORTED));
     };
 
     const onClose = () => {
       if (done) return;
       if (!req.complete) {
-        fail(new BodyReadError('request_aborted', 499, 'request closed'));
+        fail(new BodyReadError('request_aborted', 499, MCP_REQUEST_CLOSED));
       }
     };
 
@@ -102,7 +110,7 @@ const readBody = (req: IncomingMessage): Promise<string> =>
     req.on('close', onClose);
 
     timeout = setTimeout(() => {
-      fail(new BodyReadError('request_timeout', 408, 'request timeout'));
+      fail(new BodyReadError('request_timeout', 408, MCP_REQUEST_TIMEOUT));
       req.destroy();
     }, BODY_READ_TIMEOUT_MS);
   });

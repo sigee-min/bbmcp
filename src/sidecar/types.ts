@@ -3,4 +3,5 @@ export type SidecarLaunchConfig = {
   port: number;
   path: string;
   execPath?: string;
+  exposeLowLevelTools?: boolean;
 };

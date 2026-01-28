@@ -4,11 +4,26 @@ import { TextureSource } from '../ports/editor';
 import type { DomPort } from '../ports/dom';
 import { err } from './response';
 import { UvPaintRect } from './uvPaint';
-import { checkDimensions } from '../domain/dimensions';
+import { checkDimensions, mapDimensionError } from '../domain/dimensions';
 import { validateUvPaintSourceSize } from '../domain/uvPaintSource';
 import { MAX_TEXTURE_OPS } from '../domain/textureOps';
 import { normalizeTextureSpecSize } from '../domain/textureSpecValidation';
 import { clamp } from '../domain/math';
+import { normalizeUvPaintRects } from '../domain/uvPaintRects';
+import {
+  TEXTURE_BASE_IMAGE_UNAVAILABLE,
+  TEXTURE_BASE_SIZE_UNAVAILABLE,
+  TEXTURE_CANVAS_CONTEXT_UNAVAILABLE,
+  TEXTURE_CANVAS_UNAVAILABLE,
+  TEXTURE_DIMENSION_POSITIVE,
+  TEXTURE_OPS_TOO_MANY,
+  TEXTURE_OP_UNSUPPORTED,
+  TEXTURE_SIZE_EXCEEDS_MAX,
+  UV_PAINT_CANVAS_UNAVAILABLE,
+  UV_PAINT_CONTEXT_UNAVAILABLE,
+  UV_PAINT_PATTERN_UNAVAILABLE,
+  UV_PAINT_RECTS_REQUIRED
+} from '../shared/messages';
 
 const IMAGE_LOAD_TIMEOUT_MS = 3000;
 
@@ -61,23 +76,20 @@ export const renderTextureSpec = (
   const width = Number(sizeRes.data.width);
   const height = Number(sizeRes.data.height);
   const sizeCheck = checkDimensions(width, height, { requireInteger: false, maxSize: limits.maxTextureSize });
-  if (!sizeCheck.ok) {
-    if (sizeCheck.reason === 'non_positive') {
-      const axis = sizeCheck.axis === 'height' ? 'height' : 'width';
-      return err('invalid_payload', `texture ${axis} must be > 0 (${label})`);
-    }
-    if (sizeCheck.reason === 'non_integer') {
-      const axis = sizeCheck.axis === 'height' ? 'height' : 'width';
-      return err('invalid_payload', `texture ${axis} must be > 0 (${label})`);
-    }
-    return err('invalid_payload', `texture size exceeds max ${limits.maxTextureSize} (${label})`);
+  const sizeMessage = mapDimensionError(sizeCheck, {
+    nonPositive: (axis) => TEXTURE_DIMENSION_POSITIVE(axis, label),
+    nonInteger: (axis) => TEXTURE_DIMENSION_POSITIVE(axis, label),
+    exceedsMax: (maxSize) => TEXTURE_SIZE_EXCEEDS_MAX(maxSize || limits.maxTextureSize, label)
+  });
+  if (sizeMessage) {
+    return err('invalid_payload', sizeMessage);
   }
   const canvas = dom.createCanvas();
-  if (!canvas) return err('not_implemented', 'texture canvas not available');
+  if (!canvas) return err('not_implemented', TEXTURE_CANVAS_UNAVAILABLE);
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
-  if (!ctx) return err('not_implemented', 'texture canvas context not available');
+  if (!ctx) return err('not_implemented', TEXTURE_CANVAS_CONTEXT_UNAVAILABLE);
   ctx.imageSmoothingEnabled = false;
   const hasUvPaint = Boolean(uvPaint);
   if (!hasUvPaint && spec.background) {
@@ -89,7 +101,7 @@ export const renderTextureSpec = (
   }
   const ops = Array.isArray(spec.ops) ? spec.ops : [];
   if (ops.length > MAX_TEXTURE_OPS) {
-    return err('invalid_payload', `too many texture ops (>${MAX_TEXTURE_OPS}) (${label})`);
+    return err('invalid_payload', TEXTURE_OPS_TOO_MANY(MAX_TEXTURE_OPS, label));
   }
   let paintCoverage: TextureCoverage | undefined;
   if (uvPaint) {
@@ -106,11 +118,11 @@ export const renderTextureSpec = (
     const sourceWidth = sourceRes.data.width;
     const sourceHeight = sourceRes.data.height;
     const patternCanvas = dom.createCanvas();
-    if (!patternCanvas) return err('not_implemented', 'uvPaint canvas not available');
+    if (!patternCanvas) return err('not_implemented', UV_PAINT_CANVAS_UNAVAILABLE);
     patternCanvas.width = sourceWidth;
     patternCanvas.height = sourceHeight;
     const patternCtx = patternCanvas.getContext('2d');
-    if (!patternCtx) return err('not_implemented', 'uvPaint canvas context not available');
+    if (!patternCtx) return err('not_implemented', UV_PAINT_CONTEXT_UNAVAILABLE);
     patternCtx.imageSmoothingEnabled = false;
     if (spec.background) {
       patternCtx.fillStyle = spec.background;
@@ -156,7 +168,7 @@ export const resolveTextureBase = async (
   if (!image) {
     image = await loadImageFromDataUri(dom, source.dataUri);
   }
-  if (!image) return err('not_implemented', 'Texture base image unavailable');
+  if (!image) return err('not_implemented', TEXTURE_BASE_IMAGE_UNAVAILABLE);
   const width =
     typeof source.width === 'number' && Number.isFinite(source.width) && source.width > 0
       ? source.width
@@ -165,27 +177,27 @@ export const resolveTextureBase = async (
     typeof source.height === 'number' && Number.isFinite(source.height) && source.height > 0
       ? source.height
       : resolveImageDim(image, 'height');
-  if (!width || !height) return err('invalid_payload', 'Texture base size unavailable');
+  if (!width || !height) return err('invalid_payload', TEXTURE_BASE_SIZE_UNAVAILABLE);
   return { ok: true, data: { image, width, height } };
 };
 
-const applyTextureOp = (ctx: CanvasRenderingContext2D, op: TextureOp): ToolResponse<unknown> => {
+const applyTextureOp = (ctx: CanvasRenderingContext2D, op: TextureOp): ToolResponse<void> => {
   switch (op.op) {
     case 'set_pixel': {
       ctx.fillStyle = op.color;
       ctx.fillRect(op.x, op.y, 1, 1);
-      return { ok: true, data: { ok: true } };
+      return { ok: true, data: undefined };
     }
     case 'fill_rect': {
       ctx.fillStyle = op.color;
       ctx.fillRect(op.x, op.y, op.width, op.height);
-      return { ok: true, data: { ok: true } };
+      return { ok: true, data: undefined };
     }
     case 'draw_rect': {
       ctx.strokeStyle = op.color;
       ctx.lineWidth = isFiniteNumber(op.lineWidth) && op.lineWidth > 0 ? op.lineWidth : 1;
       ctx.strokeRect(op.x, op.y, op.width, op.height);
-      return { ok: true, data: { ok: true } };
+      return { ok: true, data: undefined };
     }
     case 'draw_line': {
       ctx.strokeStyle = op.color;
@@ -194,10 +206,10 @@ const applyTextureOp = (ctx: CanvasRenderingContext2D, op: TextureOp): ToolRespo
       ctx.moveTo(op.x1, op.y1);
       ctx.lineTo(op.x2, op.y2);
       ctx.stroke();
-      return { ok: true, data: { ok: true } };
+      return { ok: true, data: undefined };
     }
     default:
-      return err('invalid_payload', 'unsupported texture op');
+      return err('invalid_payload', TEXTURE_OP_UNSUPPORTED);
   }
 };
 
@@ -210,15 +222,15 @@ const applyUvPaint = (
   label: string
 ): ToolResponse<{ rects: UvPaintRect[] }> => {
   if (!Array.isArray(config.rects) || config.rects.length === 0) {
-    return err('invalid_payload', `uvPaint requires at least one rect (${label})`);
+    return err('invalid_payload', UV_PAINT_RECTS_REQUIRED(label));
   }
-  const normalizedRes = normalizePaintRects(config.rects, config.padding, width, height, label);
-  if (!normalizedRes.ok) return normalizedRes;
+  const normalizedRes = normalizeUvPaintRects(config.rects, config.padding, width, height, label);
+  if (!normalizedRes.ok) return err(normalizedRes.error.code, normalizedRes.error.message);
   const rects = normalizedRes.data;
   const mapping = config.mapping ?? 'stretch';
   if (mapping === 'tile') {
     const pattern = ctx.createPattern(patternCanvas, 'repeat');
-    if (!pattern) return err('not_implemented', `uvPaint pattern unavailable (${label})`);
+    if (!pattern) return err('not_implemented', UV_PAINT_PATTERN_UNAVAILABLE(label));
     const [anchorX, anchorY] = config.anchor ?? [0, 0];
     rects.forEach((rect) => {
       const rectWidth = rect.x2 - rect.x1;
@@ -252,34 +264,6 @@ const applyUvPaint = (
     );
   });
   return { ok: true, data: { rects } };
-};
-
-const normalizePaintRects = (
-  rects: UvPaintRect[],
-  padding: number,
-  width: number,
-  height: number,
-  label: string
-): ToolResponse<UvPaintRect[]> => {
-  const safePadding = Number.isFinite(padding) ? Math.max(0, padding) : 0;
-  const normalized: UvPaintRect[] = [];
-  for (const rect of rects) {
-    const x1 = Math.min(rect.x1, rect.x2) + safePadding;
-    const y1 = Math.min(rect.y1, rect.y2) + safePadding;
-    const x2 = Math.max(rect.x1, rect.x2) - safePadding;
-    const y2 = Math.max(rect.y1, rect.y2) - safePadding;
-    if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
-      return err('invalid_payload', `uvPaint rect is invalid (${label})`);
-    }
-    if (x2 <= x1 || y2 <= y1) {
-      return err('invalid_payload', `uvPaint padding exceeds rect size (${label})`);
-    }
-    if (x1 < 0 || y1 < 0 || x2 > width || y2 > height) {
-      return err('invalid_payload', `uvPaint rect is outside texture bounds (${label})`);
-    }
-    normalized.push({ x1, y1, x2, y2 });
-  }
-  return { ok: true, data: normalized };
 };
 
 const loadImageFromDataUri = async (dom: DomPort, dataUri?: string): Promise<CanvasImageSource | null> => {

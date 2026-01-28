@@ -44,9 +44,14 @@ export type Cube = {
   from: [number, number, number];
   to: [number, number, number];
   bone: string;
+  origin?: [number, number, number];
+  rotation?: [number, number, number];
   uv?: [number, number];
+  uvOffset?: [number, number];
   inflate?: number;
   mirror?: boolean;
+  visibility?: boolean;
+  boxUv?: boolean;
 };
 
 export type Bone = {
@@ -56,6 +61,7 @@ export type Bone = {
   pivot: [number, number, number];
   rotation?: [number, number, number];
   scale?: [number, number, number];
+  visibility?: boolean;
 };
 
 export type Animation = {

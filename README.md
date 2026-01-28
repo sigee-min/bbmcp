@@ -5,9 +5,10 @@ bbmcp turns Blockbench into an MCP-native modeling backend with a clean tool sur
 
 ## Highlights
 - MCP-first HTTP server with tool discovery and schema versioning.
-- High-level spec tools (`apply_model_spec`, `apply_texture_spec`).
-- Block pipeline generator (`generate_block_pipeline`) for blockstates/models/item models.
-- Low-level controls (bones, cubes, textures, export, validate).
+- High-level pipelines (`model_pipeline`, `texture_pipeline`, `entity_pipeline`, `block_pipeline`).
+- Pipelines may return `planOnly` + `ask_user` prompts when a request is underspecified.
+- Optional low-level controls (bones, cubes, textures, export, validate).
+- Enable via Settings > bbmcp > Expose Low-Level Tools (Expert).
 - Explicit texture assignment via `assign_texture` (no hidden auto-assign).
 - Revision guard (`ifRevision`) for safe concurrent edits.
 - Preview output as MCP `content` image blocks (base64 PNG).
@@ -40,13 +41,13 @@ http://127.0.0.1:8787/mcp
 
 ## Core Flow (Recommended)
 1) `ensure_project` (or `get_project_state`) to confirm an active project and read `revision`.
-2) Mutations (`add_bone`, `add_cube`, `apply_*`) with `ifRevision`.
+2) Prefer high-level pipelines (`model_pipeline`, `texture_pipeline`, `entity_pipeline`, `block_pipeline`) with `ifRevision`.
 3) `validate` to catch issues early.
 4) `render_preview` for images.
 5) `export` for JSON output.
 
-## Block Pipeline (Recommended)
-`generate_block_pipeline` creates blockstates + models + item models using vanilla parents and stores them as MCP resources.
+## Block Pipeline
+`block_pipeline` creates blockstates + models + item models using vanilla parents and stores them as MCP resources.
 ```json
 {
   "name": "adamantium_ore",
@@ -58,25 +59,31 @@ http://127.0.0.1:8787/mcp
 ```
 Use `resources/list` to discover generated assets and `resources/read` to fetch JSON.
 
+## Entity Pipeline
+`entity_pipeline` applies model + textures + animations for GeckoLib projects.
+```json
+{
+  "format": "geckolib",
+  "targetVersion": "v4",
+  "ensureProject": { "name": "my_entity", "match": "format", "onMissing": "create" },
+  "model": {
+    "rigTemplate": "empty",
+    "bones": [{ "id": "root", "pivot": [0, 0, 0] }]
+  },
+  "animations": [
+    { "name": "idle", "length": 1, "loop": true, "channels": [{ "bone": "root", "channel": "rot", "keys": [{ "time": 0, "value": [0, 0, 0] }] }] }
+  ],
+  "ifRevision": { "$ref": { "kind": "tool", "tool": "get_project_state", "pointer": "/project/revision" } }
+}
+```
+
 ## Texture Flow (Recommended)
-1) Lock invariants first: textureResolution, UV policy (manual per-face), and texture count (single atlas vs per-material).
-2) `preflight_texture` to build the UV mapping table, recommended resolution, and `uvUsageId` (call without texture filters for a stable id).
-3) Paint a checker/label texture first to verify orientation and coverage.
-4) For 64x64+ textures, prefer `generate_texture_preset` (avoids large ops payloads, requires `uvUsageId`). For <=32px, `set_pixel` ops are fine.
-   - Presets: `painted_metal`, `rubber`, `glass`, `wood`, `dirt`, `plant`, `stone`, `sand`, `leather`, `fabric`, `ceramic`.
-5) `apply_texture_spec` to create or update texture data via ops (no image import tool, requires `uvUsageId`).
-   - Omit `ops` to create an empty texture (background can still fill).
-   - `width/height` are required and should match the project textureResolution.
-   - Very low opaque coverage is rejected; fill a larger area or tighten UVs.
-   - Success responses include `report.textureCoverage` (opaque ratio + bounds) for each rendered texture.
-6) `assign_texture` to bind textures to cubes (required for visible results; does not change UVs).
-7) `apply_uv_spec` to update per-face UVs with uvUsageId guard (or use `set_face_uv` for low-level edits).
-   - After UV changes, run `preflight_texture` again before painting.
-8) Prefer material-group textures (pot/soil/plant) and assign via `cubeNames` for stability.
-9) If UVs exceed the current resolution, increase it or split textures per material.
-10) When UVs are crowded or overlaps exist, run `auto_uv_atlas` (apply=true) to repack and, if needed, raise resolution. Atlas sizing is based on the starting resolution, so increasing resolution creates more space instead of scaling rects. Re-run `preflight_texture` and repaint after atlas changes.
-11) Size textures to fit the UV layout (width >= 2*(w+d), height >= 2*(h+d)) and round up to 32/64/128; use `set_project_texture_resolution` before creating textures. If you need to scale existing UVs, pass `modifyUv=true` (if supported by the host).
-12) If UVs or resolution change after painting, repaint using the new mapping.
+If low-level tools are not exposed, use `texture_pipeline` to run the entire flow.
+- Always `preflight_texture` without filters to get a stable `uvUsageId`.
+- If UVs change, preflight again and repaint.
+- For 64x64+ textures, prefer `generate_texture_preset`.
+- Use `autoRecover=true` (or `auto_uv_atlas`) on overlap/scale issues.
+- See `docs/texture-uv-spec.md`, `docs/texture-pipeline-plan.md`, `docs/llm-texture-strategy.md`.
 
 ## Preview Output (MCP Standard)
 `render_preview` responds with MCP `content` blocks plus `structuredContent` metadata:
@@ -120,7 +127,9 @@ Notes:
 
 ## Guides (MCP Resources)
 Static guides are exposed via MCP resources. Use `resources/list` and `resources/read` to fetch them.
+- Template: `bbmcp://guide/{name}` (see `resources/templates/list`).
 - `bbmcp://guide/rigging` (root-based hierarchy example for animation-ready rigs)
+- `bbmcp://guide/modeling-workflow` (model_pipeline workflow + ModelSpec)
 - `bbmcp://guide/texture-workflow` (uvPaint-first texture workflow + preset example)
 - `bbmcp://guide/uv-atlas` (auto atlas packing + resolution growth)
 - `bbmcp://guide/texture-spec` (UV/texturing invariants)
@@ -129,6 +138,8 @@ Static guides are exposed via MCP resources. Use `resources/list` and `resources
 - `bbmcp://guide/llm-texture-strategy` (LLM workflow + recovery loop)
 
 ## Spec Docs
+- `docs/block-pipeline.md`
+- `docs/entity-pipeline.md`
 - `docs/texture-uv-spec.md`
 - `docs/llm-texture-strategy.md`
 - `bbmcp://guide/vision-fallback` (preview/texture snapshot workflow for manual uploads)

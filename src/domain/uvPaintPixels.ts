@@ -1,6 +1,12 @@
 import type { DomainResult } from './result';
 import { UvPaintRect } from './uvPaint';
 import { clamp } from './math';
+import { normalizeUvPaintRects } from './uvPaintRects';
+import {
+  UV_PAINT_RECTS_REQUIRED,
+  UV_PAINT_SOURCE_DATA_MISMATCH,
+  UV_PAINT_SOURCE_TARGET_POSITIVE
+} from '../shared/messages';
 
 export type UvPaintPixelConfig = {
   rects: UvPaintRect[];
@@ -17,19 +23,19 @@ export const applyUvPaintPixels = (input: {
 }): DomainResult<{ data: Uint8ClampedArray; rects: UvPaintRect[] }> => {
   const { source, target, config, label } = input;
   if (!Array.isArray(config.rects) || config.rects.length === 0) {
-    return err('invalid_payload', `uvPaint requires at least one rect (${label})`);
+    return err('invalid_payload', UV_PAINT_RECTS_REQUIRED(label));
   }
   const sourceWidth = Math.trunc(source.width);
   const sourceHeight = Math.trunc(source.height);
   const targetWidth = Math.trunc(target.width);
   const targetHeight = Math.trunc(target.height);
   if (sourceWidth <= 0 || sourceHeight <= 0 || targetWidth <= 0 || targetHeight <= 0) {
-    return err('invalid_payload', `uvPaint requires positive source/target sizes (${label})`);
+    return err('invalid_payload', UV_PAINT_SOURCE_TARGET_POSITIVE(label));
   }
   if (source.data.length !== sourceWidth * sourceHeight * 4) {
-    return err('invalid_payload', `uvPaint source data size mismatch (${label})`);
+    return err('invalid_payload', UV_PAINT_SOURCE_DATA_MISMATCH(label));
   }
-  const normalized = normalizePaintRects(config.rects, config.padding, targetWidth, targetHeight, label);
+  const normalized = normalizeUvPaintRects(config.rects, config.padding, targetWidth, targetHeight, label);
   if (!normalized.ok) return normalized;
   const rects = normalized.data;
   const out = new Uint8ClampedArray(targetWidth * targetHeight * 4);
@@ -71,34 +77,6 @@ export const applyUvPaintPixels = (input: {
     }
   });
   return { ok: true, data: { data: out, rects } };
-};
-
-const normalizePaintRects = (
-  rects: UvPaintRect[],
-  padding: number,
-  width: number,
-  height: number,
-  label: string
-): DomainResult<UvPaintRect[]> => {
-  const safePadding = Number.isFinite(padding) ? Math.max(0, padding) : 0;
-  const normalized: UvPaintRect[] = [];
-  for (const rect of rects) {
-    const x1 = Math.min(rect.x1, rect.x2) + safePadding;
-    const y1 = Math.min(rect.y1, rect.y2) + safePadding;
-    const x2 = Math.max(rect.x1, rect.x2) - safePadding;
-    const y2 = Math.max(rect.y1, rect.y2) - safePadding;
-    if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
-      return err('invalid_payload', `uvPaint rect is invalid (${label})`);
-    }
-    if (x2 <= x1 || y2 <= y1) {
-      return err('invalid_payload', `uvPaint padding exceeds rect size (${label})`);
-    }
-    if (x1 < 0 || y1 < 0 || x2 > width || y2 > height) {
-      return err('invalid_payload', `uvPaint rect is outside texture bounds (${label})`);
-    }
-    normalized.push({ x1, y1, x2, y2 });
-  }
-  return { ok: true, data: normalized };
 };
 
 const copyPixel = (

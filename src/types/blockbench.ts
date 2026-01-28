@@ -137,6 +137,8 @@ export interface GroupInstance extends OutlinerNode {
   pivot?: [number, number, number] | { x: number; y: number; z: number };
   rotation?: [number, number, number] | { x: number; y: number; z: number };
   scale?: [number, number, number] | { x: number; y: number; z: number };
+  visibility?: boolean;
+  visible?: boolean;
   init?: () => GroupInstance | void;
 }
 
@@ -148,11 +150,15 @@ export interface CubeInstance extends OutlinerNode {
   autouv?: 0 | 1 | 2;
   from?: [number, number, number] | { x: number; y: number; z: number };
   to?: [number, number, number] | { x: number; y: number; z: number };
+  origin?: [number, number, number] | { x: number; y: number; z: number };
+  rotation?: [number, number, number] | { x: number; y: number; z: number };
   uv_offset?: [number, number] | { x: number; y: number };
   uv?: [number, number] | { x: number; y: number };
   inflate?: number;
   mirror?: boolean;
   mirror_uv?: boolean;
+  visibility?: boolean;
+  visible?: boolean;
   box_uv?: boolean;
   faces?: Record<string, CubeFace>;
   applyTexture?: (texture: TextureInstance, faces?: true | CubeFaceDirection[]) => void;

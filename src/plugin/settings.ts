@@ -12,6 +12,7 @@ type PolicySettings = {
   requireRevision: boolean;
   autoRetryRevision: boolean;
   exportPolicy: ExportPolicy;
+  exposeLowLevelTools: boolean;
 };
 
 export const registerSettings = (deps: {
@@ -88,6 +89,13 @@ export const registerSettings = (deps: {
       value: deps.serverConfig.autoRetryRevision,
       description: 'Retry once on revision mismatch using the latest project state'
     },
+    {
+      id: 'exposeLowLevelTools',
+      name: 'Expose Low-Level Tools (Expert)',
+      type: 'toggle',
+      value: deps.serverConfig.exposeLowLevelTools,
+      description: 'Expose low-level tools in tools/list (requires server restart)'
+    },
     { id: 'host', name: 'MCP Host', type: 'text', value: deps.serverConfig.host, description: 'MCP server host' },
     { id: 'port', name: 'MCP Port', type: 'number', value: deps.serverConfig.port, description: 'MCP server port' },
     { id: 'path', name: 'MCP Path', type: 'text', value: deps.serverConfig.path, description: 'MCP server path' }
@@ -123,6 +131,10 @@ export const registerSettings = (deps: {
       const enabled = Boolean(value);
       deps.serverConfig.autoRetryRevision = enabled;
       deps.policies.autoRetryRevision = enabled;
+    } else if (id === 'exposeLowLevelTools') {
+      const enabled = Boolean(value);
+      deps.serverConfig.exposeLowLevelTools = enabled;
+      deps.policies.exposeLowLevelTools = enabled;
     } else if (id === 'host') {
       deps.serverConfig.host = String(value);
     } else if (id === 'port') {

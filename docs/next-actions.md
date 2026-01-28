@@ -1,22 +1,27 @@
-# Next Actions (`_meta.nextActions`)
+# Next Actions (`nextActions` and `_meta.nextActions`)
 
-This server can include suggested follow-up actions in MCP tool results under `_meta.nextActions`.
+This server can include suggested follow-up actions in tool responses.
 
-`_meta` is an MCP-standard metadata field (not part of `structuredContent`).
+- ToolResponse includes `nextActions` at the top level (used by internal calls and the sidecar).
+- MCP `tools/call` responses copy that array into `_meta.nextActions`.
+
+`_meta` is MCP-standard metadata and is not part of `structuredContent`.
 
 ## Shape
 
 `nextActions` is an array of action objects:
-
 - `call_tool`: ask the client to call another tool
 - `read_resource`: fetch a resource URI
 - `ask_user`: prompt the user for missing context
 - `noop`: a terminal marker (no further action)
 
-Example:
+Pipelines may return `ask_user` actions when the payload is underspecified and set `planOnly=true` in the structured output.
 
+### MCP response example
 ```json
 {
+  "content": [{ "type": "text", "text": "..." }],
+  "structuredContent": { "applied": true },
   "_meta": {
     "nextActions": [
       {
@@ -34,6 +39,17 @@ Example:
       }
     ]
   }
+}
+```
+
+### Direct ToolResponse example
+```json
+{
+  "ok": true,
+  "data": { "applied": true },
+  "nextActions": [
+    { "type": "call_tool", "tool": "render_preview", "arguments": { "mode": "fixed" } }
+  ]
 }
 ```
 

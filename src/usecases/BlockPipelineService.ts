@@ -1,9 +1,25 @@
-import type { GenerateBlockPipelineResult } from '../types';
+import type { BlockPipelineResult } from '../types';
 import { BlockPipelineMode, BlockPipelineOnConflict, BlockPipelineTextures, BlockVariant } from '../types/blockPipeline';
 import { buildBlockPipeline, BlockPipelineSpec, BlockResource } from '../services/blockPipeline';
 import type { ResourceStore } from '../ports/resources';
 import { ok, fail, UsecaseResult } from './result';
 import { ensureNonBlankString } from '../services/validation';
+import {
+  BLOCK_PIPELINE_CREATED_NOTE,
+  BLOCK_PIPELINE_IFREVISION_FIX,
+  BLOCK_PIPELINE_IFREVISION_REQUIRED,
+  BLOCK_PIPELINE_NAME_INVALID,
+  BLOCK_PIPELINE_NAME_PREFIX_FIX,
+  BLOCK_PIPELINE_NAME_PREFIX_INVALID,
+  BLOCK_PIPELINE_NAME_REQUIRED,
+  BLOCK_PIPELINE_NAMESPACE_INVALID,
+  BLOCK_PIPELINE_RESOURCES_EXIST,
+  BLOCK_PIPELINE_RESOURCE_STORE_MISSING,
+  BLOCK_PIPELINE_TEXTURE_REQUIRED,
+  BLOCK_PIPELINE_TOKEN_FIX,
+  BLOCK_PIPELINE_VARIANTS_REQUIRED,
+  BLOCK_PIPELINE_VERSIONED_FAILED
+} from '../shared/messages';
 
 export interface BlockPipelineServiceDeps {
   resources?: ResourceStore;
@@ -37,7 +53,7 @@ export class BlockPipelineService {
     this.addCube = deps.addCube;
   }
 
-  generateBlockPipeline(payload: {
+  blockPipeline(payload: {
     name: string;
     texture: string;
     namespace?: string;
@@ -46,18 +62,18 @@ export class BlockPipelineService {
     onConflict?: BlockPipelineOnConflict;
     mode?: BlockPipelineMode;
     ifRevision?: string;
-  }): UsecaseResult<GenerateBlockPipelineResult> {
+  }): UsecaseResult<BlockPipelineResult> {
     const nameBlankErr = ensureNonBlankString(payload.name, 'name');
     if (nameBlankErr) return fail(nameBlankErr);
     const name = String(payload.name ?? '').trim();
     if (!name) {
-      return fail({ code: 'invalid_payload', message: 'name is required' });
+      return fail({ code: 'invalid_payload', message: BLOCK_PIPELINE_NAME_REQUIRED });
     }
     const textureBlankErr = ensureNonBlankString(payload.texture, 'texture');
     if (textureBlankErr) return fail(textureBlankErr);
     const texture = String(payload.texture ?? '').trim();
     if (!texture) {
-      return fail({ code: 'invalid_payload', message: 'texture is required' });
+      return fail({ code: 'invalid_payload', message: BLOCK_PIPELINE_TEXTURE_REQUIRED });
     }
     const namespaceBlankErr = ensureNonBlankString(payload.namespace, 'namespace');
     if (namespaceBlankErr) return fail(namespaceBlankErr);
@@ -65,36 +81,36 @@ export class BlockPipelineService {
     if (!isValidResourceToken(namespace)) {
       return fail({
         code: 'invalid_payload',
-        message: `Invalid namespace: ${namespace}`,
-        fix: 'Use lowercase letters, numbers, underscore, dash, or dot.'
+        message: BLOCK_PIPELINE_NAMESPACE_INVALID(namespace),
+        fix: BLOCK_PIPELINE_TOKEN_FIX
       });
     }
     if (!isValidResourceToken(name)) {
       return fail({
         code: 'invalid_payload',
-        message: `Invalid name: ${name}`,
-        fix: 'Use lowercase letters, numbers, underscore, dash, or dot.'
+        message: BLOCK_PIPELINE_NAME_INVALID(name),
+        fix: BLOCK_PIPELINE_TOKEN_FIX
       });
     }
     if (name.includes(':')) {
       return fail({
         code: 'invalid_payload',
-        message: 'name must not include a namespace prefix.',
-        fix: 'Provide only the base name (e.g., adamantium_ore).'
+        message: BLOCK_PIPELINE_NAME_PREFIX_INVALID,
+        fix: BLOCK_PIPELINE_NAME_PREFIX_FIX
       });
     }
     const variants = normalizeBlockVariants(payload.variants);
     if (variants.length === 0) {
       return fail({
         code: 'invalid_payload',
-        message: 'variants must include at least one of block, slab, stairs, or wall.'
+        message: BLOCK_PIPELINE_VARIANTS_REQUIRED
       });
     }
 
     const onConflict: BlockPipelineOnConflict = payload.onConflict ?? 'error';
     const mode: BlockPipelineMode = payload.mode ?? 'json_only';
     if (!this.resources) {
-      return fail({ code: 'not_implemented', message: 'Resource store is not available.' });
+      return fail({ code: 'not_implemented', message: BLOCK_PIPELINE_RESOURCE_STORE_MISSING });
     }
 
     const spec: BlockPipelineSpec = {
@@ -115,7 +131,7 @@ export class BlockPipelineService {
       if (onConflict === 'error') {
         return fail({
           code: 'invalid_payload',
-          message: 'Resources already exist for this block pipeline.',
+          message: BLOCK_PIPELINE_RESOURCES_EXIST,
           details: { conflicts }
         });
       }
@@ -124,7 +140,7 @@ export class BlockPipelineService {
         if (!resolved) {
           return fail({
             code: 'invalid_payload',
-            message: 'Could not allocate versioned resource names.',
+            message: BLOCK_PIPELINE_VERSIONED_FAILED,
             details: { conflicts }
           });
         }
@@ -138,8 +154,8 @@ export class BlockPipelineService {
       if (!payload.ifRevision) {
         return fail({
           code: 'invalid_state',
-          message: 'ifRevision is required when mode=with_blockbench.',
-          fix: 'Call get_project_state and retry with ifRevision.'
+          message: BLOCK_PIPELINE_IFREVISION_REQUIRED,
+          fix: BLOCK_PIPELINE_IFREVISION_FIX
         });
       }
       const created = this.createProject('Java Block/Item', name, {
@@ -164,7 +180,7 @@ export class BlockPipelineService {
       if (!modelRes.ok) {
         return fail(modelRes.error);
       }
-      notes.push('Blockbench project created with a base cube. Import textures separately.');
+      notes.push(BLOCK_PIPELINE_CREATED_NOTE);
     }
 
     entries.forEach((entry) => {
@@ -177,6 +193,12 @@ export class BlockPipelineService {
     });
 
     return ok({
+      applied: true,
+      steps: {
+        generate: {
+          resources: entries.length
+        }
+      },
       name,
       namespace,
       variants,

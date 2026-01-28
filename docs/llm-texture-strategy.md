@@ -2,6 +2,8 @@
 
 Use this guide to keep UVs and textures consistent across parts.
 
+Note: If low-level tools are hidden, use `texture_pipeline` for the entire workflow.
+
 ## Primary Workflow
 1) `assign_texture`
 2) `preflight_texture`
@@ -10,13 +12,17 @@ Use this guide to keep UVs and textures consistent across parts.
 5) `apply_texture_spec` or `generate_texture_preset`
 6) `render_preview`
 
+Notes:
+- Use `ifRevision` for mutations.
+- Call `preflight_texture` without texture filters to get a stable `uvUsageId`.
+
 ## Error Recovery (Always)
-If you see `uv_scale_mismatch` or `uv_overlap`:
+If `validate` reports `uv_overlap` / `uv_scale_mismatch`, or a mutation returns `invalid_state` mentioning overlap/scale or uvUsageId mismatch:
 1) `auto_uv_atlas` with `apply=true`
 2) `preflight_texture` again (new `uvUsageId`)
 3) Repaint with `apply_texture_spec` or `generate_texture_preset`
 
-Tip: `apply_texture_spec` supports `autoRecover=true` to run the recovery loop once automatically and return the refreshed `uvUsageId`.
+Tip: `apply_texture_spec` and `texture_pipeline` support `autoRecover=true` to run the recovery loop once automatically.
 
 ## Common Pitfalls
 - All faces mapped to full texture (e.g., [0,0,32,32]) causes scale mismatch.
@@ -25,7 +31,7 @@ Tip: `apply_texture_spec` supports `autoRecover=true` to run the recovery loop o
 
 ## Macro Tool (Optional)
 Use `texture_pipeline` to run the standard flow in one call:
-`assign_texture → preflight_texture → apply_uv_spec → preflight_texture → apply_texture_spec/generate_texture_preset → render_preview`.
+`assign_texture ??preflight_texture ??apply_uv_spec ??preflight_texture ??apply_texture_spec/generate_texture_preset ??render_preview`.
 
 Example (textures + preview):
 ```json

@@ -1,4 +1,5 @@
-import type { ProjectDiff, ProjectState, ProjectStateDetail, ToolError, ToolResponse } from '../types';
+import type { ProjectDiff, ProjectState, ProjectStateDetail, ToolError, ToolResponse, WithState } from '../types';
+import { buildStateMeta } from './stateMeta';
 
 type ResultLike<T> = { ok: true; value: T } | { ok: false; error: ToolError };
 
@@ -20,28 +21,26 @@ export const attachStateToResponse = <TPayload extends StatePayload, TResult>(
   deps: StateAttachmentDeps,
   payload: TPayload,
   response: ToolResponse<TResult>
-): ToolResponse<TResult & { state?: ProjectState | null; diff?: ProjectDiff | null; revision?: string }> => {
+): ToolResponse<WithState<TResult>> => {
   const shouldIncludeState = payload?.includeState ?? deps.includeStateByDefault();
   const shouldIncludeDiff = payload?.includeDiff ?? deps.includeDiffByDefault();
   const shouldIncludeRevision = true;
-  if (!shouldIncludeState && !shouldIncludeDiff && !shouldIncludeRevision) {
-    return response as ToolResponse<TResult & { state?: ProjectState | null; diff?: ProjectDiff | null; revision?: string }>;
-  }
-  const state = deps.getProjectState({ detail: 'summary' });
-  const project = state.ok ? state.value.project : null;
-  const revision = project?.revision;
-  let diffValue: ProjectDiff | null | undefined;
-  if (shouldIncludeDiff) {
-    if (payload?.ifRevision) {
-      const diff = deps.getProjectDiff({
-        sinceRevision: payload.ifRevision,
-        detail: payload.diffDetail ?? 'summary'
-      });
-      diffValue = diff.ok ? diff.value.diff : null;
-    } else {
-      diffValue = null;
+  const meta = buildStateMeta(
+    {
+      getProjectState: deps.getProjectState,
+      getProjectDiff: deps.getProjectDiff
+    },
+    {
+      includeState: shouldIncludeState,
+      includeDiff: shouldIncludeDiff,
+      diffDetail: payload?.diffDetail ?? 'summary',
+      ifRevision: payload?.ifRevision,
+      includeRevision: shouldIncludeRevision
     }
-  }
+  );
+  const project = meta.state ?? null;
+  const revision = meta.revision;
+  const diffValue = meta.diff;
   if (response.ok) {
     return {
       ok: true,
@@ -52,7 +51,7 @@ export const attachStateToResponse = <TPayload extends StatePayload, TResult>(
         ...(shouldIncludeRevision && revision ? { revision } : {}),
         ...(shouldIncludeState ? { state: project } : {}),
         ...(shouldIncludeDiff ? { diff: diffValue ?? null } : {})
-      } as TResult & { state?: ProjectState | null; diff?: ProjectDiff | null; revision?: string }
+      } as WithState<TResult>
     };
   }
   const details: Record<string, unknown> = { ...(response.error.details ?? {}) };

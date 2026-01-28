@@ -2,18 +2,32 @@ import type { Capabilities, ToolError } from '../types';
 import { ProjectSession, SessionState } from '../session';
 import { EditorPort } from '../ports/editor';
 import { ok, fail, UsecaseResult } from './result';
-import { RigMergeStrategy } from '../domain/rig';
 import {
   collectDescendantBones,
   isDescendantBone,
-  resolveBoneNameById,
-  resolveBoneTarget,
-  resolveCubeTarget
+  resolveBoneNameById
 } from '../services/lookup';
 import { createId } from '../services/id';
-import { ensureIdNameMatch, ensureNonBlankString } from '../services/validation';
+import { resolveBoneOrError, resolveCubeOrError } from '../services/targetGuards';
+import { ensureNonBlankString } from '../services/validation';
 import { ensureActiveAndRevision } from './guards';
-import { applyRigTemplate } from './modelRigTemplate';
+import {
+  MODEL_BONE_DESCENDANT_PARENT,
+  MODEL_BONE_EXISTS,
+  MODEL_BONE_ID_EXISTS,
+  MODEL_BONE_NAME_REQUIRED,
+  MODEL_BONE_NAME_REQUIRED_FIX,
+  MODEL_BONE_NOT_FOUND,
+  MODEL_BONE_SELF_PARENT,
+  MODEL_CUBE_BONE_REQUIRED,
+  MODEL_CUBE_BONE_REQUIRED_FIX,
+  MODEL_CUBE_EXISTS,
+  MODEL_CUBE_ID_EXISTS,
+  MODEL_CUBE_LIMIT_EXCEEDED,
+  MODEL_CUBE_NAME_REQUIRED,
+  MODEL_CUBE_NAME_REQUIRED_FIX,
+  MODEL_PARENT_BONE_NOT_FOUND
+} from '../shared/messages';
 
 export interface ModelServiceDeps {
   session: ProjectSession;
@@ -22,7 +36,6 @@ export interface ModelServiceDeps {
   getSnapshot: () => SessionState;
   ensureActive: () => ToolError | null;
   ensureRevisionMatch: (ifRevision?: string) => ToolError | null;
-  getRigMergeStrategy: () => RigMergeStrategy | undefined;
 }
 
 export class ModelService {
@@ -32,7 +45,6 @@ export class ModelService {
   private readonly getSnapshot: () => SessionState;
   private readonly ensureActive: () => ToolError | null;
   private readonly ensureRevisionMatch: (ifRevision?: string) => ToolError | null;
-  private readonly getRigMergeStrategy: () => RigMergeStrategy | undefined;
 
   constructor(deps: ModelServiceDeps) {
     this.session = deps.session;
@@ -41,7 +53,6 @@ export class ModelService {
     this.getSnapshot = deps.getSnapshot;
     this.ensureActive = deps.ensureActive;
     this.ensureRevisionMatch = deps.ensureRevisionMatch;
-    this.getRigMergeStrategy = deps.getRigMergeStrategy;
   }
 
   addBone(payload: {
@@ -52,6 +63,7 @@ export class ModelService {
     pivot: [number, number, number];
     rotation?: [number, number, number];
     scale?: [number, number, number];
+    visibility?: boolean;
     ifRevision?: string;
   }): UsecaseResult<{ id: string; name: string }> {
     return this.addBoneInternal(payload);
@@ -66,6 +78,7 @@ export class ModelService {
       pivot: [number, number, number];
       rotation?: [number, number, number];
       scale?: [number, number, number];
+      visibility?: boolean;
       ifRevision?: string;
     },
     options?: { skipRevisionCheck?: boolean }
@@ -81,31 +94,31 @@ export class ModelService {
     if (!payload.name) {
       return fail({
         code: 'invalid_payload',
-        message: 'Bone name is required',
-        fix: 'Provide a non-empty bone name.'
+        message: MODEL_BONE_NAME_REQUIRED,
+        fix: MODEL_BONE_NAME_REQUIRED_FIX
       });
     }
-    const nameBlankErr = ensureNonBlankString(payload.name, 'Bone name');
-    if (nameBlankErr) return fail(nameBlankErr);
-    const parentBlankErr = ensureNonBlankString(payload.parent, 'Parent bone name');
-    if (parentBlankErr) return fail(parentBlankErr);
-    const parentIdBlankErr = ensureNonBlankString(payload.parentId, 'Parent bone id');
-    if (parentIdBlankErr) return fail(parentIdBlankErr);
+    const blankErr = this.ensureBlankFields([
+      [payload.name, 'Bone name'],
+      [payload.parent, 'Parent bone name'],
+      [payload.parentId, 'Parent bone id']
+    ]);
+    if (blankErr) return fail(blankErr);
     const parentName = payload.parentId
       ? resolveBoneNameById(snapshot.bones, payload.parentId)
       : payload.parent;
     const parent = parentName ?? undefined;
     if (payload.parentId && !parentName) {
-      return fail({ code: 'invalid_payload', message: `Parent bone not found: ${payload.parentId}` });
+      return fail({ code: 'invalid_payload', message: MODEL_PARENT_BONE_NOT_FOUND(payload.parentId) });
     }
     const existing = snapshot.bones.find((b) => b.name === payload.name);
     if (existing) {
-      return fail({ code: 'invalid_payload', message: `Bone already exists: ${payload.name}` });
+      return fail({ code: 'invalid_payload', message: MODEL_BONE_EXISTS(payload.name) });
     }
     const id = payload.id ?? createId('bone');
     const idConflict = snapshot.bones.some((b) => b.id && b.id === id);
     if (idConflict) {
-      return fail({ code: 'invalid_payload', message: `Bone id already exists: ${id}` });
+      return fail({ code: 'invalid_payload', message: MODEL_BONE_ID_EXISTS(id) });
     }
     const err = this.editor.addBone({
       id,
@@ -113,7 +126,8 @@ export class ModelService {
       parent,
       pivot: payload.pivot,
       rotation: payload.rotation,
-      scale: payload.scale
+      scale: payload.scale,
+      visibility: payload.visibility
     });
     if (err) return fail(err);
     this.session.addBone({
@@ -122,7 +136,8 @@ export class ModelService {
       parent,
       pivot: payload.pivot,
       rotation: payload.rotation,
-      scale: payload.scale
+      scale: payload.scale,
+      visibility: payload.visibility
     });
     return ok({ id, name: payload.name });
   }
@@ -137,65 +152,38 @@ export class ModelService {
     pivot?: [number, number, number];
     rotation?: [number, number, number];
     scale?: [number, number, number];
+    visibility?: boolean;
     ifRevision?: string;
   }): UsecaseResult<{ id: string; name: string }> {
     const guardErr = ensureActiveAndRevision(this.ensureActive, this.ensureRevisionMatch, payload.ifRevision);
     if (guardErr) return fail(guardErr);
     const snapshot = this.getSnapshot();
-    const idBlankErr = ensureNonBlankString(payload.id, 'Bone id');
-    if (idBlankErr) return fail(idBlankErr);
-    const nameBlankErr = ensureNonBlankString(payload.name, 'Bone name');
-    if (nameBlankErr) return fail(nameBlankErr);
-    const newNameBlankErr = ensureNonBlankString(payload.newName, 'Bone newName');
-    if (newNameBlankErr) return fail(newNameBlankErr);
-    const parentBlankErr = ensureNonBlankString(payload.parent, 'Parent bone name');
-    if (parentBlankErr) return fail(parentBlankErr);
-    const parentIdBlankErr = ensureNonBlankString(payload.parentId, 'Parent bone id');
-    if (parentIdBlankErr) return fail(parentIdBlankErr);
-    if (!payload.id && !payload.name) {
-      return fail({ code: 'invalid_payload', message: 'Bone id or name is required' });
-    }
-    const mismatchErr = ensureIdNameMatch(snapshot.bones, payload.id, payload.name, {
-      kind: 'Bone',
-      plural: 'bones'
-    });
-    if (mismatchErr) return fail(mismatchErr);
-    const target = resolveBoneTarget(snapshot.bones, payload.id, payload.name);
-    if (!target) {
-      const label = payload.id ?? payload.name ?? 'unknown';
-      return fail({ code: 'invalid_payload', message: `Bone not found: ${label}` });
-    }
+    const blankErr = this.ensureBlankFields([
+      [payload.id, 'Bone id'],
+      [payload.name, 'Bone name'],
+      [payload.newName, 'Bone newName'],
+      [payload.parent, 'Parent bone name'],
+      [payload.parentId, 'Parent bone id']
+    ]);
+    if (blankErr) return fail(blankErr);
+    const resolved = resolveBoneOrError(snapshot.bones, payload.id, payload.name);
+    if (resolved.error) return fail(resolved.error);
+    const target = resolved.target!;
     const targetName = target.name;
     const targetId = target.id ?? payload.id ?? createId('bone');
     if (payload.newName && payload.newName !== targetName) {
       const conflict = snapshot.bones.some((b) => b.name === payload.newName && b.name !== targetName);
       if (conflict) {
-        return fail({ code: 'invalid_payload', message: `Bone already exists: ${payload.newName}` });
+        return fail({ code: 'invalid_payload', message: MODEL_BONE_EXISTS(payload.newName) });
       }
     }
-    const parentUpdate =
-      payload.parentRoot
-        ? null
-        : payload.parentId
-          ? resolveBoneNameById(snapshot.bones, payload.parentId)
-          : payload.parent !== undefined
-            ? payload.parent
-            : undefined;
-    if (payload.parentId && !parentUpdate) {
-      return fail({ code: 'invalid_payload', message: `Parent bone not found: ${payload.parentId}` });
-    }
-    if (typeof parentUpdate === 'string') {
-      if (parentUpdate === targetName) {
-        return fail({ code: 'invalid_payload', message: 'Bone cannot be parented to itself' });
-      }
-      const parentExists = snapshot.bones.some((b) => b.name === parentUpdate);
-      if (!parentExists) {
-        return fail({ code: 'invalid_payload', message: `Parent bone not found: ${parentUpdate}` });
-      }
-      if (isDescendantBone(snapshot.bones, targetName, parentUpdate)) {
-        return fail({ code: 'invalid_payload', message: 'Bone cannot be parented to its descendant' });
-      }
-    }
+    const parentRes = this.resolveParentUpdate(snapshot, targetName, {
+      parentRoot: payload.parentRoot,
+      parentId: payload.parentId,
+      parent: payload.parent
+    });
+    if (!parentRes.ok) return fail(parentRes.error);
+    const parentUpdate = parentRes.value;
     const parentForEditor = typeof parentUpdate === 'string' ? parentUpdate : undefined;
     const err = this.editor.updateBone({
       id: targetId,
@@ -205,7 +193,8 @@ export class ModelService {
       parentRoot: payload.parentRoot,
       pivot: payload.pivot,
       rotation: payload.rotation,
-      scale: payload.scale
+      scale: payload.scale,
+      visibility: payload.visibility
     });
     if (err) return fail(err);
     this.session.updateBone(targetName, {
@@ -214,7 +203,8 @@ export class ModelService {
       parent: parentUpdate,
       pivot: payload.pivot,
       rotation: payload.rotation,
-      scale: payload.scale
+      scale: payload.scale,
+      visibility: payload.visibility
     });
     return ok({ id: targetId, name: payload.newName ?? targetName });
   }
@@ -227,23 +217,14 @@ export class ModelService {
     const guardErr = ensureActiveAndRevision(this.ensureActive, this.ensureRevisionMatch, payload.ifRevision);
     if (guardErr) return fail(guardErr);
     const snapshot = this.getSnapshot();
-    const idBlankErr = ensureNonBlankString(payload.id, 'Bone id');
-    if (idBlankErr) return fail(idBlankErr);
-    const nameBlankErr = ensureNonBlankString(payload.name, 'Bone name');
-    if (nameBlankErr) return fail(nameBlankErr);
-    if (!payload.id && !payload.name) {
-      return fail({ code: 'invalid_payload', message: 'Bone id or name is required' });
-    }
-    const mismatchErr = ensureIdNameMatch(snapshot.bones, payload.id, payload.name, {
-      kind: 'Bone',
-      plural: 'bones'
-    });
-    if (mismatchErr) return fail(mismatchErr);
-    const target = resolveBoneTarget(snapshot.bones, payload.id, payload.name);
-    if (!target) {
-      const label = payload.id ?? payload.name ?? 'unknown';
-      return fail({ code: 'invalid_payload', message: `Bone not found: ${label}` });
-    }
+    const blankErr = this.ensureBlankFields([
+      [payload.id, 'Bone id'],
+      [payload.name, 'Bone name']
+    ]);
+    if (blankErr) return fail(blankErr);
+    const resolved = resolveBoneOrError(snapshot.bones, payload.id, payload.name);
+    if (resolved.error) return fail(resolved.error);
+    const target = resolved.target!;
     const descendants = collectDescendantBones(snapshot.bones, target.name);
     const boneSet = new Set<string>([target.name, ...descendants]);
     const err = this.editor.deleteBone({ id: target.id ?? payload.id, name: target.name });
@@ -264,8 +245,13 @@ export class ModelService {
     to: [number, number, number];
     bone?: string;
     boneId?: string;
+    origin?: [number, number, number];
+    rotation?: [number, number, number];
     inflate?: number;
     mirror?: boolean;
+    visibility?: boolean;
+    boxUv?: boolean;
+    uvOffset?: [number, number];
     ifRevision?: string;
   }): UsecaseResult<{ id: string; name: string }> {
     return this.addCubeInternal(payload);
@@ -279,8 +265,13 @@ export class ModelService {
       to: [number, number, number];
       bone?: string;
       boneId?: string;
+      origin?: [number, number, number];
+      rotation?: [number, number, number];
       inflate?: number;
       mirror?: boolean;
+      visibility?: boolean;
+      boxUv?: boolean;
+      uvOffset?: [number, number];
       ifRevision?: string;
     },
     options?: { skipRevisionCheck?: boolean }
@@ -296,52 +287,47 @@ export class ModelService {
     if (!payload.name) {
       return fail({
         code: 'invalid_payload',
-        message: 'Cube name is required',
-        fix: 'Provide a non-empty cube name.'
+        message: MODEL_CUBE_NAME_REQUIRED,
+        fix: MODEL_CUBE_NAME_REQUIRED_FIX
       });
     }
-    const nameBlankErr = ensureNonBlankString(payload.name, 'Cube name');
-    if (nameBlankErr) return fail(nameBlankErr);
-    const boneBlankErr = ensureNonBlankString(payload.bone, 'Cube bone');
-    if (boneBlankErr) return fail(boneBlankErr);
-    const boneIdBlankErr = ensureNonBlankString(payload.boneId, 'Cube boneId');
-    if (boneIdBlankErr) return fail(boneIdBlankErr);
-    if (!payload.bone && !payload.boneId) {
-      return fail({
-        code: 'invalid_payload',
-        message: 'Cube bone is required',
-        fix: 'Provide bone or boneId to attach the cube.'
-      });
-    }
-    const resolvedBone =
-      payload.boneId ? resolveBoneNameById(snapshot.bones, payload.boneId) : payload.bone;
-    if (!resolvedBone) {
-      const label = payload.boneId ?? payload.bone;
-      return fail({ code: 'invalid_payload', message: `Bone not found: ${label}` });
-    }
-    const boneExists = snapshot.bones.some((b) => b.name === resolvedBone);
-    if (!boneExists) {
-      return fail({ code: 'invalid_payload', message: `Bone not found: ${resolvedBone}` });
-    }
+    const blankErr = this.ensureBlankFields([
+      [payload.name, 'Cube name'],
+      [payload.bone, 'Cube bone'],
+      [payload.boneId, 'Cube boneId']
+    ]);
+    if (blankErr) return fail(blankErr);
+    const resolvedBone = resolveBoneOrError(snapshot.bones, payload.boneId, payload.bone, {
+      idLabel: 'boneId',
+      nameLabel: 'bone',
+      required: { message: MODEL_CUBE_BONE_REQUIRED, fix: MODEL_CUBE_BONE_REQUIRED_FIX }
+    });
+    if (resolvedBone.error) return fail(resolvedBone.error);
+    const resolvedBoneName = resolvedBone.target!.name;
     const existing = snapshot.cubes.find((c) => c.name === payload.name);
     if (existing) {
-      return fail({ code: 'invalid_payload', message: `Cube already exists: ${payload.name}` });
+      return fail({ code: 'invalid_payload', message: MODEL_CUBE_EXISTS(payload.name) });
     }
     const limitErr = this.ensureCubeLimit(1);
     if (limitErr) return fail(limitErr);
     const id = payload.id ?? createId('cube');
     const idConflict = snapshot.cubes.some((c) => c.id && c.id === id);
     if (idConflict) {
-      return fail({ code: 'invalid_payload', message: `Cube id already exists: ${id}` });
+      return fail({ code: 'invalid_payload', message: MODEL_CUBE_ID_EXISTS(id) });
     }
     const err = this.editor.addCube({
       id,
       name: payload.name,
       from: payload.from,
       to: payload.to,
-      bone: resolvedBone,
+      bone: resolvedBoneName,
+      origin: payload.origin,
+      rotation: payload.rotation,
       inflate: payload.inflate,
-      mirror: payload.mirror
+      mirror: payload.mirror,
+      visibility: payload.visibility,
+      boxUv: payload.boxUv,
+      uvOffset: payload.uvOffset
     });
     if (err) return fail(err);
     this.session.addCube({
@@ -349,9 +335,14 @@ export class ModelService {
       name: payload.name,
       from: payload.from,
       to: payload.to,
-      bone: resolvedBone,
+      bone: resolvedBoneName,
+      origin: payload.origin,
+      rotation: payload.rotation,
       inflate: payload.inflate,
-      mirror: payload.mirror
+      mirror: payload.mirror,
+      visibility: payload.visibility,
+      boxUv: payload.boxUv,
+      uvOffset: payload.uvOffset
     });
     return ok({ id, name: payload.name });
   }
@@ -365,60 +356,44 @@ export class ModelService {
     boneRoot?: boolean;
     from?: [number, number, number];
     to?: [number, number, number];
+    origin?: [number, number, number];
+    rotation?: [number, number, number];
     inflate?: number;
     mirror?: boolean;
+    visibility?: boolean;
+    boxUv?: boolean;
+    uvOffset?: [number, number];
     ifRevision?: string;
   }): UsecaseResult<{ id: string; name: string }> {
     const guardErr = ensureActiveAndRevision(this.ensureActive, this.ensureRevisionMatch, payload.ifRevision);
     if (guardErr) return fail(guardErr);
     const snapshot = this.getSnapshot();
-    const idBlankErr = ensureNonBlankString(payload.id, 'Cube id');
-    if (idBlankErr) return fail(idBlankErr);
-    const nameBlankErr = ensureNonBlankString(payload.name, 'Cube name');
-    if (nameBlankErr) return fail(nameBlankErr);
-    const newNameBlankErr = ensureNonBlankString(payload.newName, 'Cube newName');
-    if (newNameBlankErr) return fail(newNameBlankErr);
-    const boneBlankErr = ensureNonBlankString(payload.bone, 'Cube bone');
-    if (boneBlankErr) return fail(boneBlankErr);
-    const boneIdBlankErr = ensureNonBlankString(payload.boneId, 'Cube boneId');
-    if (boneIdBlankErr) return fail(boneIdBlankErr);
-    if (!payload.id && !payload.name) {
-      return fail({ code: 'invalid_payload', message: 'Cube id or name is required' });
-    }
-    const mismatchErr = ensureIdNameMatch(snapshot.cubes, payload.id, payload.name, {
-      kind: 'Cube',
-      plural: 'cubes'
-    });
-    if (mismatchErr) return fail(mismatchErr);
-    const target = resolveCubeTarget(snapshot.cubes, payload.id, payload.name);
-    if (!target) {
-      const label = payload.id ?? payload.name ?? 'unknown';
-      return fail({ code: 'invalid_payload', message: `Cube not found: ${label}` });
-    }
+    const blankErr = this.ensureBlankFields([
+      [payload.id, 'Cube id'],
+      [payload.name, 'Cube name'],
+      [payload.newName, 'Cube newName'],
+      [payload.bone, 'Cube bone'],
+      [payload.boneId, 'Cube boneId']
+    ]);
+    if (blankErr) return fail(blankErr);
+    const resolved = resolveCubeOrError(snapshot.cubes, payload.id, payload.name);
+    if (resolved.error) return fail(resolved.error);
+    const target = resolved.target!;
     const targetName = target.name;
     const targetId = target.id ?? payload.id ?? createId('cube');
     if (payload.newName && payload.newName !== targetName) {
       const conflict = snapshot.cubes.some((c) => c.name === payload.newName && c.name !== targetName);
       if (conflict) {
-        return fail({ code: 'invalid_payload', message: `Cube already exists: ${payload.newName}` });
+        return fail({ code: 'invalid_payload', message: MODEL_CUBE_EXISTS(payload.newName) });
       }
     }
-    const boneUpdate = payload.boneRoot
-      ? 'root'
-      : payload.boneId
-        ? resolveBoneNameById(snapshot.bones, payload.boneId)
-        : payload.bone !== undefined
-          ? payload.bone
-          : undefined;
-    if (payload.boneId && !boneUpdate) {
-      return fail({ code: 'invalid_payload', message: `Bone not found: ${payload.boneId}` });
-    }
-    if (typeof boneUpdate === 'string' && boneUpdate !== 'root') {
-      const boneExists = snapshot.bones.some((b) => b.name === boneUpdate);
-      if (!boneExists) {
-        return fail({ code: 'invalid_payload', message: `Bone not found: ${boneUpdate}` });
-      }
-    }
+    const boneRes = this.resolveCubeBoneUpdate(snapshot, {
+      boneRoot: payload.boneRoot,
+      boneId: payload.boneId,
+      bone: payload.bone
+    });
+    if (!boneRes.ok) return fail(boneRes.error);
+    const boneUpdate = boneRes.value;
     const err = this.editor.updateCube({
       id: targetId,
       name: targetName,
@@ -427,8 +402,13 @@ export class ModelService {
       boneRoot: payload.boneRoot,
       from: payload.from,
       to: payload.to,
+      origin: payload.origin,
+      rotation: payload.rotation,
       inflate: payload.inflate,
-      mirror: payload.mirror
+      mirror: payload.mirror,
+      visibility: payload.visibility,
+      boxUv: payload.boxUv,
+      uvOffset: payload.uvOffset
     });
     if (err) return fail(err);
     if (boneUpdate === 'root' && !snapshot.bones.some((b) => b.name === 'root')) {
@@ -440,8 +420,13 @@ export class ModelService {
       bone: typeof boneUpdate === 'string' ? boneUpdate : undefined,
       from: payload.from,
       to: payload.to,
+      origin: payload.origin,
+      rotation: payload.rotation,
       inflate: payload.inflate,
-      mirror: payload.mirror
+      mirror: payload.mirror,
+      visibility: payload.visibility,
+      boxUv: payload.boxUv,
+      uvOffset: payload.uvOffset
     });
     return ok({ id: targetId, name: payload.newName ?? targetName });
   }
@@ -450,42 +435,18 @@ export class ModelService {
     const guardErr = ensureActiveAndRevision(this.ensureActive, this.ensureRevisionMatch, payload.ifRevision);
     if (guardErr) return fail(guardErr);
     const snapshot = this.getSnapshot();
-    const idBlankErr = ensureNonBlankString(payload.id, 'Cube id');
-    if (idBlankErr) return fail(idBlankErr);
-    const nameBlankErr = ensureNonBlankString(payload.name, 'Cube name');
-    if (nameBlankErr) return fail(nameBlankErr);
-    if (!payload.id && !payload.name) {
-      return fail({ code: 'invalid_payload', message: 'Cube id or name is required' });
-    }
-    const mismatchErr = ensureIdNameMatch(snapshot.cubes, payload.id, payload.name, {
-      kind: 'Cube',
-      plural: 'cubes'
-    });
-    if (mismatchErr) return fail(mismatchErr);
-    const target = resolveCubeTarget(snapshot.cubes, payload.id, payload.name);
-    if (!target) {
-      const label = payload.id ?? payload.name ?? 'unknown';
-      return fail({ code: 'invalid_payload', message: `Cube not found: ${label}` });
-    }
+    const blankErr = this.ensureBlankFields([
+      [payload.id, 'Cube id'],
+      [payload.name, 'Cube name']
+    ]);
+    if (blankErr) return fail(blankErr);
+    const resolved = resolveCubeOrError(snapshot.cubes, payload.id, payload.name);
+    if (resolved.error) return fail(resolved.error);
+    const target = resolved.target!;
     const err = this.editor.deleteCube({ id: target.id ?? payload.id, name: target.name });
     if (err) return fail(err);
     this.session.removeCubes([target.name]);
     return ok({ id: target.id ?? payload.id ?? target.name, name: target.name });
-  }
-
-  applyRigTemplate(payload: { templateId: string; ifRevision?: string }): UsecaseResult<{ templateId: string }> {
-    return applyRigTemplate(
-      {
-        ensureActive: () => this.ensureActive(),
-        ensureRevisionMatch: (ifRevision?: string) => this.ensureRevisionMatch(ifRevision),
-        getSnapshot: () => this.getSnapshot(),
-        getRigMergeStrategy: () => this.getRigMergeStrategy(),
-        ensureCubeLimit: (increment) => this.ensureCubeLimit(increment),
-        addBoneInternal: (payload, options) => this.addBoneInternal(payload, options),
-        addCubeInternal: (payload, options) => this.addCubeInternal(payload, options)
-      },
-      payload
-    );
   }
 
   private ensureCubeLimit(increment: number): ToolError | null {
@@ -493,7 +454,70 @@ export class ModelService {
     const current = snapshot.cubes.length;
     const limit = this.capabilities.limits.maxCubes;
     if (current + increment > limit) {
-      return { code: 'invalid_payload', message: `Cube limit exceeded (${limit})` };
+      return { code: 'invalid_payload', message: MODEL_CUBE_LIMIT_EXCEEDED(limit) };
+    }
+    return null;
+  }
+
+  private resolveParentUpdate(
+    snapshot: SessionState,
+    targetName: string,
+    payload: { parentRoot?: boolean; parentId?: string; parent?: string }
+  ): UsecaseResult<string | null | undefined> {
+    const parentUpdate =
+      payload.parentRoot
+        ? null
+        : payload.parentId
+          ? resolveBoneNameById(snapshot.bones, payload.parentId)
+          : payload.parent !== undefined
+            ? payload.parent
+            : undefined;
+    if (payload.parentId && !parentUpdate) {
+      return fail({ code: 'invalid_payload', message: MODEL_PARENT_BONE_NOT_FOUND(payload.parentId) });
+    }
+    if (typeof parentUpdate === 'string') {
+      if (parentUpdate === targetName) {
+        return fail({ code: 'invalid_payload', message: MODEL_BONE_SELF_PARENT });
+      }
+      const parentExists = snapshot.bones.some((b) => b.name === parentUpdate);
+      if (!parentExists) {
+        return fail({ code: 'invalid_payload', message: MODEL_PARENT_BONE_NOT_FOUND(parentUpdate) });
+      }
+      if (isDescendantBone(snapshot.bones, targetName, parentUpdate)) {
+        return fail({ code: 'invalid_payload', message: MODEL_BONE_DESCENDANT_PARENT });
+      }
+    }
+    return ok(parentUpdate);
+  }
+
+  private resolveCubeBoneUpdate(
+    snapshot: SessionState,
+    payload: { boneRoot?: boolean; boneId?: string; bone?: string }
+  ): UsecaseResult<string | 'root' | undefined> {
+    const boneUpdateRaw = payload.boneRoot
+      ? 'root'
+      : payload.boneId
+        ? resolveBoneNameById(snapshot.bones, payload.boneId)
+        : payload.bone !== undefined
+          ? payload.bone
+          : undefined;
+    if (payload.boneId && !boneUpdateRaw) {
+      return fail({ code: 'invalid_payload', message: MODEL_BONE_NOT_FOUND(payload.boneId) });
+    }
+    const boneUpdate = boneUpdateRaw ?? undefined;
+    if (typeof boneUpdate === 'string' && boneUpdate !== 'root') {
+      const boneExists = snapshot.bones.some((b) => b.name === boneUpdate);
+      if (!boneExists) {
+        return fail({ code: 'invalid_payload', message: MODEL_BONE_NOT_FOUND(boneUpdate) });
+      }
+    }
+    return ok(boneUpdate);
+  }
+
+  private ensureBlankFields(entries: Array<[unknown, string]>): ToolError | null {
+    for (const [value, label] of entries) {
+      const err = ensureNonBlankString(value, label);
+      if (err) return err;
     }
     return null;
   }

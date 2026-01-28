@@ -18,7 +18,8 @@ import {
   readAnimationId as readAnimationIdNullable,
   readNodeId as readNodeIdNullable,
   readTextureId as readTextureIdNullable,
-  readTextureSize
+  readTextureSize,
+  readVisibility
 } from './blockbenchUtils';
 
 type Vec3Like = { x: number; y: number; z: number } | [number, number, number];
@@ -114,7 +115,8 @@ function walkNodes(
         parent,
         pivot: toVec3(node.origin ?? node.pivot ?? [0, 0, 0]),
         rotation: toOptionalVec3(node.rotation),
-        scale: toOptionalVec3(node.scale)
+        scale: toOptionalVec3(node.scale),
+        visibility: readVisibility(node)
       });
       walkNodes(node.children ?? [], boneName, bones, cubes, globals);
       return;
@@ -125,10 +127,15 @@ function walkNodes(
         name: String(node.name ?? 'cube'),
         from: toVec3(node.from ?? [0, 0, 0]),
         to: toVec3(node.to ?? [0, 0, 0]),
+        origin: toOptionalVec3(node.origin),
+        rotation: toOptionalVec3(node.rotation),
         bone: parent ?? (node.parent?.name ?? 'root'),
         uv: toOptionalVec2(node.uv_offset ?? node.uv),
+        uvOffset: toOptionalVec2(node.uv_offset),
         inflate: node.inflate,
-        mirror: node.mirror_uv ?? node.mirror
+        mirror: node.mirror_uv ?? node.mirror,
+        visibility: readVisibility(node),
+        boxUv: node.box_uv
       });
     }
   });

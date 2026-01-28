@@ -9,6 +9,16 @@ import { createMcpHttpServer } from './mcp/httpServer';
 import { startMcpNetServer } from './mcp/netServer';
 import { normalizePath } from './mcp/routerUtils';
 import { ResourceStore } from './ports/resources';
+import type { ToolRegistry } from './mcp/tools';
+import {
+  CONFIG_HOST_REQUIRED,
+  CONFIG_PATH_REQUIRED,
+  CONFIG_PORT_RANGE,
+  SERVER_HTTP_PERMISSION_MESSAGE,
+  SERVER_NET_PERMISSION_DETAIL,
+  SERVER_NET_PERMISSION_MESSAGE,
+  SERVER_NO_TRANSPORT
+} from './shared/messages';
 import type { IncomingMessage, Server as HttpServer, ServerResponse } from 'http';
 import type { Server as NetServer, Socket } from 'net';
 
@@ -30,14 +40,14 @@ type StopFn = () => void;
 
 const validateConfig = (config: ServerConfig): { ok: true } | { ok: false; message: string } => {
   if (!config.host || typeof config.host !== 'string') {
-    return { ok: false, message: 'host is required' };
+    return { ok: false, message: CONFIG_HOST_REQUIRED };
   }
   const port = Number(config.port);
   if (!Number.isFinite(port) || port < 1 || port > 65535) {
-    return { ok: false, message: 'port must be between 1 and 65535' };
+    return { ok: false, message: CONFIG_PORT_RANGE };
   }
   if (!config.path || typeof config.path !== 'string') {
-    return { ok: false, message: 'path is required' };
+    return { ok: false, message: CONFIG_PATH_REQUIRED };
   }
   return { ok: true };
 };
@@ -77,7 +87,8 @@ export function startServer(
   dispatcher: Dispatcher,
   proxy: ProxyRouter,
   log: Logger,
-  resources?: ResourceStore
+  resources?: ResourceStore,
+  toolRegistry?: ToolRegistry
 ): StopFn | null {
   const validation = validateConfig(rawConfig);
   if (!validation.ok) {
@@ -96,13 +107,14 @@ export function startServer(
     },
     executor,
     log,
-    resources
+    resources,
+    toolRegistry
   );
 
   let http: HttpModule | null = null;
   try {
     const loaded = requireNativeModule?.('http', {
-      message: 'bbmcp needs HTTP access for the local MCP server.',
+      message: SERVER_HTTP_PERMISSION_MESSAGE,
       optional: true
     });
     http = isHttpModule(loaded) ? loaded : null;
@@ -117,8 +129,8 @@ export function startServer(
   let net: NetModule | null = null;
   try {
     const loaded = requireNativeModule?.('net', {
-      message: 'bbmcp needs network permission to accept MCP connections.',
-      detail: 'bbmcp opens a local server so AI assistants can connect.',
+      message: SERVER_NET_PERMISSION_MESSAGE,
+      detail: SERVER_NET_PERMISSION_DETAIL,
       optional: false
     });
     net = isNetModule(loaded) ? loaded : null;
@@ -129,7 +141,7 @@ export function startServer(
     return startMcpNetServer(net, { host: config.host, port: config.port }, router, log);
   }
 
-  log.warn('http/net modules not available; MCP server not started');
+  log.warn(SERVER_NO_TRANSPORT);
   return null;
 }
 

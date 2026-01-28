@@ -81,7 +81,15 @@ const textureKey = (texture: TrackedTexture) => texture.id ?? texture.name;
 const animationKey = (anim: TrackedAnimation) => anim.id ?? anim.name;
 
 const boneSig = (bone: TrackedBone) =>
-  JSON.stringify([bone.id ?? null, bone.name, bone.parent ?? '', bone.pivot, bone.rotation ?? null, bone.scale ?? null]);
+  JSON.stringify([
+    bone.id ?? null,
+    bone.name,
+    bone.parent ?? '',
+    bone.pivot,
+    bone.rotation ?? null,
+    bone.scale ?? null,
+    bone.visibility ?? null
+  ]);
 const cubeSig = (cube: TrackedCube) =>
   JSON.stringify([
     cube.id ?? null,
@@ -89,9 +97,14 @@ const cubeSig = (cube: TrackedCube) =>
     cube.bone,
     cube.from,
     cube.to,
+    cube.origin ?? null,
+    cube.rotation ?? null,
     cube.uv ?? null,
+    cube.uvOffset ?? null,
     cube.inflate ?? null,
-    cube.mirror ?? null
+    cube.mirror ?? null,
+    cube.visibility ?? null,
+    cube.boxUv ?? null
   ]);
 const textureSig = (texture: TrackedTexture) =>
   JSON.stringify([

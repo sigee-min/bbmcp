@@ -8,6 +8,21 @@ import { resolveFormatId, FormatOverrides } from '../services/format';
 import { diffSnapshots } from '../services/diff';
 import { withFormatOverrideHint } from './formatHints';
 import { ensureNonBlankString } from '../services/validation';
+import {
+  PROJECT_CREATE_REQUIREMENTS,
+  PROJECT_CREATE_REQUIREMENTS_ON_MISMATCH_FIX,
+  PROJECT_CREATE_REQUIREMENTS_ON_MISSING_FIX,
+  PROJECT_FORMAT_ID_MISSING,
+  PROJECT_FORMAT_ID_MISSING_FIX,
+  PROJECT_FORMAT_UNKNOWN,
+  PROJECT_FORMAT_UNSUPPORTED_FIX,
+  PROJECT_MATCH_FORMAT_REQUIRED,
+  PROJECT_MATCH_NAME_REQUIRED,
+  PROJECT_MISMATCH,
+  PROJECT_NAME_REQUIRED_FIX,
+  PROJECT_NO_ACTIVE,
+  PROJECT_UNSUPPORTED_FORMAT
+} from '../shared/messages';
 
 export interface ProjectServiceDeps {
   session: ProjectSession;
@@ -52,8 +67,9 @@ export class ProjectService {
     this.policies = deps.policies;
   }
 
-  getProjectState(payload: { detail?: ProjectStateDetail }): UsecaseResult<{ project: ProjectState }> {
+  getProjectState(payload: { detail?: ProjectStateDetail; includeUsage?: boolean }): UsecaseResult<{ project: ProjectState }> {
     const detail: ProjectStateDetail = payload.detail ?? 'summary';
+    const includeUsage = payload.includeUsage ?? detail === 'full';
     const snapshot = this.getSnapshot();
     const info = this.projectState.toProjectInfo(snapshot);
     const active = Boolean(info);
@@ -63,7 +79,7 @@ export class ProjectService {
     if (resolution) {
       project.textureResolution = resolution;
     }
-    if (detail === 'full') {
+    if (includeUsage) {
       const usage = this.editor.getTextureUsage({});
       if (!usage.error && usage.result) {
         project.textureUsage = usage.result;
@@ -79,7 +95,7 @@ export class ProjectService {
     const snapshot = this.getSnapshot();
     const info = this.projectState.toProjectInfo(snapshot);
     if (!info) {
-      return fail({ code: 'invalid_state', message: 'No active project.' });
+      return fail({ code: 'invalid_state', message: PROJECT_NO_ACTIVE });
     }
     const currentRevision = this.revision.hash(snapshot);
     const previous = this.revision.get(payload.sinceRevision);
@@ -132,13 +148,13 @@ export class ProjectService {
     if (requiresFormat && !payload.format) {
       return fail({
         code: 'invalid_payload',
-        message: 'format is required when match includes format.'
+        message: PROJECT_MATCH_FORMAT_REQUIRED
       });
     }
     if (requiresName && !payload.name) {
       return fail({
         code: 'invalid_payload',
-        message: 'name is required when match includes name.'
+        message: PROJECT_MATCH_NAME_REQUIRED
       });
     }
 
@@ -149,13 +165,13 @@ export class ProjectService {
 
     if (!hasActive) {
       if (onMissing === 'error') {
-        return fail({ code: 'invalid_state', message: 'No active project.' });
+        return fail({ code: 'invalid_state', message: PROJECT_NO_ACTIVE });
       }
       if (!payload.format || !payload.name) {
         return fail({
           code: 'invalid_payload',
-          message: 'format and name are required to create a new project.',
-          fix: 'Provide format and name or set onMissing=error.'
+          message: PROJECT_CREATE_REQUIREMENTS,
+          fix: PROJECT_CREATE_REQUIREMENTS_ON_MISSING_FIX
         });
       }
       const created = this.createProject(payload.format, payload.name, {
@@ -178,7 +194,7 @@ export class ProjectService {
     }
 
     if (!normalized.format || !info) {
-      return fail({ code: 'invalid_state', message: 'Active project format is unknown.' });
+      return fail({ code: 'invalid_state', message: PROJECT_FORMAT_UNKNOWN });
     }
 
     const formatMismatch = requiresFormat && payload.format && normalized.format !== payload.format;
@@ -188,7 +204,7 @@ export class ProjectService {
     if (mismatch && onMismatch === 'error') {
       return fail({
         code: 'invalid_state',
-        message: 'Active project does not match requested criteria.',
+        message: PROJECT_MISMATCH,
         details: {
           expected: { format: payload.format ?? null, name: payload.name ?? null, match: matchMode },
           actual: { format: normalized.format, name: info.name ?? null }
@@ -200,8 +216,8 @@ export class ProjectService {
       if (!payload.format || !payload.name) {
         return fail({
           code: 'invalid_payload',
-          message: 'format and name are required to create a new project.',
-          fix: 'Provide format and name or set onMismatch=reuse/error.'
+          message: PROJECT_CREATE_REQUIREMENTS,
+          fix: PROJECT_CREATE_REQUIREMENTS_ON_MISMATCH_FIX
         });
       }
       const created = this.createProject(payload.format, payload.name, {
@@ -249,23 +265,23 @@ export class ProjectService {
     if (nameBlankErr) {
       return fail({
         ...nameBlankErr,
-        fix: 'Provide a non-empty project name.'
+        fix: PROJECT_NAME_REQUIRED_FIX
       });
     }
     const capability = this.capabilities.formats.find((f) => f.format === format);
     if (!capability || !capability.enabled) {
       return fail({
         code: 'unsupported_format',
-        message: `Unsupported format: ${format}`,
-        fix: 'Use list_capabilities to pick an enabled format.'
+        message: PROJECT_UNSUPPORTED_FORMAT(format),
+        fix: PROJECT_FORMAT_UNSUPPORTED_FIX
       });
     }
     const formatId = resolveFormatId(format, this.formats.listFormats(), this.policies.formatOverrides);
     if (!formatId) {
       return fail({
         code: 'unsupported_format',
-        message: withFormatOverrideHint(`No matching format ID for ${format}`),
-        fix: 'Set a format ID override in settings or choose another format.'
+        message: withFormatOverrideHint(PROJECT_FORMAT_ID_MISSING(format)),
+        fix: PROJECT_FORMAT_ID_MISSING_FIX
       });
     }
     const { ifRevision: _ifRevision, ...editorOptions } = options ?? {};

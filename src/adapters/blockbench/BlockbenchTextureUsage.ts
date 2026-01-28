@@ -3,6 +3,7 @@ import type { TextureUsageQuery, TextureUsageResult, TextureUsageUnresolved } fr
 import type { CubeFaceDirection, CubeInstance, TextureInstance } from '../../types/blockbench';
 import { CUBE_FACE_DIRECTIONS } from '../../shared/toolConstants';
 import { readNodeId, readTextureAliases, readTextureId } from './blockbenchUtils';
+import { TEXTURE_NOT_FOUND } from '../../shared/messages';
 
 const VALID_FACE_KEYS = new Set<CubeFaceDirection>(CUBE_FACE_DIRECTIONS);
 
@@ -53,7 +54,7 @@ export const buildTextureUsageResult = (
       (params.textureName && byName.get(params.textureName)) ||
       null;
     if (!match) {
-      return { error: { code: 'invalid_payload', message: `Texture not found: ${label}` } };
+      return { error: { code: 'invalid_payload', message: TEXTURE_NOT_FOUND(label) } };
     }
     targetKeys.clear();
     targetKeys.add(match);

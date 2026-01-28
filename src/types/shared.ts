@@ -95,3 +95,5 @@ export type McpContentBlock = McpTextContent | McpImageContent;
 export type ToolResponse<T> =
   | { ok: true; data: T; content?: McpContentBlock[]; structuredContent?: unknown; nextActions?: NextAction[] }
   | { ok: false; error: ToolError; content?: McpContentBlock[]; structuredContent?: unknown; nextActions?: NextAction[] };
+
+export type ToolErrorResponse = Extract<ToolResponse<unknown>, { ok: false }>;

@@ -2,6 +2,8 @@ import type { ToolResponse } from '../types';
 import type { JsonRpcMessage, JsonRpcResponse } from './types';
 export { isRecord } from '../domain/guards';
 import { toolError } from '../services/toolResponse';
+import { normalizeToolResponse } from '../services/toolResponseGuard';
+import { TOOL_ERROR_GENERIC } from '../shared/messages';
 
 export const DEFAULT_PROTOCOL_VERSION = '2025-06-18';
 export const DEFAULT_SUPPORTED_PROTOCOLS = ['2025-11-25', '2025-06-18', '2024-11-05'];
@@ -66,18 +68,19 @@ export const normalizeSessionTtl = (value?: number): number => {
 };
 
 export const toCallToolResult = (response: ToolResponse<unknown>) => {
-  const nextActions = response.nextActions;
+  const normalized = normalizeToolResponse(response, { source: 'mcp_router', preserveContent: true });
+  const nextActions = normalized.nextActions;
   const meta = Array.isArray(nextActions) && nextActions.length > 0 ? { nextActions } : null;
-  if (response.ok) {
-    if (response.content) {
-      const result: Record<string, unknown> = { content: response.content };
-      if (response.structuredContent !== undefined) {
-        result.structuredContent = response.structuredContent;
+  if (normalized.ok) {
+    if (normalized.content) {
+      const result: Record<string, unknown> = { content: normalized.content };
+      if (normalized.structuredContent !== undefined) {
+        result.structuredContent = normalized.structuredContent;
       }
       if (meta) result._meta = meta;
       return result;
     }
-    const structured = response.structuredContent ?? response.data;
+    const structured = normalized.structuredContent ?? normalized.data;
     const json = JSON.stringify(structured);
     const result: Record<string, unknown> = {
       content: makeTextContent(json),
@@ -86,11 +89,11 @@ export const toCallToolResult = (response: ToolResponse<unknown>) => {
     if (meta) result._meta = meta;
     return result;
   }
-  const error = response.error ?? toolError('unknown', 'tool error');
-  if (response.content) {
-    const result: Record<string, unknown> = { isError: true, content: response.content };
-    if (response.structuredContent !== undefined) {
-      result.structuredContent = response.structuredContent;
+  const error = normalized.error ?? toolError('unknown', TOOL_ERROR_GENERIC);
+  if (normalized.content) {
+    const result: Record<string, unknown> = { isError: true, content: normalized.content };
+    if (normalized.structuredContent !== undefined) {
+      result.structuredContent = normalized.structuredContent;
     }
     if (meta) result._meta = meta;
     return result;

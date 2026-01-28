@@ -3,6 +3,11 @@ import { McpRouter } from './router';
 import { ResponsePlan, SseConnection } from './types';
 import { openSseConnection } from './transport';
 import type { Server, Socket } from 'net';
+import {
+  MCP_INVALID_CONTENT_LENGTH,
+  MCP_INVALID_REQUEST_LINE,
+  MCP_PAYLOAD_TOO_LARGE
+} from '../shared/messages';
 
 const MAX_BODY_BYTES = 5_000_000;
 const MAX_HEADER_BYTES = 16 * 1024;
@@ -33,7 +38,7 @@ const parseRequestHead = (head: string): { ok: true; value: ParsedHead } | { ok:
   const lines = head.split('\r\n');
   const [method, url, version] = lines[0].split(' ');
   if (!method || !url || !version) {
-    return { ok: false, message: 'invalid request line' };
+    return { ok: false, message: MCP_INVALID_REQUEST_LINE };
   }
   const headers: Record<string, string> = {};
   for (const line of lines.slice(1)) {
@@ -49,7 +54,7 @@ const parseRequestHead = (head: string): { ok: true; value: ParsedHead } | { ok:
   if (lengthRaw) {
     const parsed = parseInt(lengthRaw, 10);
     if (!Number.isFinite(parsed) || parsed < 0) {
-      return { ok: false, message: 'invalid content-length' };
+      return { ok: false, message: MCP_INVALID_CONTENT_LENGTH };
     }
     contentLength = parsed;
   }
@@ -172,7 +177,7 @@ export const startMcpNetServer = (net: NetModule, config: NetServerConfig, route
 
           const { contentLength, shouldClose } = parsed.value;
           if (contentLength > MAX_BODY_BYTES) {
-            const plan = jsonPlan(413, { error: { code: 'payload_too_large', message: 'payload too large' } });
+            const plan = jsonPlan(413, { error: { code: 'payload_too_large', message: MCP_PAYLOAD_TOO_LARGE } });
     writePlan(socket, plan, true);
             closeSocket();
             return;

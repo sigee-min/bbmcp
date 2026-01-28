@@ -7,11 +7,33 @@ import {
   McpServerConfig,
   ResponsePlan
 } from './types';
-import { MCP_TOOLS, getToolSchema, isKnownTool } from './tools';
+import { DEFAULT_TOOL_REGISTRY, ToolRegistry } from './tools';
 import { validateSchema } from './validation';
 import { McpSession, SessionStore } from './session';
 import { encodeSseComment, encodeSseEvent } from './sse';
 import { ResourceStore } from '../ports/resources';
+import {
+  MCP_ACCEPT_SSE_REQUIRED,
+  MCP_CONTENT_TYPE_REQUIRED,
+  MCP_INITIALIZE_REQUIRES_ID,
+  MCP_JSONRPC_INVALID_REQUEST,
+  MCP_JSONRPC_PARSE_ERROR,
+  MCP_METHOD_NOT_ALLOWED,
+  MCP_METHOD_NOT_FOUND,
+  MCP_PROTOCOL_VERSION_MISMATCH,
+  MCP_RESOURCE_NOT_FOUND,
+  MCP_ROUTE_NOT_FOUND,
+  MCP_SERVER_NOT_INITIALIZED,
+  MCP_SESSION_ID_REQUIRED,
+  MCP_SESSION_UNAVAILABLE,
+  MCP_TOO_MANY_SSE,
+  MCP_TOOL_EXECUTION_FAILED,
+  MCP_TOOL_NAME_REQUIRED,
+  MCP_UNAUTHORIZED,
+  MCP_UNKNOWN_TOOL,
+  MCP_UNSUPPORTED_PROTOCOL,
+  MCP_URI_REQUIRED
+} from '../shared/messages';
 import {
   DEFAULT_PROTOCOL_VERSION,
   DEFAULT_SUPPORTED_PROTOCOLS,
@@ -40,16 +62,24 @@ export class McpRouter {
   private readonly executor: ToolExecutor;
   private readonly log: Logger;
   private readonly resources?: ResourceStore;
+  private readonly toolRegistry: ToolRegistry;
   private readonly sessions = new SessionStore();
   private readonly supportedProtocols: string[];
   private readonly sessionTtlMs: number;
   private lastPruneAt = 0;
 
-  constructor(config: McpServerConfig, executor: ToolExecutor, log: Logger, resources?: ResourceStore) {
+  constructor(
+    config: McpServerConfig,
+    executor: ToolExecutor,
+    log: Logger,
+    resources?: ResourceStore,
+    toolRegistry: ToolRegistry = DEFAULT_TOOL_REGISTRY
+  ) {
     this.config = { ...config, path: normalizePath(config.path) };
     this.executor = executor;
     this.log = log;
     this.resources = resources;
+    this.toolRegistry = toolRegistry;
     this.supportedProtocols = config.supportedProtocols ?? DEFAULT_SUPPORTED_PROTOCOLS;
     this.sessionTtlMs = normalizeSessionTtl(config.sessionTtlMs);
   }
@@ -59,13 +89,13 @@ export class McpRouter {
     const method = (req.method || 'GET').toUpperCase();
     const url = req.url || '/';
     if (!matchesPath(url, this.config.path)) {
-      return this.jsonResponse(404, { error: { code: 'not_found', message: 'not found' } });
+      return this.jsonResponse(404, { error: { code: 'not_found', message: MCP_ROUTE_NOT_FOUND } });
     }
 
     if (this.config.token) {
       const auth = req.headers.authorization ?? '';
       if (auth !== `Bearer ${this.config.token}`) {
-        return this.jsonResponse(401, { error: { code: 'unauthorized', message: 'unauthorized' } });
+        return this.jsonResponse(401, { error: { code: 'unauthorized', message: MCP_UNAUTHORIZED } });
       }
     }
 
@@ -76,23 +106,23 @@ export class McpRouter {
       return this.handleDelete(req);
     }
     if (method !== 'POST') {
-      return this.jsonResponse(405, { error: { code: 'method_not_allowed', message: 'method not allowed' } });
+      return this.jsonResponse(405, { error: { code: 'method_not_allowed', message: MCP_METHOD_NOT_ALLOWED } });
     }
     return this.handlePost(req);
   }
 
   private handleGet(req: HttpRequest): ResponsePlan {
     if (!supportsSse(req.headers.accept)) {
-      return this.jsonResponse(406, { error: { code: 'not_acceptable', message: 'accept text/event-stream required' } });
+      return this.jsonResponse(406, { error: { code: 'not_acceptable', message: MCP_ACCEPT_SSE_REQUIRED } });
     }
     const session = this.getSessionFromHeaders(req.headers);
     if (!session) {
-      return this.jsonResponse(400, { error: { code: 'invalid_state', message: 'Mcp-Session-Id required' } });
+      return this.jsonResponse(400, { error: { code: 'invalid_state', message: MCP_SESSION_ID_REQUIRED } });
     }
 
     if (session.sseConnections.size >= MAX_SSE_CONNECTIONS_PER_SESSION) {
       return this.jsonResponse(429, {
-        error: { code: 'too_many_requests', message: 'too many SSE connections' }
+        error: { code: 'too_many_requests', message: MCP_TOO_MANY_SSE }
       });
     }
     this.sessions.touch(session);
@@ -119,7 +149,7 @@ export class McpRouter {
   private handleDelete(req: HttpRequest): ResponsePlan {
     const session = this.getSessionFromHeaders(req.headers);
     if (!session) {
-      return this.jsonResponse(400, { error: { code: 'invalid_state', message: 'Mcp-Session-Id required' } });
+      return this.jsonResponse(400, { error: { code: 'invalid_state', message: MCP_SESSION_ID_REQUIRED } });
     }
     this.sessions.close(session);
     return this.jsonResponse(200, { ok: true });
@@ -128,19 +158,19 @@ export class McpRouter {
   private async handlePost(req: HttpRequest): Promise<ResponsePlan> {
     const contentType = (req.headers['content-type'] ?? '').toLowerCase();
     if (!contentType.includes('application/json')) {
-      return this.jsonResponse(415, { error: { code: 'invalid_payload', message: 'content-type must be application/json' } });
+      return this.jsonResponse(415, { error: { code: 'invalid_payload', message: MCP_CONTENT_TYPE_REQUIRED } });
     }
     const rawBody = req.body ?? '';
     let parsed: unknown;
     try {
       parsed = JSON.parse(rawBody || '{}');
     } catch (err) {
-      const error = jsonRpcError(null, -32700, 'Parse error');
+      const error = jsonRpcError(null, -32700, MCP_JSONRPC_PARSE_ERROR);
       return this.jsonResponse(400, error);
     }
 
     if (!isJsonRpcMessage(parsed)) {
-      const error = jsonRpcError(null, -32600, 'Invalid Request');
+      const error = jsonRpcError(null, -32600, MCP_JSONRPC_INVALID_REQUEST);
       return this.jsonResponse(400, error);
     }
 
@@ -149,7 +179,7 @@ export class McpRouter {
 
     const protocolHeader = req.headers['mcp-protocol-version'];
     if (protocolHeader && !this.supportedProtocols.includes(protocolHeader)) {
-      const error = jsonRpcError(id, -32600, `Unsupported protocol version: ${protocolHeader}`);
+      const error = jsonRpcError(id, -32600, MCP_UNSUPPORTED_PROTOCOL(protocolHeader));
       return this.jsonResponse(400, error);
     }
 
@@ -202,10 +232,10 @@ export class McpRouter {
 
     if (message.method === 'initialize') {
       if (isNotification || id === null) {
-        return { type: 'response', response: jsonRpcError(id, -32600, 'initialize requires id'), status: 400 };
+        return { type: 'response', response: jsonRpcError(id, -32600, MCP_INITIALIZE_REQUIRES_ID), status: 400 };
       }
       if (!session) {
-        return { type: 'response', response: jsonRpcError(id, -32000, 'Session unavailable'), status: 400 };
+        return { type: 'response', response: jsonRpcError(id, -32000, MCP_SESSION_UNAVAILABLE), status: 400 };
       }
       const params = isRecord(message.params) ? message.params : {};
       const requested = typeof params.protocolVersion === 'string' ? params.protocolVersion : DEFAULT_PROTOCOL_VERSION;
@@ -227,7 +257,7 @@ export class McpRouter {
     }
 
     if (!session || !session.initialized) {
-      return { type: 'response', response: jsonRpcError(id, -32000, 'Server not initialized'), status: 400 };
+      return { type: 'response', response: jsonRpcError(id, -32000, MCP_SERVER_NOT_INITIALIZED), status: 400 };
     }
 
     if (isNotification) {
@@ -235,7 +265,7 @@ export class McpRouter {
     }
 
     if (message.method === 'tools/list') {
-      const result = { tools: MCP_TOOLS };
+      const result = { tools: this.toolRegistry.tools };
       return { type: 'response', response: jsonRpcResult(id, result), status: 200 };
     }
 
@@ -253,13 +283,13 @@ export class McpRouter {
       const params = isRecord(message.params) ? message.params : {};
       const uri = typeof params.uri === 'string' ? params.uri : '';
       if (!uri) {
-        return { type: 'response', response: jsonRpcError(id, -32602, 'uri is required'), status: 400 };
+        return { type: 'response', response: jsonRpcError(id, -32602, MCP_URI_REQUIRED), status: 400 };
       }
       const entry = this.resources?.read(uri) ?? null;
       if (!entry) {
         return {
           type: 'response',
-          response: jsonRpcError(id, -32602, 'Resource not found'),
+          response: jsonRpcError(id, -32602, MCP_RESOURCE_NOT_FOUND),
           status: 404
         };
       }
@@ -287,7 +317,7 @@ export class McpRouter {
 
     return {
       type: 'response',
-      response: jsonRpcError(id, -32601, `Method not found: ${message.method}`),
+      response: jsonRpcError(id, -32601, MCP_METHOD_NOT_FOUND(message.method)),
       status: 400
     };
   }
@@ -300,13 +330,13 @@ export class McpRouter {
     const params = isRecord(message.params) ? message.params : {};
     const name = typeof params.name === 'string' ? params.name : null;
     if (!name) {
-      return { type: 'response', response: jsonRpcError(id, -32602, 'Tool name is required'), status: 400 };
+      return { type: 'response', response: jsonRpcError(id, -32602, MCP_TOOL_NAME_REQUIRED), status: 400 };
     }
-    if (!isKnownTool(name)) {
-      return { type: 'response', response: jsonRpcError(id, -32602, `Unknown tool: ${name}`), status: 400 };
+    if (!this.toolRegistry.map.has(name)) {
+      return { type: 'response', response: jsonRpcError(id, -32602, MCP_UNKNOWN_TOOL(name)), status: 400 };
     }
     const args = isRecord(params.arguments) ? params.arguments : {};
-    const schema = getToolSchema(name);
+    const schema = this.toolRegistry.map.get(name)?.inputSchema ?? null;
     if (schema) {
       const validation = validateSchema(schema, args);
       if (!validation.ok) {
@@ -320,7 +350,7 @@ export class McpRouter {
       const result = toCallToolResult(response);
       return { type: 'response', response: jsonRpcResult(id, result), status: 200 };
     } catch (err) {
-      const messageText = errorMessage(err, 'tool execution failed');
+      const messageText = errorMessage(err, MCP_TOOL_EXECUTION_FAILED);
       this.log.error('tool execution failed', { tool: name, message: messageText });
       const result = { isError: true, content: makeTextContent(messageText) };
       return { type: 'response', response: jsonRpcResult(id, result), status: 200 };
@@ -355,14 +385,14 @@ export class McpRouter {
       return {
         ok: false,
         status: 400,
-        error: jsonRpcError(id, -32000, 'Mcp-Session-Id required')
+        error: jsonRpcError(id, -32000, MCP_SESSION_ID_REQUIRED)
       };
     }
     if (protocolHeader && session.protocolVersion !== protocolHeader) {
       return {
         ok: false,
         status: 400,
-        error: jsonRpcError(id, -32600, 'MCP-Protocol-Version mismatch')
+        error: jsonRpcError(id, -32600, MCP_PROTOCOL_VERSION_MISMATCH)
       };
     }
     return { ok: true, session };

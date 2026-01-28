@@ -5,6 +5,19 @@ import { SidecarHost } from './transport/SidecarHost';
 import { SidecarLaunchConfig } from './types';
 import { PLUGIN_ID } from '../config';
 import { resolveRegisteredPluginPath } from '../adapters/blockbench/pluginRegistry';
+import {
+  CONFIG_HOST_REQUIRED,
+  CONFIG_PATH_REQUIRED,
+  CONFIG_PATH_SLASH_REQUIRED,
+  CONFIG_PORT_RANGE,
+  SIDECAR_CHILD_PROCESS_UNAVAILABLE,
+  SIDECAR_ENTRY_NOT_FOUND,
+  SIDECAR_EXECPATH_UNAVAILABLE,
+  SIDECAR_PATH_MODULE_UNAVAILABLE,
+  SIDECAR_PERMISSION_MESSAGE,
+  SIDECAR_RUN_AS_NODE_REJECTED,
+  SIDECAR_STDIO_UNAVAILABLE
+} from '../shared/messages';
 
 type NativeModuleLoader = (name: string, options?: { message?: string; optional?: boolean }) => unknown;
 declare const requireNativeModule: NativeModuleLoader | undefined;
@@ -76,28 +89,28 @@ export class SidecarProcess {
     }
 
     const childProcess = requireNativeModule?.('child_process', {
-      message: 'bbmcp needs permission to run a local MCP sidecar process.',
+      message: SIDECAR_PERMISSION_MESSAGE,
       optional: true
     });
     if (!isChildProcessModule(childProcess)) {
-      this.log.warn('child_process not available; sidecar not started');
+      this.log.warn(SIDECAR_CHILD_PROCESS_UNAVAILABLE);
       return false;
     }
 
     const pathModule = requireNativeModule?.('path');
     if (!isPathModule(pathModule)) {
-      this.log.warn('path module not available; sidecar not started');
+      this.log.warn(SIDECAR_PATH_MODULE_UNAVAILABLE);
       return false;
     }
 
     const sidecarPath = this.resolveSidecarPath(pathModule);
     if (!sidecarPath) {
-      this.log.error('sidecar entry not found; expected bbmcp-sidecar.js near plugin');
+      this.log.error(SIDECAR_ENTRY_NOT_FOUND);
       return false;
     }
     const execPath = this.resolveExecPath(childProcess);
     if (!execPath) {
-      this.log.error('execPath unavailable; sidecar not started');
+      this.log.error(SIDECAR_EXECPATH_UNAVAILABLE);
       return false;
     }
 
@@ -112,6 +125,7 @@ export class SidecarProcess {
       String(this.config.port),
       '--path',
       this.config.path,
+      ...(this.config.exposeLowLevelTools ? ['--expose-low-level-tools'] : []),
     ];
 
     let child: ChildProcessHandle;
@@ -127,7 +141,7 @@ export class SidecarProcess {
     }
 
     if (!child?.stdin || !child?.stdout) {
-      this.log.error('sidecar stdio unavailable');
+      this.log.error(SIDECAR_STDIO_UNAVAILABLE);
       child?.kill?.();
       return false;
     }
@@ -141,7 +155,7 @@ export class SidecarProcess {
       if (message.length > 0) {
         if (message.includes('--run-as-node') && message.toLowerCase().includes('bad option')) {
           this.disableRunAsNode = true;
-          this.log.warn('sidecar runtime rejected --run-as-node; retry without it');
+          this.log.warn(SIDECAR_RUN_AS_NODE_REJECTED);
         }
         this.log.warn('sidecar stderr', { message });
       }
@@ -190,17 +204,17 @@ export class SidecarProcess {
 
   private validateConfig(): { ok: true } | { ok: false; message: string } {
     if (!this.config.host || typeof this.config.host !== 'string') {
-      return { ok: false, message: 'host is required' };
+      return { ok: false, message: CONFIG_HOST_REQUIRED };
     }
     const port = Number(this.config.port);
     if (!Number.isFinite(port) || port < 1 || port > 65535) {
-      return { ok: false, message: 'port must be between 1 and 65535' };
+      return { ok: false, message: CONFIG_PORT_RANGE };
     }
     if (!this.config.path || typeof this.config.path !== 'string') {
-      return { ok: false, message: 'path is required' };
+      return { ok: false, message: CONFIG_PATH_REQUIRED };
     }
     if (!this.config.path.startsWith('/')) {
-      return { ok: false, message: 'path must start with /' };
+      return { ok: false, message: CONFIG_PATH_SLASH_REQUIRED };
     }
     return { ok: true };
   }

@@ -18,44 +18,116 @@ export const faceUvSchema: JsonSchema = {
   }
 };
 
-export const modelPartSchema: JsonSchema = {
+export const modelBoneSpecSchema: JsonSchema = {
   type: 'object',
-  required: ['id', 'size', 'offset'],
   additionalProperties: false,
   properties: {
-    id: {
-      type: 'string',
-      description:
-        'Stable part id. Use "root" for the root bone. Must be unique. Prefer stable ids because renaming ids can break animation channels.'
-    },
+    id: { type: 'string' },
+    name: { type: 'string' },
+    parentId: { type: 'string' },
+    pivot: numberArray(3, 3),
+    pivotAnchorId: { type: 'string' },
+    rotation: numberArray(3, 3),
+    scale: numberArray(3, 3),
+    visibility: { type: 'boolean' }
+  }
+};
+
+export const modelCubeSpecSchema: JsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string' },
+    name: { type: 'string' },
+    parentId: { type: 'string' },
+    from: numberArray(3, 3),
+    to: numberArray(3, 3),
+    center: numberArray(3, 3),
     size: numberArray(3, 3),
-    offset: numberArray(3, 3),
+    origin: numberArray(3, 3),
+    originAnchorId: { type: 'string' },
+    centerAnchorId: { type: 'string' },
+    rotation: numberArray(3, 3),
     inflate: { type: 'number' },
     mirror: { type: 'boolean' },
-    pivot: numberArray(3, 3),
-    parent: {
-      type: 'string',
-      description:
-        'Parent part id. Required for every non-root part. Must refer to an existing part id. Avoid flat lists; always form a tree (root -> body -> limbs/head).'
-    }
+    visibility: { type: 'boolean' },
+    boxUv: { type: 'boolean' },
+    uvOffset: numberArray(2, 2)
+  }
+};
+
+export const modelInstanceSchema: JsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    type: { type: 'string', enum: ['mirror', 'repeat', 'radial'] },
+    sourceCubeId: { type: 'string' },
+    axis: { type: 'string', enum: ['x', 'y', 'z'] },
+    about: { type: 'number' },
+    newId: { type: 'string' },
+    newName: { type: 'string' },
+    count: { type: 'number' },
+    delta: numberArray(3, 3),
+    prefix: { type: 'string' },
+    radius: { type: 'number' },
+    center: numberArray(3, 3),
+    startAngle: { type: 'number' }
+  }
+};
+
+export const modelAnchorSchema: JsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string' },
+    target: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        boneId: { type: 'string' },
+        cubeId: { type: 'string' }
+      }
+    },
+    offset: numberArray(3, 3)
   }
 };
 
 export const modelSpecSchema: JsonSchema = {
   type: 'object',
-  required: ['rigTemplate', 'parts'],
   additionalProperties: false,
   properties: {
-    rigTemplate: {
-      type: 'string',
-      enum: RIG_TEMPLATE_KINDS,
-      description:
-        'Rig template kind. Use "empty" for manual rigs. Templates may inject extra bones/parts; ids should remain stable across updates.'
-    },
-    parts: {
-      type: 'array',
-      description: 'Model parts to apply. Include a root part and parent every non-root part.',
-      items: modelPartSchema
+    units: { type: 'string', enum: ['px'] },
+    rigTemplate: { type: 'string', enum: RIG_TEMPLATE_KINDS },
+    bones: { type: 'array', items: modelBoneSpecSchema },
+    cubes: { type: 'array', items: modelCubeSpecSchema },
+    instances: { type: 'array', items: modelInstanceSchema },
+    anchors: { type: 'array', items: modelAnchorSchema },
+    policies: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        idPolicy: {
+          type: 'string',
+          enum: ['explicit', 'stable_path', 'hash'],
+          default: 'stable_path',
+          description: 'Id policy for bones/cubes. Defaults to stable_path; use explicit to require ids.'
+        },
+        defaultParentId: { type: 'string' },
+        enforceRoot: { type: 'boolean' },
+        snap: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { grid: { type: 'number' } }
+        },
+        bounds: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            min: numberArray(3, 3),
+            max: numberArray(3, 3)
+          }
+        }
+      }
     }
   }
 };

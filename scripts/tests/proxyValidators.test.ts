@@ -2,16 +2,34 @@ import assert from 'node:assert/strict';
 
 import { toolSchemas } from '../../src/mcp/toolSchemas';
 import { validateSchema } from '../../src/mcp/validation';
-import type { ApplyModelSpecPayload, TexturePipelinePayload } from '../../src/spec';
-import { validateModelSpec, validateTexturePipeline } from '../../src/proxy/validators';
+import type { ModelPipelinePayload, TexturePipelinePayload } from '../../src/spec';
+import { validateModelPipeline, validateTexturePipeline } from '../../src/proxy/validators';
+import { DEFAULT_LIMITS, unsafePayload } from './helpers';
 
-const limits = { maxCubes: 2048, maxTextureSize: 256, maxAnimationSeconds: 120 };
+const limits = DEFAULT_LIMITS;
 
-// Runtime validator sanity: valid rig template should pass.
+// Runtime validator sanity: invalid bones array should fail.
 {
-  const payload: ApplyModelSpecPayload = { model: { rigTemplate: 'biped', parts: [] } };
-  const res = validateModelSpec(payload, limits);
-  assert.equal(res.ok, true);
+  const payload: ModelPipelinePayload = unsafePayload({ model: { bones: 'nope' } });
+  const res = validateModelPipeline(payload, limits);
+  assert.equal(res.ok, false);
+  if (!res.ok) {
+    assert.equal(res.error.code, 'invalid_payload');
+  }
+}
+
+// planOnly cannot combine with ensureProject.
+{
+  const payload: ModelPipelinePayload = {
+    model: { bones: [] },
+    planOnly: true,
+    ensureProject: unsafePayload({ name: 'tmp', match: 'format', onMissing: 'create' })
+  };
+  const res = validateModelPipeline(payload, limits);
+  assert.equal(res.ok, false);
+  if (!res.ok) {
+    assert.equal(res.error.code, 'invalid_payload');
+  }
 }
 
 // Runtime validator sanity: empty pipeline should fail with invalid_payload.
@@ -26,7 +44,7 @@ const limits = { maxCubes: 2048, maxTextureSize: 256, maxAnimationSeconds: 120 }
 
 // Schema-level contract: unknown rigTemplate rejected.
 {
-  const res = validateSchema(toolSchemas.apply_model_spec, { model: { rigTemplate: 'nope', parts: [] } });
+  const res = validateSchema(toolSchemas.model_pipeline, { model: { rigTemplate: 'nope' } });
   assert.equal(res.ok, false);
 }
 

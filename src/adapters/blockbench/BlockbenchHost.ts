@@ -1,6 +1,7 @@
 import { readBlockbenchGlobals } from '../../types/blockbench';
 import { ToolError } from '../../types';
 import { HostPort } from '../../ports/host';
+import { ADAPTER_PLUGINS_DEVRELOAD_UNAVAILABLE } from '../../shared/messages';
 
 const DEFAULT_DELAY_MS = 100;
 const MAX_DELAY_MS = 10_000;
@@ -10,7 +11,7 @@ export class BlockbenchHost implements HostPort {
     const globals = readBlockbenchGlobals();
     const plugins = globals.Plugins;
     if (typeof plugins?.devReload !== 'function') {
-      return { code: 'not_implemented', message: 'Plugins.devReload not available.' };
+      return { code: 'not_implemented', message: ADAPTER_PLUGINS_DEVRELOAD_UNAVAILABLE };
     }
     const devReload = plugins.devReload;
     const safeDelay = normalizeDelay(delayMs);

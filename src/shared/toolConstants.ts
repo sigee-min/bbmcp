@@ -14,7 +14,7 @@ export const TOOL_NAMES = [
   'set_project_texture_resolution',
   'preflight_texture',
   'ensure_project',
-  'generate_block_pipeline',
+  'block_pipeline',
   'delete_texture',
   'assign_texture',
   'set_face_uv',
@@ -24,7 +24,6 @@ export const TOOL_NAMES = [
   'add_cube',
   'update_cube',
   'delete_cube',
-  'apply_rig_template',
   'export',
   'render_preview',
   'validate'
@@ -32,10 +31,10 @@ export const TOOL_NAMES = [
 export type ToolName = typeof TOOL_NAMES[number];
 
 export const PROXY_TOOL_NAMES = [
-  'apply_model_spec',
   'apply_texture_spec',
   'apply_uv_spec',
-  'apply_entity_spec',
+  'entity_pipeline',
+  'model_pipeline',
   'texture_pipeline',
   'render_preview',
   'validate'

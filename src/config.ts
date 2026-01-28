@@ -5,7 +5,7 @@ import { TEXTURE_WORKFLOW_INSTRUCTIONS } from './services/toolInstructions';
 
 export const PLUGIN_ID = 'bbmcp';
 export const PLUGIN_VERSION = '0.0.2';
-export const TOOL_SCHEMA_VERSION = '2025-04-06';
+export const TOOL_SCHEMA_VERSION = '2026-01-28';
 export const DEFAULT_SERVER_HOST = '127.0.0.1';
 export const DEFAULT_SERVER_PORT = 8787;
 export const DEFAULT_SERVER_PATH = '/mcp';
@@ -25,7 +25,7 @@ const BASE_FORMATS: Array<{ format: FormatKind; animations: boolean }> = [
 const CAPABILITIES_GUIDANCE = {
   toolPathStability: {
     cache: 'no' as const,
-    note: 'Tool paths like /bbmcp/link_... are session-bound and can change after reconnects. Re-discover tools on Resource not found or when toolRegistry.hash changes.'
+    note: 'Tool paths like /bbmcp/link_... are session-bound and can change after reconnects. Re-discover tools on Resource not found or when toolRegistry.hash changes (toolSchemaVersion is coarse).'
   },
   mutationPolicy: {
     requiresRevision: true,

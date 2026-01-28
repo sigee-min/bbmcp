@@ -3,6 +3,12 @@ import type { EditorPort } from '../ports/editor';
 import type { TmpStorePort } from '../ports/tmpStore';
 import { ok, fail, UsecaseResult } from './result';
 import { ensureActiveOnly } from './guards';
+import {
+  PREVIEW_FRAME_DATA_UNAVAILABLE,
+  PREVIEW_FRAMES_UNAVAILABLE,
+  PREVIEW_IMAGE_DATA_UNAVAILABLE,
+  TMP_STORE_UNAVAILABLE
+} from '../shared/messages';
 
 export interface RenderServiceDeps {
   editor: EditorPort;
@@ -21,6 +27,28 @@ export class RenderService {
     this.ensureActive = deps.ensureActive;
   }
 
+  private ensureTmpStore(): ToolError | null {
+    if (!this.tmpStore) {
+      return { code: 'not_implemented', message: TMP_STORE_UNAVAILABLE };
+    }
+    return null;
+  }
+
+  private savePreviewDataUri(
+    dataUri: string | undefined,
+    missingMessage: string,
+    options: { nameHint: string; prefix: string }
+  ): UsecaseResult<{ path: string; byteLength: number }> {
+    if (!dataUri) {
+      return fail({ code: 'not_implemented', message: missingMessage });
+    }
+    const tmpErr = this.ensureTmpStore();
+    if (tmpErr) return fail(tmpErr);
+    const saved = this.tmpStore!.saveDataUri(dataUri, options);
+    if (!saved.ok) return fail(saved.error);
+    return ok({ path: saved.data.path, byteLength: saved.data.byteLength });
+  }
+
   renderPreview(payload: RenderPreviewPayload): UsecaseResult<RenderPreviewResult> {
     const activeErr = ensureActiveOnly(this.ensureActive);
     if (activeErr) return fail(activeErr);
@@ -31,13 +59,10 @@ export class RenderService {
     if (!saveToTmp) return ok(result);
     if (result.kind === 'single') {
       const image = result.image;
-      if (!image?.dataUri) {
-        return fail({ code: 'not_implemented', message: 'Preview image data unavailable.' });
+      if (!image) {
+        return fail({ code: 'not_implemented', message: PREVIEW_IMAGE_DATA_UNAVAILABLE });
       }
-      if (!this.tmpStore) {
-        return fail({ code: 'not_implemented', message: 'Tmp store is not available.' });
-      }
-      const saved = this.tmpStore.saveDataUri(image.dataUri, {
+      const saved = this.savePreviewDataUri(image?.dataUri, PREVIEW_IMAGE_DATA_UNAVAILABLE, {
         nameHint: tmpName ?? 'preview',
         prefix: tmpPrefix ?? 'preview'
       });
@@ -46,9 +71,9 @@ export class RenderService {
         ...result,
         saved: {
           image: {
-            path: saved.data.path,
+            path: saved.value.path,
             mime: image.mime,
-            byteLength: saved.data.byteLength,
+            byteLength: saved.value.byteLength,
             width: image.width,
             height: image.height
           }
@@ -57,26 +82,20 @@ export class RenderService {
     }
     const frames = Array.isArray(result.frames) ? result.frames : [];
     if (frames.length === 0) {
-      return fail({ code: 'not_implemented', message: 'Preview frames unavailable.' });
+      return fail({ code: 'not_implemented', message: PREVIEW_FRAMES_UNAVAILABLE });
     }
     const savedFrames: RenderPreviewResult['saved'] = { frames: [] };
     for (const frame of frames) {
-      if (!frame.dataUri) {
-        return fail({ code: 'not_implemented', message: 'Preview frame data unavailable.' });
-      }
-      if (!this.tmpStore) {
-        return fail({ code: 'not_implemented', message: 'Tmp store is not available.' });
-      }
-      const saved = this.tmpStore.saveDataUri(frame.dataUri, {
+      const saved = this.savePreviewDataUri(frame.dataUri, PREVIEW_FRAME_DATA_UNAVAILABLE, {
         nameHint: `${tmpName ?? 'preview'}_frame${frame.index}`,
         prefix: tmpPrefix ?? 'preview'
       });
       if (!saved.ok) return fail(saved.error);
       savedFrames.frames!.push({
         index: frame.index,
-        path: saved.data.path,
+        path: saved.value.path,
         mime: frame.mime,
-        byteLength: saved.data.byteLength,
+        byteLength: saved.value.byteLength,
         width: frame.width,
         height: frame.height
       });

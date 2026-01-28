@@ -4,9 +4,30 @@ import { toolError } from '../../services/toolResponse';
 import { PreviewItem } from '../../types/blockbench';
 import { readGlobals } from './blockbenchUtils';
 import { getAnimations } from './BlockbenchAnimationAdapter';
+import {
+  ADAPTER_PREVIEW_ANGLE_FIXED_ONLY,
+  ADAPTER_PREVIEW_ANGLE_FIXED_ONLY_FIX,
+  ADAPTER_PREVIEW_CANVAS_NO_SIZE,
+  ADAPTER_PREVIEW_CANVAS_UNAVAILABLE,
+  ADAPTER_PREVIEW_CLIP_REQUIRED,
+  ADAPTER_PREVIEW_CONTROLS_UNAVAILABLE,
+  ADAPTER_PREVIEW_CONTROLS_UNAVAILABLE_FIX,
+  ADAPTER_PREVIEW_DATA_URL_EMPTY,
+  ADAPTER_PREVIEW_DATA_URL_INVALID,
+  ADAPTER_PREVIEW_DATA_URL_NOT_BASE64,
+  ADAPTER_PREVIEW_FIXED_SINGLE_ONLY,
+  ADAPTER_PREVIEW_FIXED_SINGLE_ONLY_FIX,
+  ADAPTER_PREVIEW_FPS_DURATION_POSITIVE,
+  ADAPTER_PREVIEW_TIME_NON_NEGATIVE,
+  ADAPTER_PREVIEW_TURNTABLE_CONTROLS_UNAVAILABLE,
+  ADAPTER_PREVIEW_TURNTABLE_SEQUENCE_ONLY,
+  ADAPTER_PREVIEW_TURNTABLE_SEQUENCE_ONLY_FIX,
+  ADAPTER_PREVIEW_ANIMATION_CLIP_NOT_FOUND
+} from '../../shared/messages';
 
 const DEFAULT_TURNTABLE_FPS = 20;
 const DEFAULT_TURNTABLE_SECONDS = 2;
+const MAX_TURNTABLE_FRAMES = 120;
 const DEG_TO_RAD = Math.PI / 180;
 
 type DataUrlInfo = {
@@ -19,18 +40,18 @@ const parseDataUrl = (dataUrl: string): { ok: true; value: DataUrlInfo } | { ok:
   const raw = String(dataUrl ?? '');
   const comma = raw.indexOf(',');
   if (comma === -1) {
-    return { ok: false, message: 'invalid data url' };
+    return { ok: false, message: ADAPTER_PREVIEW_DATA_URL_INVALID };
   }
   const meta = raw.slice(0, comma);
   const payload = raw.slice(comma + 1).trim();
   if (!meta.toLowerCase().includes('base64')) {
-    return { ok: false, message: 'data url is not base64' };
+    return { ok: false, message: ADAPTER_PREVIEW_DATA_URL_NOT_BASE64 };
   }
   const mimeMatch = /^data:([^;]+);/i.exec(meta);
   const mime = mimeMatch?.[1] ?? 'application/octet-stream';
   const normalized = payload.replace(/\s/g, '');
   if (!normalized) {
-    return { ok: false, message: 'empty base64 payload' };
+    return { ok: false, message: ADAPTER_PREVIEW_DATA_URL_EMPTY };
   }
   let padding = 0;
   if (normalized.endsWith('==')) padding = 2;
@@ -55,8 +76,8 @@ export class BlockbenchPreviewAdapter {
       return {
         error: {
           code: 'invalid_payload',
-          message: 'fixed mode only supports single output',
-          fix: 'Set output="single" or use mode="turntable" for a sequence.'
+          message: ADAPTER_PREVIEW_FIXED_SINGLE_ONLY,
+          fix: ADAPTER_PREVIEW_FIXED_SINGLE_ONLY_FIX
         }
       };
     }
@@ -64,8 +85,8 @@ export class BlockbenchPreviewAdapter {
       return {
         error: {
           code: 'invalid_payload',
-          message: 'turntable mode only supports sequence output',
-          fix: 'Set output="sequence" or use mode="fixed" for a single frame.'
+          message: ADAPTER_PREVIEW_TURNTABLE_SEQUENCE_ONLY,
+          fix: ADAPTER_PREVIEW_TURNTABLE_SEQUENCE_ONLY_FIX
         }
       };
     }
@@ -74,10 +95,10 @@ export class BlockbenchPreviewAdapter {
       preview?.renderer?.domElement ??
       readGlobals().document?.querySelector?.('canvas')) as HTMLCanvasElement | null;
     if (!canvas || !canvas.toDataURL) {
-      return { error: { code: 'not_implemented', message: 'preview canvas not available' } };
+      return { error: { code: 'not_implemented', message: ADAPTER_PREVIEW_CANVAS_UNAVAILABLE } };
     }
     if (!canvas.width || !canvas.height) {
-      return { error: { code: 'not_implemented', message: 'preview canvas has no size' } };
+      return { error: { code: 'not_implemented', message: ADAPTER_PREVIEW_CANVAS_NO_SIZE } };
     }
     const controls = (preview?.controls ?? null) as ControlsLike | null;
     const camera = (preview?.camera ?? null) as CameraLike | null;
@@ -85,8 +106,8 @@ export class BlockbenchPreviewAdapter {
       return {
         error: {
           code: 'not_implemented',
-          message: 'preview controls not available for angle',
-          fix: 'Open a preview viewport and retry.'
+          message: ADAPTER_PREVIEW_CONTROLS_UNAVAILABLE,
+          fix: ADAPTER_PREVIEW_CONTROLS_UNAVAILABLE_FIX
         }
       };
     }
@@ -95,8 +116,8 @@ export class BlockbenchPreviewAdapter {
       return {
         error: {
           code: 'not_implemented',
-          message: 'turntable preview controls not available',
-          fix: 'Open a preview viewport and retry.'
+          message: ADAPTER_PREVIEW_TURNTABLE_CONTROLS_UNAVAILABLE,
+          fix: ADAPTER_PREVIEW_CONTROLS_UNAVAILABLE_FIX
         }
       };
     }
@@ -105,11 +126,11 @@ export class BlockbenchPreviewAdapter {
     const animationState = snapshotAnimation();
     try {
       if (typeof params.timeSeconds === 'number' && !params.clip) {
-        return { error: { code: 'invalid_payload', message: 'clip is required when timeSeconds is set' } };
+        return { error: { code: 'invalid_payload', message: ADAPTER_PREVIEW_CLIP_REQUIRED } };
       }
       if (params.clip) {
         if (typeof params.timeSeconds === 'number' && params.timeSeconds < 0) {
-          return { error: { code: 'invalid_payload', message: 'timeSeconds must be >= 0' } };
+          return { error: { code: 'invalid_payload', message: ADAPTER_PREVIEW_TIME_NON_NEGATIVE } };
         }
         const applied = applyAnimationState(params.clip, params.timeSeconds ?? 0);
         if (!applied.ok) {
@@ -121,8 +142,8 @@ export class BlockbenchPreviewAdapter {
         return {
           error: {
             code: 'invalid_payload',
-            message: 'angle is only supported for fixed previews',
-            fix: 'Remove angle or switch to mode="fixed".'
+            message: ADAPTER_PREVIEW_ANGLE_FIXED_ONLY,
+            fix: ADAPTER_PREVIEW_ANGLE_FIXED_ONLY_FIX
           }
         };
       }
@@ -154,18 +175,22 @@ export class BlockbenchPreviewAdapter {
       }
 
       if (params.mode !== 'turntable') {
-        return { error: { code: 'invalid_payload', message: 'fixed mode only supports single output' } };
+        return { error: { code: 'invalid_payload', message: ADAPTER_PREVIEW_FIXED_SINGLE_ONLY } };
       }
 
       if (!controls) {
-        return { error: { code: 'not_implemented', message: 'turntable preview controls not available' } };
+        return { error: { code: 'not_implemented', message: ADAPTER_PREVIEW_TURNTABLE_CONTROLS_UNAVAILABLE } };
       }
       const fps = params.fps ?? DEFAULT_TURNTABLE_FPS;
       const durationSeconds = params.durationSeconds ?? DEFAULT_TURNTABLE_SECONDS;
       if (!Number.isFinite(fps) || fps <= 0 || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
-        return { error: { code: 'invalid_payload', message: 'fps and durationSeconds must be > 0' } };
+        return { error: { code: 'invalid_payload', message: ADAPTER_PREVIEW_FPS_DURATION_POSITIVE } };
       }
-      const frameCount = Math.max(1, Math.round(durationSeconds * fps));
+      const requestedFrames = Math.max(1, Math.round(durationSeconds * fps));
+      const frameCount = Math.min(requestedFrames, MAX_TURNTABLE_FRAMES);
+      if (frameCount !== requestedFrames) {
+        this.log.info('preview frames clamped', { requested: requestedFrames, clamped: frameCount });
+      }
       const step = (Math.PI * 2) / frameCount;
 
       const frames: RenderPreviewResult['frames'] = [];
@@ -305,7 +330,7 @@ const applyAnimationState = (
   const animations = getAnimations();
   const clip = animations.find((a) => a.name === clipName);
   if (!clip) {
-    return { ok: false, error: toolError('invalid_payload', `animation clip not found: ${clipName}`) };
+    return { ok: false, error: toolError('invalid_payload', ADAPTER_PREVIEW_ANIMATION_CLIP_NOT_FOUND(clipName)) };
   }
   const maxTime = Number(clip?.length ?? clip?.animation_length ?? clip?.duration ?? NaN);
   const clampedTime = Number.isFinite(maxTime) && maxTime > 0 ? Math.min(Math.max(timeSeconds, 0), maxTime) : timeSeconds;

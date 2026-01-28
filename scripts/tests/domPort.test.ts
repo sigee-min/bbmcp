@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 
 import { renderTextureSpec } from '../../src/proxy/texture';
 import type { DomPort } from '../../src/ports/dom';
+import { DEFAULT_LIMITS } from './helpers';
 
 const dom: DomPort = {
   createCanvas: () => null,
   createImage: () => null
 };
 
-const limits = { maxCubes: 2048, maxTextureSize: 256, maxAnimationSeconds: 120 };
+const limits = DEFAULT_LIMITS;
 
 {
   const res = renderTextureSpec(dom, { name: 't', width: 16, height: 16, ops: [] }, limits);

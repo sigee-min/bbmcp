@@ -10,6 +10,11 @@ import { buildInternalExport } from '../services/exporters';
 import { withFormatOverrideHint } from './formatHints';
 import type { ExportPolicy } from './policies';
 import { ensureActiveOnly } from './guards';
+import {
+  EXPORT_FORMAT_ID_MISSING,
+  EXPORT_FORMAT_MISMATCH,
+  EXPORT_FORMAT_NOT_ENABLED
+} from '../shared/messages';
 
 export interface ExportServiceDeps {
   capabilities: Capabilities;
@@ -55,12 +60,12 @@ export class ExportService {
     if (expectedFormat) {
       const formatCapability = this.capabilities.formats.find((f) => f.format === expectedFormat);
       if (!formatCapability || !formatCapability.enabled) {
-        return fail({ code: 'unsupported_format', message: `Export format not enabled: ${expectedFormat}` });
+        return fail({ code: 'unsupported_format', message: EXPORT_FORMAT_NOT_ENABLED(expectedFormat) });
       }
     }
     if (expectedFormat) {
       if (snapshot.format && snapshot.format !== expectedFormat) {
-        return fail({ code: 'invalid_payload', message: 'Export format does not match active format' });
+        return fail({ code: 'invalid_payload', message: EXPORT_FORMAT_MISMATCH });
       }
       if (
         !snapshot.format &&
@@ -70,7 +75,7 @@ export class ExportService {
       ) {
         return fail({
           code: 'invalid_payload',
-          message: withFormatOverrideHint('Export format does not match active format')
+          message: withFormatOverrideHint(EXPORT_FORMAT_MISMATCH)
         });
       }
     }
@@ -78,7 +83,7 @@ export class ExportService {
       snapshot.formatId ??
       (expectedFormat ? resolveFormatId(expectedFormat, this.formats.listFormats(), this.policies.formatOverrides) : null);
     if (!formatId) {
-      return fail({ code: 'unsupported_format', message: withFormatOverrideHint('No matching format ID for export') });
+      return fail({ code: 'unsupported_format', message: withFormatOverrideHint(EXPORT_FORMAT_ID_MISSING) });
     }
     const nativeErr = this.exporter.exportNative({ formatId, destPath: payload.destPath });
     if (!nativeErr) return ok({ path: payload.destPath });

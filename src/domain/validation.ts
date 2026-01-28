@@ -2,6 +2,23 @@ import type { Limits, Snapshot, TextureStat, TextureUsage, ValidationFinding } f
 import { findUvOverlapIssues, formatUvFaceRect } from './uvOverlap';
 import { findUvScaleIssues } from './uvScale';
 import { UvPolicyConfig } from './uvPolicy';
+import {
+  VALIDATION_ANIMATION_TOO_LONG,
+  VALIDATION_DUPLICATE_BONE,
+  VALIDATION_DUPLICATE_CUBE,
+  VALIDATION_FACE_UV_OUT_OF_BOUNDS,
+  VALIDATION_MAX_CUBES_EXCEEDED,
+  VALIDATION_NO_BONES,
+  VALIDATION_ORPHAN_CUBE,
+  VALIDATION_TEXTURE_SIZE_MISMATCH,
+  VALIDATION_TEXTURE_TOO_LARGE,
+  VALIDATION_TEXTURE_UNASSIGNED,
+  VALIDATION_TEXTURE_UNRESOLVED_REFS,
+  VALIDATION_UV_OUT_OF_BOUNDS,
+  VALIDATION_UV_OVERLAP,
+  VALIDATION_UV_SCALE_MISMATCH,
+  VALIDATION_UV_SCALE_MISMATCH_SUMMARY
+} from '../shared/messages';
 
 export interface ValidationContext {
   limits: Limits;
@@ -17,31 +34,31 @@ export function validateSnapshot(state: Snapshot, context: ValidationContext): V
 
   const boneNames = new Set(state.bones.map((b) => b.name));
   if (state.bones.length === 0) {
-    findings.push({ code: 'no_bones', message: 'No bones present in the project.', severity: 'warning' });
+    findings.push({ code: 'no_bones', message: VALIDATION_NO_BONES, severity: 'warning' });
   }
 
   state.cubes.forEach((c) => {
     if (!boneNames.has(c.bone)) {
       findings.push({
         code: 'orphan_cube',
-        message: `Cube "${c.name}" references missing bone "${c.bone}".`,
+        message: VALIDATION_ORPHAN_CUBE(c.name, c.bone),
         severity: 'error'
       });
     }
   });
 
   findDuplicates(state.bones.map((b) => b.name)).forEach((name) => {
-    findings.push({ code: 'duplicate_bone', message: `Duplicate bone name: ${name}`, severity: 'error' });
+    findings.push({ code: 'duplicate_bone', message: VALIDATION_DUPLICATE_BONE(name), severity: 'error' });
   });
 
   findDuplicates(state.cubes.map((c) => c.name)).forEach((name) => {
-    findings.push({ code: 'duplicate_cube', message: `Duplicate cube name: ${name}`, severity: 'error' });
+    findings.push({ code: 'duplicate_cube', message: VALIDATION_DUPLICATE_CUBE(name), severity: 'error' });
   });
 
   if (state.cubes.length > limits.maxCubes) {
     findings.push({
       code: 'max_cubes_exceeded',
-      message: `Cube count (${state.cubes.length}) exceeds limit (${limits.maxCubes}).`,
+      message: VALIDATION_MAX_CUBES_EXCEEDED(state.cubes.length, limits.maxCubes),
       severity: 'error'
     });
   }
@@ -50,7 +67,7 @@ export function validateSnapshot(state: Snapshot, context: ValidationContext): V
     if (anim.length > limits.maxAnimationSeconds) {
       findings.push({
         code: 'animation_too_long',
-        message: `Animation "${anim.name}" exceeds max seconds (${limits.maxAnimationSeconds}).`,
+        message: VALIDATION_ANIMATION_TOO_LONG(anim.name, limits.maxAnimationSeconds),
         severity: 'error'
       });
     }
@@ -61,7 +78,7 @@ export function validateSnapshot(state: Snapshot, context: ValidationContext): V
       if (tex.width > limits.maxTextureSize || tex.height > limits.maxTextureSize) {
         findings.push({
           code: 'texture_too_large',
-          message: `Texture "${tex.name}" exceeds max size (${limits.maxTextureSize}px).`,
+          message: VALIDATION_TEXTURE_TOO_LARGE(tex.name, limits.maxTextureSize),
           severity: 'error'
         });
       }
@@ -75,7 +92,7 @@ export function validateSnapshot(state: Snapshot, context: ValidationContext): V
         if (tex.width !== width || tex.height !== height) {
           findings.push({
             code: 'texture_size_mismatch',
-            message: `Texture "${tex.name}" size ${tex.width}x${tex.height} does not match project textureResolution ${width}x${height}.`,
+            message: VALIDATION_TEXTURE_SIZE_MISMATCH(tex.name, tex.width, tex.height, width, height),
             severity: 'warning'
           });
         }
@@ -87,7 +104,7 @@ export function validateSnapshot(state: Snapshot, context: ValidationContext): V
       if (u < 0 || v < 0 || u >= width || v >= height) {
         findings.push({
           code: 'uv_out_of_bounds',
-          message: `Cube "${cube.name}" UV ${u},${v} is outside texture resolution ${width}x${height}.`,
+          message: VALIDATION_UV_OUT_OF_BOUNDS(cube.name, u, v, width, height),
           severity: 'warning'
         });
       }
@@ -97,7 +114,7 @@ export function validateSnapshot(state: Snapshot, context: ValidationContext): V
       if (unresolvedCount > 0) {
         findings.push({
           code: 'texture_unresolved_refs',
-          message: `Unresolved texture references detected (${unresolvedCount}). Assign textures before rendering.`,
+          message: VALIDATION_TEXTURE_UNRESOLVED_REFS(unresolvedCount),
           severity: 'warning'
         });
       }
@@ -105,7 +122,7 @@ export function validateSnapshot(state: Snapshot, context: ValidationContext): V
         if (entry.faceCount === 0) {
           findings.push({
             code: 'texture_unassigned',
-            message: `Texture "${entry.name}" is not assigned to any cube faces.`,
+            message: VALIDATION_TEXTURE_UNASSIGNED(entry.name),
             severity: 'warning'
           });
         }
@@ -119,7 +136,7 @@ export function validateSnapshot(state: Snapshot, context: ValidationContext): V
             if (x1 < 0 || y1 < 0 || x2 > width || y2 > height) {
               findings.push({
                 code: 'face_uv_out_of_bounds',
-                message: `Face UV for "${cube.name}" (${face.face}) is outside ${width}x${height}: [${x1},${y1},${x2},${y2}].`,
+                message: VALIDATION_FACE_UV_OUT_OF_BOUNDS(cube.name, face.face, width, height, x1, y1, x2, y2),
                 severity: 'warning'
               });
             }
@@ -133,8 +150,7 @@ export function validateSnapshot(state: Snapshot, context: ValidationContext): V
           : '';
         findings.push({
           code: 'uv_overlap',
-          message: `Texture "${overlap.textureName}" has overlapping UV rects (${overlap.conflictCount} conflict${overlap.conflictCount === 1 ? '' : 's'}).` +
-            example,
+          message: VALIDATION_UV_OVERLAP(overlap.textureName, overlap.conflictCount, example),
           severity: 'error'
         });
       });
@@ -146,14 +162,14 @@ export function validateSnapshot(state: Snapshot, context: ValidationContext): V
             : '';
           findings.push({
             code: 'uv_scale_mismatch',
-            message: `Texture "${issue.textureName}" has UV scale mismatches (${issue.mismatchCount}).${example}`,
+            message: VALIDATION_UV_SCALE_MISMATCH(issue.textureName, issue.mismatchCount, example),
             severity: 'error'
           });
         });
         if (scaleResult.mismatchedFaces > 0) {
           findings.push({
             code: 'uv_scale_mismatch_summary',
-            message: `UV scale mismatches detected (${scaleResult.mismatchedFaces}/${scaleResult.totalFaces} faces).`,
+            message: VALIDATION_UV_SCALE_MISMATCH_SUMMARY(scaleResult.mismatchedFaces, scaleResult.totalFaces),
             severity: 'info'
           });
         }

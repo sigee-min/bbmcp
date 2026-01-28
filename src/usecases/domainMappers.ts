@@ -63,9 +63,14 @@ export const toDomainCube = (cube: TrackedCube): Cube => ({
   from: [cube.from[0], cube.from[1], cube.from[2]],
   to: [cube.to[0], cube.to[1], cube.to[2]],
   bone: cube.bone,
+  origin: cube.origin ? [cube.origin[0], cube.origin[1], cube.origin[2]] : undefined,
+  rotation: cube.rotation ? [cube.rotation[0], cube.rotation[1], cube.rotation[2]] : undefined,
   uv: cube.uv ? [cube.uv[0], cube.uv[1]] : undefined,
+  uvOffset: cube.uvOffset ? [cube.uvOffset[0], cube.uvOffset[1]] : undefined,
   inflate: cube.inflate,
-  mirror: cube.mirror
+  mirror: cube.mirror,
+  visibility: cube.visibility,
+  boxUv: cube.boxUv
 });
 
 export const toDomainBone = (bone: TrackedBone): Bone => ({
@@ -74,7 +79,8 @@ export const toDomainBone = (bone: TrackedBone): Bone => ({
   parent: bone.parent,
   pivot: [bone.pivot[0], bone.pivot[1], bone.pivot[2]],
   rotation: bone.rotation ? [bone.rotation[0], bone.rotation[1], bone.rotation[2]] : undefined,
-  scale: bone.scale ? [bone.scale[0], bone.scale[1], bone.scale[2]] : undefined
+  scale: bone.scale ? [bone.scale[0], bone.scale[1], bone.scale[2]] : undefined,
+  visibility: bone.visibility
 });
 
 export const toDomainAnimation = (anim: TrackedAnimation): Animation => ({

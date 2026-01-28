@@ -3,6 +3,7 @@ import { SidecarClient } from './transport/SidecarClient';
 import { StderrLogger } from './logger';
 import { errorMessage } from '../logging';
 import { McpRouter } from '../mcp/router';
+import { buildToolRegistry } from '../mcp/tools';
 import { createMcpHttpServer } from '../mcp/httpServer';
 import { PLUGIN_ID, PLUGIN_VERSION } from '../config';
 import { BLOCK_PIPELINE_RESOURCE_TEMPLATES } from '../services/blockPipeline';
@@ -21,6 +22,7 @@ const getArg = (args: string[], name: string, fallback?: string): string | undef
 
 const args = process.argv.slice(2);
 const portValue = parseInt(getArg(args, '--port', '8787') ?? '8787', 10);
+const exposeLowLevelTools = args.includes('--expose-low-level-tools');
 const config = {
   host: getArg(args, '--host', '127.0.0.1') ?? '127.0.0.1',
   port: Number.isFinite(portValue) ? portValue : 8787,
@@ -41,7 +43,7 @@ const executor = {
   callTool: async (name: string, args: unknown): Promise<ToolResponse<unknown>> => {
     const mode = PROXY_TOOL_SET.has(name) ? 'proxy' : 'direct';
     const response = await client.request(name as Parameters<typeof client.request>[0], args, mode);
-    if (name === 'generate_block_pipeline') {
+    if (name === 'block_pipeline') {
       storePipelineResources(resourceStore, response);
     }
     return response;
@@ -59,7 +61,8 @@ const router = new McpRouter(
   },
   executor,
   log,
-  resourceStore
+  resourceStore,
+  buildToolRegistry({ includeLowLevel: exposeLowLevelTools })
 );
 
 const storePipelineResources = (store: InMemoryResourceStore, response: ToolResponse<unknown>) => {

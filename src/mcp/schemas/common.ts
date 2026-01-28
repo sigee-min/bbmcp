@@ -16,7 +16,8 @@ export const cubeFaceSchema: JsonSchema = {
 };
 
 export const stateProps: Record<string, JsonSchema> = {
-  includeState: { type: 'boolean' }
+  includeState: { type: 'boolean' },
+  ifRevision: { type: 'string' }
 };
 
 export const metaProps: Record<string, JsonSchema> = {

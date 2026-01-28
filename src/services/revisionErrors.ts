@@ -1,9 +1,15 @@
 import type { ToolError } from '../types';
+import {
+  REVISION_MISMATCH_FIX,
+  REVISION_MISMATCH_MESSAGE,
+  REVISION_REQUIRED_FIX,
+  REVISION_REQUIRED_MESSAGE
+} from '../shared/messages';
 
 export const buildMissingRevisionError = (currentRevision?: string, active?: boolean): ToolError => ({
   code: 'invalid_state',
-  message: 'ifRevision is required. Call get_project_state before mutating.',
-  fix: 'Call get_project_state and retry with ifRevision set to the returned revision.',
+  message: REVISION_REQUIRED_MESSAGE,
+  fix: REVISION_REQUIRED_FIX,
   details: {
     reason: 'missing_ifRevision',
     ...(currentRevision ? { currentRevision } : {}),
@@ -13,7 +19,7 @@ export const buildMissingRevisionError = (currentRevision?: string, active?: boo
 
 export const buildRevisionMismatchError = (expected: string, currentRevision: string): ToolError => ({
   code: 'invalid_state_revision_mismatch',
-  message: 'Project revision mismatch. Refresh project state before retrying.',
-  fix: 'Call get_project_state and retry with the latest revision.',
+  message: REVISION_MISMATCH_MESSAGE,
+  fix: REVISION_MISMATCH_FIX,
   details: { expected, currentRevision, reason: 'revision_mismatch' }
 });

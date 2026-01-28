@@ -19,6 +19,12 @@ import {
   renameEntity,
   withUndo
 } from './blockbenchUtils';
+import {
+  ADAPTER_TEXTURE_API_UNAVAILABLE,
+  ADAPTER_TEXTURE_CANVAS_UNAVAILABLE,
+  ADAPTER_TEXTURE_DATA_UNAVAILABLE,
+  TEXTURE_NOT_FOUND
+} from '../../shared/messages';
 
 export class BlockbenchTextureAdapter {
   private readonly log: Logger;
@@ -31,7 +37,7 @@ export class BlockbenchTextureAdapter {
     try {
       const { Texture: TextureCtor } = readGlobals();
       if (typeof TextureCtor === 'undefined') {
-        return { code: 'not_implemented', message: 'Texture API not available' };
+        return { code: 'not_implemented', message: ADAPTER_TEXTURE_API_UNAVAILABLE };
       }
       let imageMissing = false;
       withUndo({ textures: true }, 'Import texture', () => {
@@ -57,7 +63,7 @@ export class BlockbenchTextureAdapter {
         tex.select?.();
       });
       if (imageMissing) {
-        return { code: 'not_implemented', message: 'Texture canvas unavailable' };
+        return { code: 'not_implemented', message: ADAPTER_TEXTURE_CANVAS_UNAVAILABLE };
       }
       this.log.info('texture imported', { name: params.name });
       return null;
@@ -72,12 +78,12 @@ export class BlockbenchTextureAdapter {
     try {
       const { Texture: TextureCtor } = readGlobals();
       if (typeof TextureCtor === 'undefined') {
-        return { code: 'not_implemented', message: 'Texture API not available' };
+        return { code: 'not_implemented', message: ADAPTER_TEXTURE_API_UNAVAILABLE };
       }
       const target = this.findTextureRef(params.name, params.id);
       if (!target) {
         const label = params.id ?? params.name ?? 'unknown';
-        return { code: 'invalid_payload', message: `Texture not found: ${label}` };
+        return { code: 'invalid_payload', message: TEXTURE_NOT_FOUND(label) };
       }
       if (params.id) target.bbmcpId = params.id;
       let imageMissing = false;
@@ -101,7 +107,7 @@ export class BlockbenchTextureAdapter {
         finalizeTextureChange(target);
       });
       if (imageMissing) {
-        return { code: 'not_implemented', message: 'Texture canvas unavailable' };
+        return { code: 'not_implemented', message: ADAPTER_TEXTURE_CANVAS_UNAVAILABLE };
       }
       this.log.info('texture updated', { name: params.name, newName: params.newName });
       return null;
@@ -116,12 +122,12 @@ export class BlockbenchTextureAdapter {
     try {
       const { Texture: TextureCtor } = readGlobals();
       if (typeof TextureCtor === 'undefined') {
-        return { code: 'not_implemented', message: 'Texture API not available' };
+        return { code: 'not_implemented', message: ADAPTER_TEXTURE_API_UNAVAILABLE };
       }
       const target = this.findTextureRef(params.name, params.id);
       if (!target) {
         const label = params.id ?? params.name ?? 'unknown';
-        return { code: 'invalid_payload', message: `Texture not found: ${label}` };
+        return { code: 'invalid_payload', message: TEXTURE_NOT_FOUND(label) };
       }
       withUndo({ textures: true }, 'Delete texture', () => {
         if (removeEntity(target)) return;
@@ -144,12 +150,12 @@ export class BlockbenchTextureAdapter {
     try {
       const { Texture: TextureCtor } = readGlobals();
       if (typeof TextureCtor === 'undefined') {
-        return { error: { code: 'not_implemented', message: 'Texture API not available' } };
+        return { error: { code: 'not_implemented', message: ADAPTER_TEXTURE_API_UNAVAILABLE } };
       }
       const target = this.findTextureRef(params.name, params.id);
       if (!target) {
         const label = params.id ?? params.name ?? 'unknown';
-        return { error: { code: 'invalid_payload', message: `Texture not found: ${label}` } };
+        return { error: { code: 'invalid_payload', message: TEXTURE_NOT_FOUND(label) } };
       }
       const size = readTextureSize(target);
       const width = size.width;
@@ -158,7 +164,7 @@ export class BlockbenchTextureAdapter {
       const dataUri = getTextureDataUri(target);
       const image = (target?.img ?? target?.canvas) as CanvasImageSource | null;
       if (!dataUri && !image) {
-        return { error: { code: 'not_implemented', message: 'Texture data unavailable' } };
+        return { error: { code: 'not_implemented', message: ADAPTER_TEXTURE_DATA_UNAVAILABLE } };
       }
       return {
         result: {

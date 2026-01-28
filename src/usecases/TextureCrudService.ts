@@ -6,8 +6,8 @@ import type { ProjectSession, SessionState } from '../session';
 import { ok, fail, UsecaseResult } from './result';
 import { ensureActiveAndRevision, ensureActiveOnly } from './guards';
 import { createId } from '../services/id';
-import { resolveTextureTarget } from '../services/lookup';
-import { ensureIdNameMatch, ensureNonBlankString } from '../services/validation';
+import { resolveTextureOrError } from '../services/targetGuards';
+import { ensureNonBlankString } from '../services/validation';
 import {
   hashCanvasImage,
   estimateDataUriByteLength,
@@ -15,6 +15,17 @@ import {
   parseDataUriMimeType,
   resolveTextureSize
 } from '../services/textureUtils';
+import {
+  TEXTURE_ALREADY_EXISTS,
+  TEXTURE_CONTENT_UNCHANGED,
+  TEXTURE_CONTENT_UNCHANGED_FIX,
+  TEXTURE_DATA_UNAVAILABLE,
+  TEXTURE_ID_EXISTS,
+  TEXTURE_ID_OR_NAME_REQUIRED,
+  TEXTURE_ID_OR_NAME_REQUIRED_FIX,
+  TEXTURE_NAME_REQUIRED,
+  TMP_STORE_UNAVAILABLE
+} from '../shared/messages';
 
 export interface TextureCrudServiceDeps {
   session: ProjectSession;
@@ -53,7 +64,7 @@ export class TextureCrudService {
     const guardErr = ensureActiveAndRevision(this.ensureActive, this.ensureRevisionMatch, payload.ifRevision);
     if (guardErr) return fail(guardErr);
     if (!payload.name) {
-      return fail({ code: 'invalid_payload', message: 'Texture name is required' });
+      return fail({ code: 'invalid_payload', message: TEXTURE_NAME_REQUIRED });
     }
     const nameBlankErr = ensureNonBlankString(payload.name, 'Texture name');
     if (nameBlankErr) return fail(nameBlankErr);
@@ -62,12 +73,12 @@ export class TextureCrudService {
     const snapshot = this.getSnapshot();
     const nameConflict = snapshot.textures.some((t) => t.name === payload.name);
     if (nameConflict) {
-      return fail({ code: 'invalid_payload', message: `Texture already exists: ${payload.name}` });
+      return fail({ code: 'invalid_payload', message: TEXTURE_ALREADY_EXISTS(payload.name) });
     }
     const id = payload.id ?? createId('tex');
     const idConflict = snapshot.textures.some((t) => t.id && t.id === id);
     if (idConflict) {
-      return fail({ code: 'invalid_payload', message: `Texture id already exists: ${id}` });
+      return fail({ code: 'invalid_payload', message: TEXTURE_ID_EXISTS(id) });
     }
     const contentHash = hashCanvasImage(payload.image);
     const err = this.editor.importTexture({
@@ -141,38 +152,26 @@ export class TextureCrudService {
     if (nameBlankErr) return fail(nameBlankErr);
     const newNameBlankErr = ensureNonBlankString(payload.newName, 'Texture newName');
     if (newNameBlankErr) return fail(newNameBlankErr);
-    if (!payload.id && !payload.name) {
-      return fail({
-        code: 'invalid_payload',
-        message: 'Texture id or name is required',
-        fix: 'Provide id or name for the texture.'
-      });
-    }
-    const mismatchErr = ensureIdNameMatch(snapshot.textures, payload.id, payload.name, {
-      kind: 'Texture',
-      plural: 'textures'
+    const resolved = resolveTextureOrError(snapshot.textures, payload.id, payload.name, {
+      required: { message: TEXTURE_ID_OR_NAME_REQUIRED, fix: TEXTURE_ID_OR_NAME_REQUIRED_FIX }
     });
-    if (mismatchErr) return fail(mismatchErr);
-    const target = resolveTextureTarget(snapshot.textures, payload.id, payload.name);
-    if (!target) {
-      const label = payload.id ?? payload.name ?? 'unknown';
-      return fail({ code: 'invalid_payload', message: `Texture not found: ${label}` });
-    }
+    if (resolved.error) return fail(resolved.error);
+    const target = resolved.target!;
     const contentHash = hashCanvasImage(payload.image);
     const targetName = target.name;
     const targetId = target.id ?? payload.id ?? createId('tex');
     if (payload.newName && payload.newName !== targetName) {
       const conflict = snapshot.textures.some((t) => t.name === payload.newName && t.name !== targetName);
       if (conflict) {
-        return fail({ code: 'invalid_payload', message: `Texture already exists: ${payload.newName}` });
+        return fail({ code: 'invalid_payload', message: TEXTURE_ALREADY_EXISTS(payload.newName) });
       }
     }
     const renaming = Boolean(payload.newName && payload.newName !== targetName);
     if (contentHash && target.contentHash && contentHash === target.contentHash && !renaming) {
       return fail({
         code: 'no_change',
-        message: 'Texture content is unchanged.',
-        fix: 'Adjust ops or include a rename before updating.'
+        message: TEXTURE_CONTENT_UNCHANGED,
+        fix: TEXTURE_CONTENT_UNCHANGED_FIX
       });
     }
     const err = this.editor.updateTexture({
@@ -239,19 +238,9 @@ export class TextureCrudService {
     if (idBlankErr) return fail(idBlankErr);
     const nameBlankErr = ensureNonBlankString(payload.name, 'Texture name');
     if (nameBlankErr) return fail(nameBlankErr);
-    if (!payload.id && !payload.name) {
-      return fail({ code: 'invalid_payload', message: 'Texture id or name is required' });
-    }
-    const mismatchErr = ensureIdNameMatch(snapshot.textures, payload.id, payload.name, {
-      kind: 'Texture',
-      plural: 'textures'
-    });
-    if (mismatchErr) return fail(mismatchErr);
-    const target = resolveTextureTarget(snapshot.textures, payload.id, payload.name);
-    if (!target) {
-      const label = payload.id ?? payload.name ?? 'unknown';
-      return fail({ code: 'invalid_payload', message: `Texture not found: ${label}` });
-    }
+    const resolved = resolveTextureOrError(snapshot.textures, payload.id, payload.name);
+    if (resolved.error) return fail(resolved.error);
+    const target = resolved.target!;
     const err = this.editor.deleteTexture({ id: target.id ?? payload.id, name: target.name });
     if (err) return fail(err);
     this.session.removeTextures([target.name]);
@@ -265,18 +254,14 @@ export class TextureCrudService {
     if (idBlankErr) return fail(idBlankErr);
     const nameBlankErr = ensureNonBlankString(payload.name, 'Texture name');
     if (nameBlankErr) return fail(nameBlankErr);
-    if (!payload.id && !payload.name) {
-      return fail({ code: 'invalid_payload', message: 'Texture id or name is required' });
-    }
-    if (payload.id && payload.name) {
-      const snapshot = this.getSnapshot();
-      const mismatchErr = ensureIdNameMatch(snapshot.textures, payload.id, payload.name, {
-        kind: 'Texture',
-        plural: 'textures'
-      });
-      if (mismatchErr) return fail(mismatchErr);
-    }
-    const res = this.editor.readTexture({ id: payload.id, name: payload.name });
+    const resolved = resolveTextureOrError(this.editor.listTextures(), payload.id, payload.name);
+    if (resolved.error) return fail(resolved.error);
+    const target = resolved.target!;
+    const targetId = target.id ?? undefined;
+    const res = this.editor.readTexture({
+      id: payload.id ?? targetId,
+      name: payload.name ?? target.name
+    });
     if (res.error) return fail(res.error);
     return ok(res.result!);
   }
@@ -288,7 +273,7 @@ export class TextureCrudService {
     const source = sourceRes.value;
     const dataUri = normalizeTextureDataUri(source.dataUri);
     if (!dataUri) {
-      return fail({ code: 'not_implemented', message: 'Texture data unavailable.' });
+      return fail({ code: 'not_implemented', message: TEXTURE_DATA_UNAVAILABLE });
     }
     const mimeType = parseDataUriMimeType(dataUri) ?? 'image/png';
     const byteLength = estimateDataUriByteLength(dataUri) ?? undefined;
@@ -307,7 +292,7 @@ export class TextureCrudService {
     };
     if (!saveToTmp) return ok(result);
     if (!this.tmpStore) {
-      return fail({ code: 'not_implemented', message: 'Tmp store is not available.' });
+      return fail({ code: 'not_implemented', message: TMP_STORE_UNAVAILABLE });
     }
     const saved = this.tmpStore.saveDataUri(dataUri, {
       nameHint: tmpName ?? source.name ?? 'texture',

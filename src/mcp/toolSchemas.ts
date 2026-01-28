@@ -26,7 +26,11 @@ export const toolSchemas: Record<string, JsonSchema> = {
     type: 'object',
     additionalProperties: false,
     properties: {
-      detail: { type: 'string', enum: PROJECT_STATE_DETAILS }
+      detail: { type: 'string', enum: PROJECT_STATE_DETAILS },
+      includeUsage: {
+        type: 'boolean',
+        description: 'Include textureUsage in the response (defaults to true when detail=full).'
+      }
     }
   },
   read_texture: {
@@ -95,7 +99,7 @@ export const toolSchemas: Record<string, JsonSchema> = {
       ...metaProps
     }
   },
-  generate_block_pipeline: {
+  block_pipeline: {
     type: 'object',
     required: ['name', 'texture'],
     additionalProperties: false,
@@ -192,6 +196,7 @@ export const toolSchemas: Record<string, JsonSchema> = {
       pivot: numberArray(3, 3),
       rotation: numberArray(3, 3),
       scale: numberArray(3, 3),
+      visibility: { type: 'boolean' },
       ifRevision: { type: 'string' },
       ...metaProps
     }
@@ -209,6 +214,7 @@ export const toolSchemas: Record<string, JsonSchema> = {
       pivot: numberArray(3, 3),
       rotation: numberArray(3, 3),
       scale: numberArray(3, 3),
+      visibility: { type: 'boolean' },
       ifRevision: { type: 'string' },
       ...metaProps
     }
@@ -232,10 +238,15 @@ export const toolSchemas: Record<string, JsonSchema> = {
       name: { type: 'string' },
       from: numberArray(3, 3),
       to: numberArray(3, 3),
+      origin: numberArray(3, 3),
+      rotation: numberArray(3, 3),
       bone: { type: 'string' },
       boneId: { type: 'string' },
       inflate: { type: 'number' },
       mirror: { type: 'boolean' },
+      visibility: { type: 'boolean' },
+      boxUv: { type: 'boolean' },
+      uvOffset: numberArray(2, 2),
       ifRevision: { type: 'string' },
       ...metaProps
     }
@@ -252,8 +263,13 @@ export const toolSchemas: Record<string, JsonSchema> = {
       boneRoot: { type: 'boolean' },
       from: numberArray(3, 3),
       to: numberArray(3, 3),
+      origin: numberArray(3, 3),
+      rotation: numberArray(3, 3),
       inflate: { type: 'number' },
       mirror: { type: 'boolean' },
+      visibility: { type: 'boolean' },
+      boxUv: { type: 'boolean' },
+      uvOffset: numberArray(2, 2),
       ifRevision: { type: 'string' },
       ...metaProps
     }
@@ -265,22 +281,6 @@ export const toolSchemas: Record<string, JsonSchema> = {
       id: { type: 'string' },
       name: { type: 'string' },
       ifRevision: { type: 'string' },
-      ...metaProps
-    }
-  },
-  apply_rig_template: {
-    type: 'object',
-    required: ['templateId'],
-    additionalProperties: false,
-    properties: {
-      templateId: {
-        type: 'string',
-        description: 'Rig template id. Prefer this over low-level add_bone/add_cube for new rigs.'
-      },
-      ifRevision: {
-        type: 'string',
-        description: 'Required for mutations. Get the latest revision from get_project_state.'
-      },
       ...metaProps
     }
   },
@@ -319,20 +319,64 @@ export const toolSchemas: Record<string, JsonSchema> = {
       ...stateProps
     }
   },
-  apply_model_spec: {
+  model_pipeline: {
     type: 'object',
     required: ['model'],
     additionalProperties: false,
     properties: {
-      model: {
-        ...modelSpecSchema,
-        description:
-          'Structured model spec. Include a root part (id="root") and parent every non-root part. Prefer this over add_bone/add_cube.'
-      },
-      ifRevision: {
+      model: modelSpecSchema,
+      mode: {
         type: 'string',
-        description: 'Required for mutations. Get the latest revision from get_project_state.'
+        enum: ['create', 'merge', 'replace', 'patch'],
+        description:
+          'create: fail if exists; merge: add/update without deleting; replace: match desired state; patch: update only if target exists.'
       },
+      ensureProject: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          format: { type: 'string', enum: FORMAT_KINDS },
+          name: { type: 'string' },
+          match: { type: 'string', enum: ENSURE_PROJECT_MATCHES },
+          onMismatch: { type: 'string', enum: ENSURE_PROJECT_ON_MISMATCH },
+          onMissing: { type: 'string', enum: ENSURE_PROJECT_ON_MISSING },
+          confirmDiscard: { type: 'boolean' },
+          confirmDialog: { type: 'boolean' },
+          dialog: { type: 'object', additionalProperties: true }
+        }
+      },
+      deleteOrphans: {
+        type: 'boolean',
+        description: 'Delete bones/cubes not in the spec. Defaults to true when mode=replace.'
+      },
+      planOnly: { type: 'boolean', description: 'Compute and return the plan without applying changes.' },
+      preview: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          mode: { enum: PREVIEW_MODES },
+          angle: numberArray(2, 3),
+          clip: { type: 'string' },
+          timeSeconds: { type: 'number' },
+          durationSeconds: { type: 'number' },
+          fps: { type: 'number' },
+          output: { enum: PREVIEW_OUTPUTS },
+          saveToTmp: { type: 'boolean' },
+          tmpName: { type: 'string' },
+          tmpPrefix: { type: 'string' }
+        }
+      },
+      validate: { type: 'boolean' },
+      export: {
+        type: 'object',
+        required: ['format', 'destPath'],
+        additionalProperties: false,
+        properties: {
+          format: { enum: ['java_block_item_json', 'gecko_geo_anim', 'animated_java'] },
+          destPath: { type: 'string' }
+        }
+      },
+      ifRevision: { type: 'string', description: 'Required for mutations. Get the latest revision from get_project_state.' },
       ...metaProps
     }
   },
@@ -364,6 +408,10 @@ export const toolSchemas: Record<string, JsonSchema> = {
             },
             background: { type: 'string', description: 'Optional fill color (hex). Applied before ops.' },
             useExisting: { type: 'boolean', description: 'For update: read the existing texture and paint on top of it.' },
+            detectNoChange: {
+              type: 'boolean',
+              description: 'For update: detect no-change by comparing the rendered image against the base (higher cost).'
+            },
             uvPaint: uvPaintSchema,
             ops: {
               type: 'array',
@@ -487,6 +535,10 @@ export const toolSchemas: Record<string, JsonSchema> = {
             height: { type: 'number', description: 'Texture height (pixels).' },
             background: { type: 'string', description: 'Optional fill color (hex). Applied before ops.' },
             useExisting: { type: 'boolean', description: 'For update: paint on top of the existing texture.' },
+            detectNoChange: {
+              type: 'boolean',
+              description: 'For update: detect no-change by comparing the rendered image against the base (higher cost).'
+            },
             uvPaint: uvPaintSchema,
             ops: {
               type: 'array',
@@ -545,11 +597,12 @@ export const toolSchemas: Record<string, JsonSchema> = {
           tmpPrefix: { type: 'string' }
         }
       },
+      planOnly: { type: 'boolean', description: 'Skip mutations and return plan/clarification actions only.' },
       ifRevision: { type: 'string', description: 'Required for mutations. Get the latest revision from get_project_state.' },
       ...metaProps
     }
   },
-  apply_entity_spec: {
+  entity_pipeline: {
     type: 'object',
     required: ['format'],
     additionalProperties: false,
@@ -569,6 +622,7 @@ export const toolSchemas: Record<string, JsonSchema> = {
           dialog: { type: 'object', additionalProperties: true }
         }
       },
+      planOnly: { type: 'boolean', description: 'Skip mutations and return clarification actions only.' },
       model: modelSpecSchema,
       textures: {
         type: 'array',
@@ -587,6 +641,10 @@ export const toolSchemas: Record<string, JsonSchema> = {
             height: { type: 'number' },
             background: { type: 'string' },
             useExisting: { type: 'boolean' },
+            detectNoChange: {
+              type: 'boolean',
+              description: 'For update: detect no-change by comparing the rendered image against the base (higher cost).'
+            },
             uvPaint: uvPaintSchema,
             ops: {
               type: 'array',

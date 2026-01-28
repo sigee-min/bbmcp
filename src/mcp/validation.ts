@@ -1,4 +1,12 @@
 import { JsonSchema } from './types';
+import {
+  MCP_VALIDATION_ENUM_MESSAGE,
+  MCP_VALIDATION_MAX_ITEMS_MESSAGE,
+  MCP_VALIDATION_MIN_ITEMS_MESSAGE,
+  MCP_VALIDATION_NOT_ALLOWED_MESSAGE,
+  MCP_VALIDATION_REQUIRED_MESSAGE,
+  MCP_VALIDATION_TYPE_MESSAGE
+} from '../shared/messages';
 
 export type ValidationResult = { ok: true } | { ok: false; message: string };
 
@@ -27,19 +35,19 @@ const typeMatches = (schemaType: JsonSchema['type'], value: unknown) => {
 
 export const validateSchema = (schema: JsonSchema, value: unknown, path = '$'): ValidationResult => {
   if (!typeMatches(schema.type, value)) {
-    return { ok: false, message: `${path} must be ${schema.type}` };
+    return { ok: false, message: MCP_VALIDATION_TYPE_MESSAGE(path, schema.type ?? 'unknown') };
   }
 
   if (schema.enum && !schema.enum.some((item) => item === value)) {
-    return { ok: false, message: `${path} must be one of ${schema.enum.join(', ')}` };
+    return { ok: false, message: MCP_VALIDATION_ENUM_MESSAGE(path, schema.enum) };
   }
 
   if (schema.type === 'array' && Array.isArray(value)) {
     if (typeof schema.minItems === 'number' && value.length < schema.minItems) {
-      return { ok: false, message: `${path} must have at least ${schema.minItems} items` };
+      return { ok: false, message: MCP_VALIDATION_MIN_ITEMS_MESSAGE(path, schema.minItems) };
     }
     if (typeof schema.maxItems === 'number' && value.length > schema.maxItems) {
-      return { ok: false, message: `${path} must have at most ${schema.maxItems} items` };
+      return { ok: false, message: MCP_VALIDATION_MAX_ITEMS_MESSAGE(path, schema.maxItems) };
     }
     if (schema.items) {
       for (let i = 0; i < value.length; i += 1) {
@@ -53,7 +61,7 @@ export const validateSchema = (schema: JsonSchema, value: unknown, path = '$'): 
     const obj = value as Record<string, unknown>;
     if (schema.required) {
       for (const key of schema.required) {
-        if (!(key in obj)) return { ok: false, message: `${path}.${key} is required` };
+        if (!(key in obj)) return { ok: false, message: MCP_VALIDATION_REQUIRED_MESSAGE(path, key) };
       }
     }
     if (schema.properties) {
@@ -67,7 +75,7 @@ export const validateSchema = (schema: JsonSchema, value: unknown, path = '$'): 
     if (schema.additionalProperties === false && schema.properties) {
       for (const key of Object.keys(obj)) {
         if (!(key in schema.properties)) {
-          return { ok: false, message: `${path}.${key} is not allowed` };
+          return { ok: false, message: MCP_VALIDATION_NOT_ALLOWED_MESSAGE(path, key) };
         }
       }
     }

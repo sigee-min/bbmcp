@@ -1,31 +1,26 @@
 import { Logger } from '../logging';
+import { Limits, ProjectStateDetail, ToolResponse } from '../types';
 import {
-  Limits,
-  ProjectStateDetail,
-  RenderPreviewPayload,
-  RenderPreviewResult,
-  ToolPayloadMap,
-  ToolResponse
-} from '../types';
-import {
-  ApplyEntitySpecPayload,
-  ApplyModelSpecPayload,
   ApplyTextureSpecPayload,
   ApplyUvSpecPayload,
+  EntityPipelinePayload,
   ProxyTool,
   TexturePipelinePayload
 } from '../spec';
 import { ToolService } from '../usecases/ToolService';
 import type { DomPort } from '../ports/dom';
-import { buildRenderPreviewContent, buildRenderPreviewStructured } from '../mcp/content';
-import { callTool } from '../mcp/nextActions';
-import { applyModelSpecSteps, createApplyReport } from './apply';
-import { err, toToolResponse } from '../services/toolResponse';
-import { validateModelSpec } from './validators';
-import { createProxyPipeline } from './pipeline';
-import { applyTextureSpecProxy, applyUvSpecProxy, texturePipelineProxy, type ProxyPipelineDeps } from './texturePipeline';
-import { applyEntitySpecProxy } from './entityPipeline';
+import { err } from '../services/toolResponse';
+import { modelPipelineProxy } from './modelPipeline';
+import { applyTextureSpecProxy, applyUvSpecProxy, texturePipelineProxy } from './texturePipeline';
+import type { ProxyPipelineDeps, ProxyToolPayloadMap, ProxyToolResultMap } from './types';
+import { entityPipelineProxy } from './entityPipeline';
 import { attachStateToResponse } from '../services/attachState';
+import { runPreviewStep } from './previewStep';
+import { runUsecaseWithOptionalRevision, runWithOptionalRevision } from './optionalRevision';
+import { attachPreviewResponse } from './previewResponse';
+import { createProxyPipelineCache } from './cache';
+import { PROXY_TOOL_UNKNOWN } from '../shared/messages';
+import { isResponseError } from './guardHelpers';
 
 export class ProxyRouter {
   private readonly service: ToolService;
@@ -34,6 +29,9 @@ export class ProxyRouter {
   private readonly limits: Limits;
   private readonly includeStateByDefault: () => boolean;
   private readonly includeDiffByDefault: () => boolean;
+  private readonly proxyHandlers: {
+    [K in ProxyTool]: (payload: ProxyToolPayloadMap[K]) => Promise<ToolResponse<ProxyToolResultMap[K]>>;
+  };
 
   constructor(
     service: ToolService,
@@ -50,86 +48,60 @@ export class ProxyRouter {
     this.includeStateByDefault = typeof flag === 'function' ? flag : () => Boolean(flag);
     const diffFlag = options?.includeDiffByDefault;
     this.includeDiffByDefault = typeof diffFlag === 'function' ? diffFlag : () => Boolean(diffFlag);
+    this.proxyHandlers = {
+      apply_texture_spec: async (payload) => this.applyTextureSpec(payload),
+      apply_uv_spec: async (payload) => this.applyUvSpec(payload),
+      model_pipeline: async (payload) => modelPipelineProxy(this.getPipelineDeps(), payload),
+      texture_pipeline: async (payload) => this.texturePipeline(payload),
+      entity_pipeline: async (payload) => this.entityPipeline(payload),
+      render_preview: async (payload) =>
+        attachStateToResponse(
+          this.getStateDeps(),
+          payload,
+          runWithOptionalRevision(this.service, payload, () => {
+            const previewRes = runPreviewStep(this.service, payload);
+            if (isResponseError(previewRes)) return previewRes;
+            return attachPreviewResponse({ ok: true, data: previewRes.data.data }, previewRes.data);
+          })
+        ),
+      validate: async (payload) =>
+        attachStateToResponse(
+          this.getStateDeps(),
+          payload,
+          runUsecaseWithOptionalRevision(this.service, payload, () => this.service.validate(payload))
+        )
+    };
   }
 
-  async applyModelSpec(payload: ApplyModelSpecPayload): Promise<ToolResponse<unknown>> {
-    const v = validateModelSpec(payload, this.limits);
-    if (!v.ok) return v;
-    const pipeline = createProxyPipeline({
-      service: this.service,
-      payload,
-      includeStateByDefault: this.includeStateByDefault,
-      includeDiffByDefault: this.includeDiffByDefault,
-      runWithoutRevisionGuard: (fn) => this.runWithoutRevisionGuard(fn)
-    });
-    const revisionError = pipeline.guardRevision();
-    if (revisionError) return revisionError;
-    return pipeline.run(() => {
-      const report = createApplyReport();
-      const result = applyModelSpecSteps(this.service, this.log, payload, report, pipeline.meta);
-      if (!result.ok) return result;
-      const response = pipeline.ok({ applied: true, report });
-      return {
-        ...response,
-        nextActions: [
-          callTool(
-            'render_preview',
-            { mode: 'fixed', output: 'single', angle: [30, 45, 0] },
-            'Render a quick preview to validate the rig visually.',
-            1
-          ),
-          callTool('preflight_texture', { includeUsage: false }, 'Build a UV mapping table before painting textures.', 2)
-        ]
-      };
-    });
-  }
-
-  async applyTextureSpec(payload: ApplyTextureSpecPayload): Promise<ToolResponse<unknown>> {
+  async applyTextureSpec(payload: ApplyTextureSpecPayload): Promise<ToolResponse<ProxyToolResultMap['apply_texture_spec']>> {
     return applyTextureSpecProxy(this.getPipelineDeps(), payload);
   }
 
-  async applyUvSpec(payload: ApplyUvSpecPayload): Promise<ToolResponse<unknown>> {
+  async applyUvSpec(payload: ApplyUvSpecPayload): Promise<ToolResponse<ProxyToolResultMap['apply_uv_spec']>> {
     return applyUvSpecProxy(this.getPipelineDeps(), payload);
   }
 
-  async texturePipeline(payload: TexturePipelinePayload): Promise<ToolResponse<unknown>> {
+  async texturePipeline(payload: TexturePipelinePayload): Promise<ToolResponse<ProxyToolResultMap['texture_pipeline']>> {
     return texturePipelineProxy(this.getPipelineDeps(), payload);
   }
 
-  async applyEntitySpec(payload: ApplyEntitySpecPayload): Promise<ToolResponse<unknown>> {
-    return applyEntitySpecProxy(this.getPipelineDeps(), payload);
+  async entityPipeline(payload: EntityPipelinePayload): Promise<ToolResponse<ProxyToolResultMap['entity_pipeline']>> {
+    return entityPipelineProxy(this.getPipelineDeps(), payload);
   }
 
-  async handle(tool: ProxyTool, payload: unknown): Promise<ToolResponse<unknown>> {
+  async handle<K extends ProxyTool>(
+    tool: K,
+    payload: ProxyToolPayloadMap[K]
+  ): Promise<ToolResponse<ProxyToolResultMap[K]>> {
     try {
-      switch (tool) {
-        case 'apply_model_spec':
-          return await this.applyModelSpec(payload as ApplyModelSpecPayload);
-        case 'apply_texture_spec':
-          return await this.applyTextureSpec(payload as ApplyTextureSpecPayload);
-        case 'apply_uv_spec':
-          return await this.applyUvSpec(payload as ApplyUvSpecPayload);
-        case 'texture_pipeline':
-          return await this.texturePipeline(payload as TexturePipelinePayload);
-        case 'apply_entity_spec':
-          return await this.applyEntitySpec(payload as ApplyEntitySpecPayload);
-        case 'render_preview':
-          return attachRenderPreviewContent(
-            attachStateToResponse(
-              this.getStateDeps(),
-              payload as RenderPreviewPayload,
-              toToolResponse(this.service.renderPreview(payload as RenderPreviewPayload))
-            )
-          );
-        case 'validate':
-          return attachStateToResponse(
-            this.getStateDeps(),
-            payload as ToolPayloadMap['validate'],
-            toToolResponse(this.service.validate(payload as ToolPayloadMap['validate']))
-          );
-        default:
-          return err('invalid_payload', `Unknown proxy tool ${tool}`, { reason: 'unknown_proxy_tool', tool });
+      const handler =
+        this.proxyHandlers[tool] as
+          | ((payload: ProxyToolPayloadMap[K]) => Promise<ToolResponse<ProxyToolResultMap[K]>>)
+          | undefined;
+      if (!handler) {
+        return err('invalid_payload', PROXY_TOOL_UNKNOWN(tool), { reason: 'unknown_proxy_tool', tool });
       }
+      return await handler(payload);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       this.log.error('proxy handle error', { tool, message });
@@ -155,7 +127,8 @@ export class ProxyRouter {
       limits: this.limits,
       includeStateByDefault: this.includeStateByDefault,
       includeDiffByDefault: this.includeDiffByDefault,
-      runWithoutRevisionGuard: (fn) => this.runWithoutRevisionGuard(fn)
+      runWithoutRevisionGuard: (fn) => this.runWithoutRevisionGuard(fn),
+      cache: createProxyPipelineCache()
     };
   }
 
@@ -168,17 +141,5 @@ export class ProxyRouter {
         this.service.getProjectDiff(payload)
     };
   }
+
 }
-
-
-const attachRenderPreviewContent = (
-  response: ToolResponse<RenderPreviewResult>
-): ToolResponse<RenderPreviewResult> => {
-  if (!response.ok) return response;
-  const content = buildRenderPreviewContent(response.data);
-  const structuredContent = buildRenderPreviewStructured(response.data);
-  if (!content.length) {
-    return { ...response, structuredContent };
-  }
-  return { ...response, content, structuredContent };
-};

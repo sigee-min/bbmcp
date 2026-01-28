@@ -1,6 +1,15 @@
 import type { DomainError, DomainResult } from './result';
 import type { Cube, CubeFaceDirection, TextureUsage } from './model';
 import { UvPolicyConfig, computeExpectedUvSize, getFaceDimensions } from './uvPolicy';
+import {
+  UV_ATLAS_CUBE_MISSING,
+  UV_ATLAS_DERIVE_SIZE_FAILED,
+  UV_ATLAS_EXCEEDS_MAX,
+  UV_ATLAS_MAX_RESOLUTION_POSITIVE,
+  UV_ATLAS_OVERFLOW,
+  UV_ATLAS_RESOLUTION_POSITIVE,
+  UV_ATLAS_UV_SIZE_EXCEEDS
+} from '../shared/messages';
 
 export type AtlasRect = { x1: number; y1: number; x2: number; y2: number };
 
@@ -63,12 +72,12 @@ export const buildUvAtlasPlan = (context: BuildContext): DomainResult<AtlasPlan>
   const startWidth = Math.trunc(context.resolution.width);
   const startHeight = Math.trunc(context.resolution.height);
   if (!Number.isFinite(startWidth) || !Number.isFinite(startHeight) || startWidth <= 0 || startHeight <= 0) {
-    return fail('invalid_payload', 'textureResolution must be positive integers.');
+    return fail('invalid_payload', UV_ATLAS_RESOLUTION_POSITIVE);
   }
   const maxWidth = Math.trunc(context.maxResolution.width);
   const maxHeight = Math.trunc(context.maxResolution.height);
   if (!Number.isFinite(maxWidth) || !Number.isFinite(maxHeight) || maxWidth <= 0 || maxHeight <= 0) {
-    return fail('invalid_payload', 'maxResolution must be positive integers.');
+    return fail('invalid_payload', UV_ATLAS_MAX_RESOLUTION_POSITIVE);
   }
   const padding = Math.max(0, Math.trunc(context.padding));
   const cubeById = new Map<string, Cube>();
@@ -107,7 +116,7 @@ export const buildUvAtlasPlan = (context: BuildContext): DomainResult<AtlasPlan>
     const nextWidth = width * 2;
     const nextHeight = height * 2;
     if (nextWidth > maxWidth || nextHeight > maxHeight) {
-      return fail('invalid_state', 'Atlas packing exceeded max texture resolution.', {
+      return fail('invalid_state', UV_ATLAS_EXCEEDS_MAX, {
         width,
         height,
         nextWidth,
@@ -193,7 +202,7 @@ const buildGroups = (
     const target = cube.id ? cubeById.get(cube.id) : undefined;
     const resolved = target ?? cubeByName.get(cube.name);
     if (!resolved) {
-      return fail('invalid_state', `Cube "${cube.name}" not found in project snapshot.`, {
+      return fail('invalid_state', UV_ATLAS_CUBE_MISSING(cube.name), {
         textureName: entry.name,
         cubeName: cube.name
       });
@@ -202,7 +211,7 @@ const buildGroups = (
       const dims = getFaceDimensions(resolved, face.face);
       const expected = computeExpectedUvSize(dims, config.baseResolution, config.policy);
       if (!expected) {
-        return fail('invalid_state', `Unable to derive UV size for ${cube.name} (${face.face}).`, {
+        return fail('invalid_state', UV_ATLAS_DERIVE_SIZE_FAILED(cube.name, face.face), {
           textureName: entry.name,
           cubeName: cube.name,
           face: face.face,
@@ -213,7 +222,7 @@ const buildGroups = (
       const width = Math.max(1, Math.round(expected.width));
       const height = Math.max(1, Math.round(expected.height));
       if (width > config.width || height > config.height) {
-        return fail('invalid_state', `UV size exceeds texture resolution for ${cube.name} (${face.face}).`, {
+        return fail('invalid_state', UV_ATLAS_UV_SIZE_EXCEEDS(cube.name, face.face), {
           textureName: entry.name,
           cubeName: cube.name,
           face: face.face,
@@ -265,7 +274,7 @@ const packGroups = (
 };
 
 const overflow = (width: number, height: number, rectWidth: number, rectHeight: number): DomainResult<never> =>
-  fail('invalid_state', 'Atlas packing overflow.', {
+  fail('invalid_state', UV_ATLAS_OVERFLOW, {
     reason: 'atlas_overflow',
     resolution: { width, height },
     rect: { width: rectWidth, height: rectHeight }

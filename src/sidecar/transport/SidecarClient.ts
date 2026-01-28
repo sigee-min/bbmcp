@@ -1,5 +1,4 @@
-import { errorMessage, Logger } from '../../logging';
-import { createLineDecoder, encodeMessage } from '../../transport/codec';
+import { Logger } from '../../logging';
 import {
   PROTOCOL_VERSION,
   SidecarMessage,
@@ -9,15 +8,9 @@ import {
 import { ToolError, ToolResponse, ToolName } from '../../types';
 import type { ProxyTool } from '../../spec';
 import { toolError } from '../../services/toolResponse';
-
-type Readable = {
-  on(event: 'data', handler: (chunk: string | Uint8Array) => void): void;
-  on(event: 'error', handler: (err: Error) => void): void;
-};
-
-type Writable = {
-  write: (data: string) => void;
-};
+import { normalizeToolResponse } from '../../services/toolResponseGuard';
+import { SIDECAR_INFLIGHT_LIMIT_REACHED, SIDECAR_TOOL_ERROR } from '../../shared/messages';
+import { attachIpcReadable, createIpcDecoder, IpcReadable, IpcWritable, sendIpcMessage } from './ipc';
 
 type Pending = {
   resolve: (value: ToolResponse<unknown>) => void;
@@ -41,8 +34,8 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_IN_FLIGHT = 64;
 
 export class SidecarClient {
-  private readonly readable: Readable;
-  private readonly writable: Writable;
+  private readonly readable: IpcReadable;
+  private readonly writable: IpcWritable;
   private readonly log: Logger;
   private readonly timeoutMs: number;
   private readonly maxInFlight: number;
@@ -51,21 +44,15 @@ export class SidecarClient {
   private ready = false;
   private protocolVersion: number | null = null;
 
-  constructor(readable: Readable, writable: Writable, log: Logger, options: ClientOptions = {}) {
+  constructor(readable: IpcReadable, writable: IpcWritable, log: Logger, options: ClientOptions = {}) {
     this.readable = readable;
     this.writable = writable;
     this.log = log;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxInFlight = options.maxInFlight ?? DEFAULT_MAX_IN_FLIGHT;
 
-    const decoder = createLineDecoder(
-      (message) => this.handleMessage(message),
-      (err) => this.log.error('sidecar ipc decode error', { message: err.message })
-    );
-    this.readable.on('data', (chunk: string | Uint8Array) => decoder.push(chunk));
-    this.readable.on('error', (err: Error) => {
-      this.log.error('sidecar ipc stream error', { message: errorMessage(err) });
-    });
+    const { onData } = createIpcDecoder(this.log, (message) => this.handleMessage(message));
+    attachIpcReadable(this.readable, onData, this.log);
   }
 
   start() {
@@ -91,7 +78,7 @@ export class SidecarClient {
     if (!this.canAccept()) {
       return Promise.resolve({
         ok: false,
-        error: { code: 'invalid_state', message: 'too many in-flight requests' }
+        error: { code: 'invalid_state', message: SIDECAR_INFLIGHT_LIMIT_REACHED }
       });
     }
 
@@ -121,11 +108,7 @@ export class SidecarClient {
   }
 
   private send(message: SidecarMessage) {
-    try {
-      this.writable.write(encodeMessage(message));
-    } catch (err) {
-      this.log.error('sidecar ipc send failed', { message: errorMessage(err) });
-    }
+    sendIpcMessage(this.writable, message, this.log);
   }
 
   private handleMessage(message: SidecarMessage) {
@@ -152,23 +135,25 @@ export class SidecarClient {
     this.pending.delete(message.id);
 
     if (message.ok) {
-      pending.resolve({
+      const response = {
         ok: true,
         data: message.data,
         ...(message.content ? { content: message.content } : {}),
         ...(message.structuredContent !== undefined ? { structuredContent: message.structuredContent } : {}),
         ...(message.nextActions ? { nextActions: message.nextActions } : {})
-      });
+      };
+      pending.resolve(normalizeToolResponse(response, { source: 'sidecar_client', ensureReason: true }));
       return;
     }
     const error: ToolError =
-      message.error ?? toolError('unknown', 'sidecar error', { reason: 'sidecar_missing_error' });
-    pending.resolve({
+      message.error ?? toolError('unknown', SIDECAR_TOOL_ERROR, { reason: 'sidecar_missing_error' });
+    const response = {
       ok: false,
       error,
       ...(message.content ? { content: message.content } : {}),
       ...(message.structuredContent !== undefined ? { structuredContent: message.structuredContent } : {}),
       ...(message.nextActions ? { nextActions: message.nextActions } : {})
-    });
+    };
+    pending.resolve(normalizeToolResponse(response, { source: 'sidecar_client', ensureReason: true }));
   }
 }

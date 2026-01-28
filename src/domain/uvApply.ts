@@ -2,6 +2,14 @@ import type { Cube, CubeFaceDirection, TextureUsage } from './model';
 import type { DomainError, DomainResult } from './result';
 import { validateUvBounds } from './uvBounds';
 import { validateUvAssignments } from './uvAssignments';
+import {
+  UV_ASSIGNMENT_CONFLICT,
+  UV_ASSIGNMENT_CUBE_ID_NOT_FOUND,
+  UV_ASSIGNMENT_CUBE_NAME_DUPLICATE,
+  UV_ASSIGNMENT_CUBE_NAME_NOT_FOUND,
+  UV_ASSIGNMENT_TARGET_REQUIRED,
+  UV_ASSIGNMENT_UNBOUND_FACE
+} from '../shared/messages';
 
 export type UvFaceMap = Partial<Record<CubeFaceDirection, [number, number, number, number]>>;
 
@@ -77,10 +85,7 @@ export const buildUvApplyPlan = (
         }
         const faceRef = resolveUsageFaceRef(usageIndex, target, faceDir);
         if (!faceRef) {
-          return fail(
-            'invalid_state',
-            `UV target ${target.name} (${faceDir}) is not bound to a texture. Assign the texture first.`
-          );
+          return fail('invalid_state', UV_ASSIGNMENT_UNBOUND_FACE(target.name, faceDir));
         }
         const faceKeyRef = `${cubeKey}:${faceDir}`;
         const existing = seenFaces.get(faceKeyRef);
@@ -88,7 +93,7 @@ export const buildUvApplyPlan = (
           const same =
             existing[0] === uv[0] && existing[1] === uv[1] && existing[2] === uv[2] && existing[3] === uv[3];
           if (!same) {
-            return fail('invalid_payload', `Conflicting UV assignments for ${target.name} (${faceDir}).`);
+            return fail('invalid_payload', UV_ASSIGNMENT_CONFLICT(target.name, faceDir));
           }
         } else {
           seenFaces.set(faceKeyRef, uv);
@@ -127,22 +132,22 @@ const resolveAssignmentTargets = (
   (assignment.cubeIds ?? []).forEach((id) => ids.add(id));
   (assignment.cubeNames ?? []).forEach((name) => names.add(name));
   if (ids.size === 0 && names.size === 0) {
-    return fail('invalid_payload', 'assignment must include cubeId/cubeName or cubeIds/cubeNames.');
+    return fail('invalid_payload', UV_ASSIGNMENT_TARGET_REQUIRED);
   }
   const targets: Cube[] = [];
   for (const id of ids) {
     if (!cubeById.has(id)) {
-      return fail('invalid_payload', `Cube not found for id: ${id}`);
+      return fail('invalid_payload', UV_ASSIGNMENT_CUBE_ID_NOT_FOUND(id));
     }
     const cube = cubeById.get(id);
     if (cube) targets.push(cube);
   }
   for (const name of names) {
     if (duplicateNames.has(name)) {
-      return fail('invalid_payload', `Cube name "${name}" is duplicated. Use cubeId instead.`);
+      return fail('invalid_payload', UV_ASSIGNMENT_CUBE_NAME_DUPLICATE(name));
     }
     if (!cubeByName.has(name)) {
-      return fail('invalid_payload', `Cube not found: ${name}`);
+      return fail('invalid_payload', UV_ASSIGNMENT_CUBE_NAME_NOT_FOUND(name));
     }
     const cube = cubeByName.get(name);
     if (cube) targets.push(cube);

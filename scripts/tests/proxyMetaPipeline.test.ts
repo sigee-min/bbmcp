@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 import { createProxyPipeline } from '../../src/proxy/pipeline';
 import { guardRevision, withErrorMeta, withMeta } from '../../src/proxy/meta';
+import { asProxyService } from './helpers';
 
 {
   const service = {
@@ -12,12 +13,12 @@ import { guardRevision, withErrorMeta, withMeta } from '../../src/proxy/meta';
   };
 
   const meta = { includeState: true, includeDiff: true, diffDetail: 'summary' as const, ifRevision: 'r1' };
-  const payload = withMeta({ ok: true }, meta, service as never);
+  const payload = withMeta({ ok: true }, meta, asProxyService(service));
   assert.equal(payload.revision, 'r2');
   assert.deepEqual(payload.state, { revision: 'r2', active: true });
   assert.deepEqual(payload.diff, { changed: true });
 
-  const err = withErrorMeta({ code: 'invalid_payload', message: 'bad' }, meta, service as never);
+  const err = withErrorMeta({ code: 'invalid_payload', message: 'bad' }, meta, asProxyService(service));
   assert.equal(err.ok, false);
   if (!err.ok) {
     assert.equal(err.error.code, 'invalid_payload');
@@ -42,7 +43,7 @@ import { guardRevision, withErrorMeta, withMeta } from '../../src/proxy/meta';
   };
 
   // Missing expected revision -> invalid_state
-  const res = guardRevision(service as never, undefined, meta);
+  const res = guardRevision(asProxyService(service), undefined, meta);
   assert.ok(res);
   assert.equal(res?.ok, false);
   if (res && !res.ok) {
@@ -57,16 +58,16 @@ import { guardRevision, withErrorMeta, withMeta } from '../../src/proxy/meta';
     isAutoRetryRevisionEnabled: () => true
   };
   const meta = { includeState: false, includeDiff: false, diffDetail: 'summary' as const, ifRevision: 'r1' };
-  const res = guardRevision(service as never, 'r1', meta);
+  const res = guardRevision(asProxyService(service), 'r1', meta);
   assert.equal(res, null);
   assert.equal(meta.ifRevision, 'r2');
 }
 
 {
   const pipeline = createProxyPipeline({
-    service: {
+    service: asProxyService({
       getProjectState: () => ({ ok: true, value: { project: { revision: 'r9', active: true } } })
-    } as never,
+    }),
     payload: { includeState: true, includeDiff: false, diffDetail: 'summary' as const },
     includeStateByDefault: () => false,
     includeDiffByDefault: () => false,

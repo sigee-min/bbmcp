@@ -1,5 +1,4 @@
 import type { FormatOverrides } from '../services/format';
-import type { RigMergeStrategy } from '../domain/rig';
 import { DEFAULT_UV_POLICY } from '../domain/uvPolicy';
 import type { UvPolicyConfig } from '../domain/uvPolicy';
 import type { ExportPolicy, SnapshotPolicy, ToolPolicies } from './policies';
@@ -38,10 +37,6 @@ export class PolicyContext implements PolicyContextLike {
 
   isAutoRetryRevisionEnabled(): boolean {
     return Boolean(this.policies.autoRetryRevision);
-  }
-
-  getRigMergeStrategy(): RigMergeStrategy | undefined {
-    return this.policies.rigMergeStrategy;
   }
 
   getUvPolicyConfig(): UvPolicyConfig {

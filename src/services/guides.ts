@@ -1,4 +1,4 @@
-import { ResourceContent, ResourceTemplate } from '../ports/resources';
+﻿import { ResourceContent, ResourceTemplate } from '../ports/resources';
 
 export const GUIDE_RESOURCE_TEMPLATES: ResourceTemplate[] = [
   {
@@ -10,6 +10,52 @@ export const GUIDE_RESOURCE_TEMPLATES: ResourceTemplate[] = [
 ];
 
 export const GUIDE_RESOURCES: ResourceContent[] = [
+  {
+    uri: 'bbmcp://guide/modeling-workflow',
+    name: 'Modeling Workflow Guide',
+    mimeType: 'text/markdown',
+    description: 'High-level model_pipeline workflow and ModelSpec basics.',
+    text: `# Modeling Workflow (ModelSpec)
+
+Goal: define the desired model state and let model_pipeline plan/apply the changes.
+
+Steps:
+1) ensure_project (optional)
+2) model_pipeline with desired bones/cubes
+3) validate (optional) or preview (optional)
+4) export (optional)
+
+Minimal example:
+\`\`\`json
+{
+  "model": {
+    "rigTemplate": "empty",
+    "bones": [
+      { "id": "root", "pivot": [0,0,0] },
+      { "id": "body", "parentId": "root", "pivot": [0,6,0] }
+    ],
+    "cubes": [
+      { "id": "body", "parentId": "body", "from": [-4,0,-2], "to": [4,12,2] }
+    ]
+  },
+  "mode": "replace",
+  "preview": { "mode": "fixed", "output": "single", "angle": [30,45,0] },
+  "validate": true,
+  "ifRevision": { "$ref": { "kind": "tool", "tool": "get_project_state", "pointer": "/project/revision" } }
+}
+\`\`\`
+
+Notes:
+- For stable edits, always use ids. If ids are omitted, the default idPolicy=stable_path derives ids from hierarchy/name; set idPolicy=explicit to enforce strict ids.
+- Use mode=merge to add/update without deleting; mode=replace to match the desired state.
+- deleteOrphans removes bones/cubes not in the spec (defaults to true when mode=replace).
+- planOnly returns the plan without applying changes.
+- Mutations require ifRevision; planOnly is read-only and can omit it.
+- planOnly cannot be combined with ensureProject/preview/validate/export.
+- Instances (mirror/repeat/radial) expand into cubes before applying.
+- Anchors let you reuse positions. Use pivotAnchorId on bones and centerAnchorId/originAnchorId on cubes.
+`
+  },
   {
     uri: 'bbmcp://guide/rigging',
     name: 'Rigging Guide',
@@ -23,38 +69,30 @@ Guidelines:
 - Always include a root bone named "root".
 - Every non-root part must set parent to an existing bone.
 - Avoid flat bone lists (no parents). Use a tree: root -> body -> head/limbs.
-- Prefer apply_model_spec or apply_rig_template over low-level add_bone/add_cube.
+- Prefer model_pipeline for all modeling edits.
 
-Example (apply_model_spec):
+Example (model_pipeline):
 \`\`\`json
 {
   "model": {
     "rigTemplate": "empty",
-    "parts": [
-      { "id": "root", "size": [0, 0, 0], "offset": [0, 0, 0] },
-      { "id": "body", "parent": "root", "size": [8, 12, 4], "offset": [-4, 0, -2] },
-      { "id": "head", "parent": "body", "size": [8, 8, 8], "offset": [-4, 12, -4] },
-      { "id": "left_arm", "parent": "body", "size": [4, 12, 4], "offset": [4, 12, -2] },
-      { "id": "right_arm", "parent": "body", "size": [4, 12, 4], "offset": [-8, 12, -2] }
+    "bones": [
+      { "id": "root", "pivot": [0, 0, 0] },
+      { "id": "body", "parentId": "root", "pivot": [0, 6, 0] },
+      { "id": "head", "parentId": "body", "pivot": [0, 12, 0] },
+      { "id": "left_arm", "parentId": "body", "pivot": [4, 12, 0] },
+      { "id": "right_arm", "parentId": "body", "pivot": [-4, 12, 0] }
+    ],
+    "cubes": [
+      { "id": "body", "parentId": "body", "from": [-4, 0, -2], "to": [4, 12, 2] }
     ]
-  }
+  },
+  "mode": "merge"
 }
 \`\`\`
-
-Example (apply_rig_template):
-\`\`\`json
-{
-  "templateId": "empty",
-  "ifRevision": { "$ref": { "kind": "tool", "tool": "get_project_state", "pointer": "/project/revision" } }
-}
-\`\`\`
-
-Low-level add_bone:
-- Always set parent for non-root bones.
-- Keep names stable so animation channels remain valid.
 
 Common failures and fixes:
-- "Parent bone not found": ensure the parent part exists and that every non-root part sets a valid parent id. If unsure, rebuild the hierarchy using apply_model_spec.
+- "Parent bone not found": ensure the parent part exists and that every non-root part sets a valid parent id. If unsure, rebuild the hierarchy using model_pipeline (mode=replace).
 - "invalid_state_revision_mismatch": call get_project_state and retry with the latest ifRevision.
 `
   },
@@ -63,21 +101,24 @@ Common failures and fixes:
     name: 'Texture Workflow Guide',
     mimeType: 'text/markdown',
     description: 'UV-first texture workflow with uvPaint and presets.',
-    text: `# Texture Workflow (UV-first)
+text: `# Texture Workflow (UV-first)
 
 Goal: paint only within UV rects so patterns scale correctly.
+
+Note: If low-level tools are not exposed, use texture_pipeline to run the whole flow.
 
 Steps:
 1) ensure_project / get_project_state (capture revision)
 2) assign_texture (bind texture to cubes)
 3) preflight_texture (get uvUsageId + mapping)
 4) apply_uv_spec (high-level UV updates) OR set_face_uv (low-level)
-5) preflight_texture again (UVs changed → new uvUsageId)
+5) preflight_texture again (UVs changed ??new uvUsageId)
 6) apply_texture_spec or generate_texture_preset using uvUsageId
 7) render_preview to validate
 
 Notes:
 - uvPaint is enforced; only UV rects are painted.
+- Call preflight_texture without texture filters for a stable uvUsageId.
 - If UVs change, preflight again and repaint.
 - For >=64px textures, use generate_texture_preset.
 
@@ -154,9 +195,11 @@ Example (texture_pipeline, minimal):
     name: 'UV Atlas Guide',
     mimeType: 'text/markdown',
     description: 'Auto atlas packing and resolution growth strategy.',
-    text: `# UV Atlas Guide
+text: `# UV Atlas Guide
 
 Use auto_uv_atlas when UVs overlap or there is not enough space.
+
+Note: auto_uv_atlas is available only when low-level tools are exposed. Otherwise rely on texture_pipeline with autoRecover=true.
 
 Key points:
 - Only identical rects may overlap.
@@ -204,6 +247,10 @@ Workflow:
 - apply_texture_spec / generate_texture_preset
 - auto_uv_atlas when UVs are crowded
 
+Notes:
+- preflight_texture computes uvUsageId; required by apply_uv_spec/apply_texture_spec/generate_texture_preset.
+- validate reports uv_overlap/uv_scale_mismatch; mutation guards return invalid_state on overlap/scale/usage mismatch.
+
 See full spec in docs/texture-uv-spec.md.
 `
   },
@@ -212,7 +259,9 @@ See full spec in docs/texture-uv-spec.md.
     name: 'LLM Texture Strategy',
     mimeType: 'text/markdown',
     description: 'LLM-oriented workflow and recovery loop.',
-    text: `# LLM Texture Strategy (Summary)
+text: `# LLM Texture Strategy (Summary)
+
+Note: If low-level tools are hidden, use texture_pipeline for the full workflow.
 
 Primary flow:
 1) assign_texture
@@ -223,13 +272,13 @@ Primary flow:
 6) render_preview
 
 Recovery loop:
-uv_scale_mismatch / uv_overlap
-→ auto_uv_atlas (apply=true)
-→ preflight_texture
-→ repaint
+- validate reports uv_scale_mismatch / uv_overlap, or a mutation returns invalid_state about overlap/scale/uvUsageId:
+??auto_uv_atlas (apply=true)
+??preflight_texture
+??repaint
 
-Tip: apply_texture_spec supports autoRecover=true to run the recovery loop once automatically.
-Tip: texture_pipeline can run the full workflow (assign → preflight → uv → paint → preview) in one call.
+Tip: apply_texture_spec and texture_pipeline support autoRecover=true to run the recovery loop once automatically.
+Tip: texture_pipeline can run the full workflow (assign ??preflight ??uv ??paint ??preview) in one call.
 
 Failure examples:
 
@@ -252,7 +301,7 @@ See full guide in docs/llm-texture-strategy.md.
     description: 'Preview/texture image snapshot workflow for manual uploads.',
     text: `# Vision Fallback (Preview + Texture)
 
-Primary: use render_preview / read_texture so the client can attach images directly.
+Primary: use render_preview and (if exposed) read_texture so the client can attach images directly.
 
 Fallback: if the client cannot accept images, save snapshots to disk and upload manually.
 
@@ -290,11 +339,11 @@ Cleanup:
     description: 'GeckoLib-first entity workflow with version targeting.',
     text: `# Entity Workflow (GeckoLib-first)
 
-This workflow prioritizes GeckoLib, with Modded/OptiFine formats as TODO.
+This workflow prioritizes GeckoLib; Modded/OptiFine formats are not covered yet.
 
 Recommended steps:
-1) apply_entity_spec with format=geckolib (targetVersion v3/v4)
-2) include model parts (root-based hierarchy)
+1) entity_pipeline with format=geckolib (targetVersion v3/v4)
+2) include model bones/cubes (root-based hierarchy)
 3) include textures + uvUsageId if painting
 4) include animations (clips + keyframes)
 5) add triggers (sound/particle/timeline) if needed
@@ -307,9 +356,12 @@ Example:
   "ensureProject": { "name": "my_entity", "match": "format", "onMissing": "create" },
   "model": {
     "rigTemplate": "empty",
-    "parts": [
-      { "id": "root", "size": [0,0,0], "offset": [0,0,0] },
-      { "id": "body", "parent": "root", "size": [8,12,4], "offset": [-4,0,-2] }
+    "bones": [
+      { "id": "root", "pivot": [0, 0, 0] },
+      { "id": "body", "parentId": "root", "pivot": [0, 6, 0] }
+    ],
+    "cubes": [
+      { "id": "body", "parentId": "body", "from": [-4, 0, -2], "to": [4, 12, 2] }
     ]
   },
   "textures": [],
@@ -336,3 +388,10 @@ Example:
 `
   }
 ];
+
+
+
+
+
+
+

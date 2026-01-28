@@ -1,4 +1,5 @@
 import { McpContentBlock, ReadTextureResult, RenderPreviewResult } from '../types';
+import type { RenderPreviewStructured } from '../types/preview';
 
 export const buildRenderPreviewContent = (result: RenderPreviewResult): McpContentBlock[] => {
   if (result.kind === 'single' && result.image) {
@@ -16,7 +17,7 @@ export const buildRenderPreviewContent = (result: RenderPreviewResult): McpConte
   return [];
 };
 
-export const buildRenderPreviewStructured = (result: RenderPreviewResult): Record<string, unknown> => {
+export const buildRenderPreviewStructured = (result: RenderPreviewResult): RenderPreviewStructured => {
   const image = result.image ? omitDataUri(result.image) : undefined;
   const frames = result.frames ? result.frames.map((frame) => omitDataUri(frame)) : undefined;
   return {
@@ -38,7 +39,7 @@ export const buildTextureStructured = (result: ReadTextureResult): Record<string
   ...(result.saved ? { saved: result.saved } : {})
 });
 
-const omitDataUri = <T extends { dataUri: string }>(item: T) => {
+const omitDataUri = <T extends { dataUri: string }>(item: T): Omit<T, 'dataUri'> => {
   const { dataUri, ...rest } = item;
   return { ...rest };
 };

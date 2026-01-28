@@ -1,8 +1,9 @@
 import { Dispatcher, ToolName, ToolPayloadMap, ToolResponse } from '../types';
 import { ProxyRouter } from '../proxy';
+import type { ProxyToolPayloadMap } from '../proxy/types';
 import { ProxyTool } from '../spec';
 import { PROXY_TOOL_NAMES } from '../shared/toolConstants';
-import { errFromDomain } from '../services/toolResponse';
+import { normalizeToolResponse } from '../services/toolResponseGuard';
 
 export interface ToolExecutor {
   callTool: (name: string, args: unknown) => Promise<ToolResponse<unknown>>;
@@ -19,22 +20,16 @@ export class LocalToolExecutor implements ToolExecutor {
 
   async callTool(name: string, args: unknown): Promise<ToolResponse<unknown>> {
     if (isProxyTool(name)) {
-      const response = await this.proxy.handle(name, args);
-      return normalizeToolResponse(response);
+      const response = await this.proxy.handle(name, args as ProxyToolPayloadMap[ProxyTool]);
+      return normalizeToolResponse(response, { source: 'mcp_executor', ensureReason: true });
     }
     const toolName = name as ToolName;
-    return normalizeToolResponse(this.dispatcher.handle(toolName, args as ToolPayloadMap[ToolName]));
+    return normalizeToolResponse(this.dispatcher.handle(toolName, args as ToolPayloadMap[ToolName]), {
+      source: 'mcp_executor',
+      ensureReason: true
+    });
   }
 }
-
-const normalizeToolResponse = (response: ToolResponse<unknown>): ToolResponse<unknown> => {
-  if (response.ok) return response;
-  const details = { ...(response.error.details ?? {}) };
-  if (typeof details.reason !== 'string' || details.reason.length === 0) {
-    details.reason = response.error.code;
-  }
-  return errFromDomain({ ...response.error, details });
-};
 
 const PROXY_TOOL_SET = new Set<string>(PROXY_TOOL_NAMES);
 

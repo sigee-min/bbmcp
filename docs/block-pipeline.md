@@ -4,7 +4,7 @@
 Generate Minecraft block assets (blockstates + models + item models) with a single MCP tool call.
 
 ## Tool
-`generate_block_pipeline`
+`block_pipeline`
 
 ### Minimal request
 ```json
@@ -38,6 +38,8 @@ Notes:
 - Adds a base 16x16x16 cube; textures are not imported automatically.
 
 ## Output (structuredContent)
+- `applied: true`
+- `steps.generate.resources` count
 - `assets.blockstates` map (e.g., `adamantium_ore`, `adamantium_ore_slab`, ...)
 - `assets.models` map (e.g., `block/adamantium_ore`, `block/adamantium_ore_stairs`, ...)
 - `assets.items` map (e.g., `item/adamantium_ore`, `item/adamantium_ore_slab`, ...)
@@ -50,3 +52,9 @@ Use MCP resources to fetch JSON:
 - `bbmcp://model/item/{namespace}/{name}`
 
 Call `resources/list` to enumerate and `resources/read` with the URI to fetch content.
+
+## Resource Templates
+`resources/templates/list` returns the same URI patterns:
+- `bbmcp://blockstate/{namespace}/{name}`
+- `bbmcp://model/block/{namespace}/{name}`
+- `bbmcp://model/item/{namespace}/{name}`

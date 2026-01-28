@@ -1,7 +1,8 @@
-import { ProjectStateDetail, ToolError, ToolResponse } from '../types';
+import { ProjectStateDetail, ToolError, ToolErrorResponse, ToolResponse } from '../types';
 import { ToolService } from '../usecases/ToolService';
 import { decideRevision } from '../services/revisionGuard';
 import { errFromDomain } from '../services/toolResponse';
+import { buildStateMeta } from '../services/stateMeta';
 
 export type MetaOptions = {
   includeState: boolean;
@@ -23,24 +24,19 @@ export const resolveIncludeDiff = (flag: boolean | undefined, fallback: () => bo
 export const resolveDiffDetail = (detail: ProjectStateDetail | undefined): ProjectStateDetail => detail ?? 'summary';
 
 export const buildMeta = (meta: MetaOptions, service: ToolService): Record<string, unknown> => {
-  const details: Record<string, unknown> = {};
-  const state = service.getProjectState({ detail: 'summary' });
-  const project = state.ok ? state.value.project : null;
-  if (project?.revision) {
-    details.revision = project.revision;
-  }
-  if (meta.includeState) {
-    details.state = project;
-  }
-  if (meta.includeDiff) {
-    if (meta.ifRevision) {
-      const diff = service.getProjectDiff({ sinceRevision: meta.ifRevision, detail: meta.diffDetail });
-      details.diff = diff.ok ? diff.value.diff : null;
-    } else {
-      details.diff = null;
+  return buildStateMeta(
+    {
+      getProjectState: (payload) => service.getProjectState(payload),
+      getProjectDiff: (payload) => service.getProjectDiff(payload)
+    },
+    {
+      includeState: meta.includeState,
+      includeDiff: meta.includeDiff,
+      diffDetail: meta.diffDetail,
+      ifRevision: meta.ifRevision,
+      includeRevision: true
     }
-  }
-  return details;
+  );
 };
 
 export const withMeta = <T extends Record<string, unknown>>(
@@ -56,11 +52,11 @@ export const withMeta = <T extends Record<string, unknown>>(
   };
 };
 
-export const withErrorMeta = <T = unknown>(
+export const withErrorMeta = (
   error: ToolError,
   meta: MetaOptions,
   service: ToolService
-): ToolResponse<T> => {
+): ToolErrorResponse => {
   const extra = buildMeta(meta, service);
   if (Object.keys(extra).length === 0) return errFromDomain(error);
   const details = { ...(error.details ?? {}), ...extra };
@@ -71,7 +67,7 @@ export const guardRevision = (
   service: ToolService,
   expected: string | undefined,
   meta: MetaOptions
-): ToolResponse<unknown> | null => {
+): ToolResponse<never> | null => {
   const serviceWithRevision = service as {
     isRevisionRequired?: () => boolean;
     isAutoRetryRevisionEnabled?: () => boolean;

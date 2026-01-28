@@ -1,4 +1,5 @@
 import {
+  FormatKind,
   EnsureProjectMatch,
   EnsureProjectOnMismatch,
   EnsureProjectOnMissing,
@@ -20,23 +21,120 @@ import type {
 
 export type { RigTemplateKind, ProxyTool, EntityFormat, GeckoLibTargetVersion } from './shared/toolConstants';
 
-export interface ModelPart {
+export type ModelIdPolicy = 'explicit' | 'stable_path' | 'hash';
+
+export type ModelSpecUnits = 'px';
+
+export type ModelInstance =
+  | {
+      type: 'mirror';
+      sourceCubeId: string;
+      axis: 'x' | 'y' | 'z';
+      about?: number;
+      newId?: string;
+      newName?: string;
+    }
+  | {
+      type: 'repeat';
+      sourceCubeId: string;
+      count: number;
+      delta: [number, number, number];
+      prefix?: string;
+    }
+  | {
+      type: 'radial';
+      sourceCubeId: string;
+      count: number;
+      axis: 'x' | 'y' | 'z';
+      radius: number;
+      center?: [number, number, number];
+      startAngle?: number;
+      prefix?: string;
+    };
+
+export type ModelAnchor = {
   id: string;
-  size: [number, number, number];
-  offset: [number, number, number];
+  target: { boneId?: string; cubeId?: string };
+  offset?: [number, number, number];
+};
+
+export type ModelBoneSpec = {
+  id?: string;
+  name?: string;
+  parentId?: string | null;
+  pivot?: [number, number, number];
+  pivotAnchorId?: string;
+  rotation?: [number, number, number];
+  scale?: [number, number, number];
+  visibility?: boolean;
+};
+
+export type ModelCubeSpec = {
+  id?: string;
+  name?: string;
+  parentId?: string;
+  from?: [number, number, number];
+  to?: [number, number, number];
+  center?: [number, number, number];
+  size?: [number, number, number];
+  origin?: [number, number, number];
+  originAnchorId?: string;
+  centerAnchorId?: string;
+  rotation?: [number, number, number];
   inflate?: number;
   mirror?: boolean;
-  pivot?: [number, number, number];
-  parent?: string;
-}
+  visibility?: boolean;
+  boxUv?: boolean;
+  uvOffset?: [number, number];
+};
 
-export interface ModelSpec {
-  rigTemplate: RigTemplateKind;
-  parts: ModelPart[];
-}
+export type ModelSpec = {
+  units?: ModelSpecUnits;
+  rigTemplate?: RigTemplateKind;
+  bones?: ModelBoneSpec[];
+  cubes?: ModelCubeSpec[];
+  instances?: ModelInstance[];
+  anchors?: ModelAnchor[];
+  policies?: {
+    idPolicy?: ModelIdPolicy;
+    defaultParentId?: string;
+    enforceRoot?: boolean;
+    snap?: { grid?: number };
+    bounds?: { min?: [number, number, number]; max?: [number, number, number] };
+  };
+};
 
-export interface ApplyModelSpecPayload {
+export type ModelEnsureProjectOptions = {
+  format?: FormatKind;
+  name?: string;
+  match?: EnsureProjectMatch;
+  onMismatch?: EnsureProjectOnMismatch;
+  onMissing?: EnsureProjectOnMissing;
+  confirmDiscard?: boolean;
+  confirmDialog?: boolean;
+  dialog?: Record<string, unknown>;
+};
+
+export interface ModelPipelinePayload {
   model: ModelSpec;
+  mode?: 'create' | 'merge' | 'replace' | 'patch';
+  ensureProject?: ModelEnsureProjectOptions;
+  deleteOrphans?: boolean;
+  planOnly?: boolean;
+  preview?: {
+    mode: 'fixed' | 'turntable';
+    angle?: [number, number] | [number, number, number];
+    clip?: string;
+    timeSeconds?: number;
+    durationSeconds?: number;
+    fps?: number;
+    output?: 'single' | 'sequence';
+    saveToTmp?: boolean;
+    tmpName?: string;
+    tmpPrefix?: string;
+  };
+  validate?: boolean;
+  export?: { format: 'java_block_item_json' | 'gecko_geo_anim' | 'animated_java'; destPath: string };
   includeState?: boolean;
   includeDiff?: boolean;
   diffDetail?: ProjectStateDetail;
@@ -53,6 +151,7 @@ export interface TextureSpec {
   height?: number;
   background?: string;
   useExisting?: boolean;
+  detectNoChange?: boolean;
   uvPaint?: UvPaintSpec;
   ops?: TextureOp[];
 }
@@ -128,10 +227,11 @@ export type EntityEnsureProjectOptions = {
   dialog?: Record<string, unknown>;
 };
 
-export interface ApplyEntitySpecPayload {
+export interface EntityPipelinePayload {
   format: EntityFormat;
   targetVersion?: GeckoLibTargetVersion;
   ensureProject?: boolean | EntityEnsureProjectOptions;
+  planOnly?: boolean;
   model?: ModelSpec;
   textures?: TextureSpec[];
   uvUsageId?: string;
@@ -193,6 +293,7 @@ export interface TexturePipelinePayload {
   autoRecover?: boolean;
   preflight?: TexturePipelinePreflight;
   preview?: TexturePipelinePreview;
+  planOnly?: boolean;
   includeState?: boolean;
   includeDiff?: boolean;
   diffDetail?: ProjectStateDetail;

@@ -2,7 +2,7 @@ import {
   Capabilities,
   AutoUvAtlasResult,
   FormatKind,
-  GenerateBlockPipelineResult,
+  BlockPipelineResult,
   GenerateTexturePresetResult,
   PreflightTextureResult,
   ProjectDiff,
@@ -10,176 +10,37 @@ import {
   ProjectStateDetail,
   ReadTextureResult,
   RenderPreviewResult,
+  ToolError,
   ToolPayloadMap
 } from '../types';
-import { ProjectSession } from '../session';
-import { CubeFaceDirection, EditorPort, TextureSource, TriggerChannel } from '../ports/editor';
+import { CubeFaceDirection, TextureSource, TriggerChannel } from '../ports/editor';
 import { TextureMeta } from '../types/texture';
-import { FormatPort } from '../ports/formats';
-import { SnapshotPort } from '../ports/snapshot';
-import { ExportPort } from '../ports/exporter';
 import { ok, fail, UsecaseResult } from './result';
 import { UvPolicyConfig } from '../domain/uvPolicy';
-import { AnimationService } from './AnimationService';
-import { BlockPipelineService } from './BlockPipelineService';
-import { ExportService } from './ExportService';
-import { ProjectService } from './ProjectService';
-import { RenderService } from './RenderService';
-import { ModelService } from './ModelService';
-import { TextureService } from './TextureService';
-import { ValidationService } from './ValidationService';
-import { ProjectStateService } from '../services/projectState';
-import { RevisionStore } from '../services/revision';
-import { HostPort } from '../ports/host';
-import { ResourceStore } from '../ports/resources';
-import { TextureRendererPort } from '../ports/textureRenderer';
-import type { TmpStorePort } from '../ports/tmpStore';
-import type { ToolPolicies } from './policies';
-import { PolicyContext } from './PolicyContext';
-import { RevisionContext } from './RevisionContext';
-import { SnapshotContext } from './SnapshotContext';
-import type { PolicyContextLike, RevisionContextLike, SnapshotContextLike } from './contextTypes';
-const REVISION_CACHE_LIMIT = 5;
-
-export interface ToolServiceDeps {
-  session: ProjectSession;
-  capabilities: Capabilities;
-  editor: EditorPort;
-  formats: FormatPort;
-  snapshot: SnapshotPort;
-  exporter: ExportPort;
-  host?: HostPort;
-  resources?: ResourceStore;
-  textureRenderer?: TextureRendererPort;
-  tmpStore?: TmpStorePort;
-  policies?: ToolPolicies;
-}
+import type { HostPort } from '../ports/host';
+import type { PolicyContextLike, RevisionContextLike } from './contextTypes';
+import {
+  PLUGIN_RELOAD_CONFIRM_REQUIRED,
+  PLUGIN_RELOAD_CONFIRM_REQUIRED_FIX,
+  PLUGIN_RELOAD_UNAVAILABLE
+} from '../shared/messages';
+import { createToolServiceContext, ToolServiceDeps } from './toolServiceContext';
+import { createToolServiceFacades, ToolServiceFacades } from './toolServiceFacades';
 
 export class ToolService {
-  private readonly session: ProjectSession;
   private readonly capabilities: Capabilities;
-  private readonly editor: EditorPort;
-  private readonly formats: FormatPort;
-  private readonly exporter: ExportPort;
   private readonly host?: HostPort;
-  private readonly resources?: ResourceStore;
-  private readonly tmpStore?: TmpStorePort;
   private readonly policyContext: PolicyContextLike;
-  private readonly snapshotContext: SnapshotContextLike<ReturnType<ProjectSession['snapshot']>>;
   private readonly revisionContext: RevisionContextLike;
-  private readonly projectService: ProjectService;
-  private readonly textureService: TextureService;
-  private readonly animationService: AnimationService;
-  private readonly modelService: ModelService;
-  private readonly exportService: ExportService;
-  private readonly renderService: RenderService;
-  private readonly validationService: ValidationService;
-  private readonly blockPipelineService: BlockPipelineService;
+  private readonly facades: ToolServiceFacades;
 
   constructor(deps: ToolServiceDeps) {
-    this.session = deps.session;
     this.capabilities = deps.capabilities;
-    this.editor = deps.editor;
-    this.formats = deps.formats;
-    this.exporter = deps.exporter;
     this.host = deps.host;
-    this.resources = deps.resources;
-    this.tmpStore = deps.tmpStore;
-    const policies = deps.policies ?? {};
-    const projectState = new ProjectStateService(this.formats, policies.formatOverrides);
-    const revisionStore = new RevisionStore(REVISION_CACHE_LIMIT);
-    this.policyContext = new PolicyContext(policies);
-    this.snapshotContext = new SnapshotContext({
-      session: this.session,
-      snapshotPort: deps.snapshot,
-      projectState,
-      policyContext: this.policyContext
-    });
-    this.revisionContext = new RevisionContext({
-      revisionStore,
-      projectState,
-      snapshotContext: this.snapshotContext,
-      policyContext: this.policyContext
-    });
-    this.projectService = new ProjectService({
-      session: this.session,
-      capabilities: this.capabilities,
-      editor: this.editor,
-      formats: this.formats,
-      projectState,
-      revision: {
-        track: (snapshot) => revisionStore.track(snapshot),
-        hash: (snapshot) => revisionStore.hash(snapshot),
-        get: (id) => revisionStore.get(id),
-        remember: (snapshot, id) => revisionStore.remember(snapshot, id)
-      },
-      getSnapshot: () => this.snapshotContext.getSnapshot(),
-      ensureRevisionMatch: (ifRevision?: string) => this.revisionContext.ensureRevisionMatch(ifRevision),
-      policies: {
-        formatOverrides: this.policyContext.getFormatOverrides(),
-        autoDiscardUnsaved: this.policyContext.getAutoDiscardUnsaved()
-      }
-    });
-    this.textureService = new TextureService({
-      session: this.session,
-      editor: this.editor,
-      capabilities: this.capabilities,
-      textureRenderer: deps.textureRenderer,
-      tmpStore: this.tmpStore,
-      getSnapshot: () => this.snapshotContext.getSnapshot(),
-      ensureActive: () => this.snapshotContext.ensureActive(),
-      ensureRevisionMatch: (ifRevision?: string) => this.revisionContext.ensureRevisionMatch(ifRevision),
-      getUvPolicyConfig: () => this.policyContext.getUvPolicyConfig()
-    });
-    this.animationService = new AnimationService({
-      session: this.session,
-      editor: this.editor,
-      capabilities: this.capabilities,
-      getSnapshot: () => this.snapshotContext.getSnapshot(),
-      ensureActive: () => this.snapshotContext.ensureActive(),
-      ensureRevisionMatch: (ifRevision?: string) => this.revisionContext.ensureRevisionMatch(ifRevision)
-    });
-    this.modelService = new ModelService({
-      session: this.session,
-      editor: this.editor,
-      capabilities: this.capabilities,
-      getSnapshot: () => this.snapshotContext.getSnapshot(),
-      ensureActive: () => this.snapshotContext.ensureActive(),
-      ensureRevisionMatch: (ifRevision?: string) => this.revisionContext.ensureRevisionMatch(ifRevision),
-      getRigMergeStrategy: () => this.policyContext.getRigMergeStrategy()
-    });
-    this.exportService = new ExportService({
-      capabilities: this.capabilities,
-      editor: this.editor,
-      exporter: this.exporter,
-      formats: this.formats,
-      projectState,
-      getSnapshot: () => this.snapshotContext.getSnapshot(),
-      ensureActive: () => this.snapshotContext.ensureActive(),
-      policies: {
-        formatOverrides: this.policyContext.getFormatOverrides(),
-        exportPolicy: this.policyContext.getExportPolicy()
-      }
-    });
-    this.renderService = new RenderService({
-      editor: this.editor,
-      tmpStore: this.tmpStore,
-      ensureActive: () => this.snapshotContext.ensureActive()
-    });
-    this.validationService = new ValidationService({
-      editor: this.editor,
-      capabilities: this.capabilities,
-      ensureActive: () => this.snapshotContext.ensureActive(),
-      getSnapshot: () => this.snapshotContext.getSnapshot(),
-      getUvPolicyConfig: () => this.policyContext.getUvPolicyConfig()
-    });
-    this.blockPipelineService = new BlockPipelineService({
-      resources: this.resources,
-      createProject: (format, name, options) => this.projectService.createProject(format, name, options),
-      runWithoutRevisionGuard: (fn) => this.revisionContext.runWithoutRevisionGuard(fn),
-      addBone: (payload) => this.modelService.addBone(payload),
-      addCube: (payload) => this.modelService.addCube(payload)
-    });
+    const context = createToolServiceContext(deps);
+    this.policyContext = context.policyContext;
+    this.revisionContext = context.revisionContext;
+    this.facades = createToolServiceFacades(context);
   }
 
   listCapabilities(): Capabilities {
@@ -198,6 +59,11 @@ export class ToolService {
     return this.policyContext.isAutoRetryRevisionEnabled();
   }
 
+  ensureRevisionMatchIfProvided(expected?: string): ToolError | null {
+    if (!expected) return null;
+    return this.revisionContext.ensureRevisionMatch(expected);
+  }
+
   runWithoutRevisionGuard<T>(fn: () => T): T {
     return this.revisionContext.runWithoutRevisionGuard(fn);
   }
@@ -210,12 +76,12 @@ export class ToolService {
     if (payload.confirm !== true) {
       return fail({
         code: 'invalid_payload',
-        message: 'confirm=true is required to reload plugins.',
-        fix: 'Set confirm=true to proceed.'
+        message: PLUGIN_RELOAD_CONFIRM_REQUIRED,
+        fix: PLUGIN_RELOAD_CONFIRM_REQUIRED_FIX
       });
     }
     if (!this.host) {
-      return fail({ code: 'not_implemented', message: 'Plugin reload is not available in this host.' });
+      return fail({ code: 'not_implemented', message: PLUGIN_RELOAD_UNAVAILABLE });
     }
     const delayMs = normalizeReloadDelay(payload.delayMs);
     const err = this.host.schedulePluginReload(delayMs);
@@ -224,13 +90,13 @@ export class ToolService {
   }
 
   getProjectTextureResolution(): { width: number; height: number } | null {
-    return this.textureService.getProjectTextureResolution();
+    return this.facades.texture.getProjectTextureResolution();
   }
 
   setProjectTextureResolution(
     payload: ToolPayloadMap['set_project_texture_resolution']
   ): UsecaseResult<{ width: number; height: number }> {
-    return this.textureService.setProjectTextureResolution(payload);
+    return this.facades.texture.setProjectTextureResolution(payload);
   }
 
   getTextureUsage(payload: { textureId?: string; textureName?: string }): UsecaseResult<{
@@ -243,37 +109,37 @@ export class ToolService {
     }>;
     unresolved?: Array<{ textureRef: string; cubeId?: string; cubeName: string; face: CubeFaceDirection }>;
   }> {
-    return this.textureService.getTextureUsage(payload);
+    return this.facades.texture.getTextureUsage(payload);
   }
 
   preflightTexture(payload: ToolPayloadMap['preflight_texture']): UsecaseResult<PreflightTextureResult> {
-    return this.textureService.preflightTexture(payload);
+    return this.facades.texture.preflightTexture(payload);
   }
 
   generateTexturePreset(payload: ToolPayloadMap['generate_texture_preset']): UsecaseResult<GenerateTexturePresetResult> {
-    return this.textureService.generateTexturePreset(payload);
+    return this.facades.texture.generateTexturePreset(payload);
   }
 
   autoUvAtlas(payload: ToolPayloadMap['auto_uv_atlas']): UsecaseResult<AutoUvAtlasResult> {
-    return this.textureService.autoUvAtlas(payload);
+    return this.facades.texture.autoUvAtlas(payload);
   }
 
   getProjectState(payload: ToolPayloadMap['get_project_state']): UsecaseResult<{ project: ProjectState }> {
-    return this.projectService.getProjectState(payload);
+    return this.facades.project.getProjectState(payload);
   }
 
   getProjectDiff(payload: { sinceRevision: string; detail?: ProjectStateDetail }): UsecaseResult<{ diff: ProjectDiff }> {
-    return this.projectService.getProjectDiff(payload);
+    return this.facades.project.getProjectDiff(payload);
   }
 
   ensureProject(
     payload: ToolPayloadMap['ensure_project']
   ): UsecaseResult<{ action: 'created' | 'reused'; project: { id: string; format: FormatKind; name: string | null; formatId?: string | null } }> {
-    return this.projectService.ensureProject(payload);
+    return this.facades.project.ensureProject(payload);
   }
 
-  generateBlockPipeline(payload: ToolPayloadMap['generate_block_pipeline']): UsecaseResult<GenerateBlockPipelineResult> {
-    return this.blockPipelineService.generateBlockPipeline(payload);
+  blockPipeline(payload: ToolPayloadMap['block_pipeline']): UsecaseResult<BlockPipelineResult> {
+    return this.facades.blockPipeline.blockPipeline(payload);
   }
 
   createProject(
@@ -281,7 +147,7 @@ export class ToolService {
     name: string,
     options?: { confirmDiscard?: boolean; dialog?: Record<string, unknown>; confirmDialog?: boolean; ifRevision?: string }
   ): UsecaseResult<{ id: string; format: FormatKind; name: string }> {
-    return this.projectService.createProject(format, name, options);
+    return this.facades.project.createProject(format, name, options);
   }
 
   importTexture(payload: {
@@ -292,7 +158,7 @@ export class ToolService {
     height?: number;
     ifRevision?: string;
   } & TextureMeta): UsecaseResult<{ id: string; name: string }> {
-    return this.textureService.importTexture(payload);
+    return this.facades.texture.importTexture(payload);
   }
 
   updateTexture(payload: {
@@ -304,61 +170,57 @@ export class ToolService {
     height?: number;
     ifRevision?: string;
   } & TextureMeta): UsecaseResult<{ id: string; name: string }> {
-    return this.textureService.updateTexture(payload);
+    return this.facades.texture.updateTexture(payload);
   }
 
   deleteTexture(payload: ToolPayloadMap['delete_texture']): UsecaseResult<{ id: string; name: string }> {
-    return this.textureService.deleteTexture(payload);
+    return this.facades.texture.deleteTexture(payload);
   }
 
   readTexture(payload: ToolPayloadMap['read_texture']): UsecaseResult<TextureSource> {
-    return this.textureService.readTexture(payload);
+    return this.facades.texture.readTexture(payload);
   }
 
   readTextureImage(payload: ToolPayloadMap['read_texture']): UsecaseResult<ReadTextureResult> {
-    return this.textureService.readTextureImage(payload);
+    return this.facades.texture.readTextureImage(payload);
   }
 
   assignTexture(
     payload: ToolPayloadMap['assign_texture']
   ): UsecaseResult<{ textureId?: string; textureName: string; cubeCount: number; faces?: CubeFaceDirection[] }> {
-    return this.textureService.assignTexture(payload);
+    return this.facades.texture.assignTexture(payload);
   }
 
   setFaceUv(
     payload: ToolPayloadMap['set_face_uv']
   ): UsecaseResult<{ cubeId?: string; cubeName: string; faces: CubeFaceDirection[] }> {
-    return this.textureService.setFaceUv(payload);
+    return this.facades.texture.setFaceUv(payload);
   }
 
   addBone(payload: ToolPayloadMap['add_bone']): UsecaseResult<{ id: string; name: string }> {
-    return this.modelService.addBone(payload);
+    return this.facades.model.addBone(payload);
   }
 
   updateBone(payload: ToolPayloadMap['update_bone']): UsecaseResult<{ id: string; name: string }> {
-    return this.modelService.updateBone(payload);
+    return this.facades.model.updateBone(payload);
   }
 
   deleteBone(
     payload: ToolPayloadMap['delete_bone']
   ): UsecaseResult<{ id: string; name: string; removedBones: number; removedCubes: number }> {
-    return this.modelService.deleteBone(payload);
+    return this.facades.model.deleteBone(payload);
   }
 
   addCube(payload: ToolPayloadMap['add_cube']): UsecaseResult<{ id: string; name: string }> {
-    return this.modelService.addCube(payload);
+    return this.facades.model.addCube(payload);
   }
 
   updateCube(payload: ToolPayloadMap['update_cube']): UsecaseResult<{ id: string; name: string }> {
-    return this.modelService.updateCube(payload);
+    return this.facades.model.updateCube(payload);
   }
 
   deleteCube(payload: ToolPayloadMap['delete_cube']): UsecaseResult<{ id: string; name: string }> {
-    return this.modelService.deleteCube(payload);
-  }
-
-  applyRigTemplate(payload: ToolPayloadMap['apply_rig_template']): UsecaseResult<{ templateId: string }> {
-    return this.modelService.applyRigTemplate(payload);
+    return this.facades.model.deleteCube(payload);
   }
 
   createAnimationClip(payload: {
@@ -369,7 +231,7 @@ export class ToolService {
     fps: number;
     ifRevision?: string;
   }): UsecaseResult<{ id: string; name: string }> {
-    return this.animationService.createAnimationClip(payload);
+    return this.facades.animation.createAnimationClip(payload);
   }
 
   updateAnimationClip(payload: {
@@ -381,11 +243,11 @@ export class ToolService {
     fps?: number;
     ifRevision?: string;
   }): UsecaseResult<{ id: string; name: string }> {
-    return this.animationService.updateAnimationClip(payload);
+    return this.facades.animation.updateAnimationClip(payload);
   }
 
   deleteAnimationClip(payload: { id?: string; name?: string; ifRevision?: string }): UsecaseResult<{ id: string; name: string }> {
-    return this.animationService.deleteAnimationClip(payload);
+    return this.facades.animation.deleteAnimationClip(payload);
   }
 
   setKeyframes(payload: {
@@ -396,7 +258,7 @@ export class ToolService {
     keys: { time: number; value: [number, number, number]; interp?: 'linear' | 'step' | 'catmullrom' }[];
     ifRevision?: string;
   }): UsecaseResult<{ clip: string; clipId?: string; bone: string }> {
-    return this.animationService.setKeyframes(payload);
+    return this.facades.animation.setKeyframes(payload);
   }
 
   setTriggerKeyframes(payload: {
@@ -406,21 +268,21 @@ export class ToolService {
     keys: { time: number; value: string | string[] | Record<string, unknown> }[];
     ifRevision?: string;
   }): UsecaseResult<{ clip: string; clipId?: string; channel: TriggerChannel }> {
-    return this.animationService.setTriggerKeyframes(payload);
+    return this.facades.animation.setTriggerKeyframes(payload);
   }
 
   exportModel(payload: ToolPayloadMap['export']): UsecaseResult<{ path: string }> {
-    return this.exportService.exportModel(payload);
+    return this.facades.exporter.exportModel(payload);
   }
 
   renderPreview(payload: ToolPayloadMap['render_preview']): UsecaseResult<RenderPreviewResult> {
-    return this.renderService.renderPreview(payload);
+    return this.facades.render.renderPreview(payload);
   }
 
   validate(
     _payload: ToolPayloadMap['validate']
   ): UsecaseResult<{ findings: { code: string; message: string; severity: 'error' | 'warning' | 'info' }[] }> {
-    return this.validationService.validate();
+    return this.facades.validation.validate();
   }
 
 }

@@ -5,45 +5,31 @@ export const resolveBoneNameById = (bones: SessionState['bones'], id: string): s
   return match?.name ?? null;
 };
 
-export const resolveBoneTarget = (bones: SessionState['bones'], id?: string, name?: string) => {
+type TargetNamed = { id?: string | null; name: string };
+
+export const resolveTargetByIdOrName = <T extends TargetNamed>(items: T[], id?: string, name?: string): T | null => {
   if (id) {
-    return bones.find((bone) => bone.id === id) ?? null;
+    return items.find((item) => item.id === id) ?? null;
   }
   if (name) {
-    return bones.find((bone) => bone.name === name) ?? null;
+    return items.find((item) => item.name === name) ?? null;
   }
   return null;
 };
 
-export const resolveCubeTarget = (cubes: SessionState['cubes'], id?: string, name?: string) => {
-  if (id) {
-    return cubes.find((cube) => cube.id === id) ?? null;
-  }
-  if (name) {
-    return cubes.find((cube) => cube.name === name) ?? null;
-  }
-  return null;
-};
+export const resolveBoneTarget = (bones: SessionState['bones'], id?: string, name?: string) =>
+  resolveTargetByIdOrName(bones, id, name);
 
-export const resolveTextureTarget = (textures: SessionState['textures'], id?: string, name?: string) => {
-  if (id) {
-    return textures.find((tex) => tex.id === id) ?? null;
-  }
-  if (name) {
-    return textures.find((tex) => tex.name === name) ?? null;
-  }
-  return null;
-};
+export const resolveCubeTarget = (cubes: SessionState['cubes'], id?: string, name?: string) =>
+  resolveTargetByIdOrName(cubes, id, name);
 
-export const resolveAnimationTarget = (animations: SessionState['animations'], id?: string, name?: string) => {
-  if (id) {
-    return animations.find((anim) => anim.id === id) ?? null;
-  }
-  if (name) {
-    return animations.find((anim) => anim.name === name) ?? null;
-  }
-  return null;
-};
+export const resolveTextureTarget = (textures: SessionState['textures'], id?: string, name?: string) =>
+  resolveTargetByIdOrName(textures, id, name);
+
+export const resolveAnimationTarget = (animations: SessionState['animations'], id?: string, name?: string) =>
+  resolveTargetByIdOrName(animations, id, name);
+
+export const resolveTargetLabel = (id?: string, name?: string): string => id ?? name ?? 'unknown';
 
 export const collectDescendantBones = (bones: SessionState['bones'], rootName: string): string[] => {
   const childrenMap = new Map<string, string[]>();

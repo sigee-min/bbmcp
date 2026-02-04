@@ -1,64 +1,78 @@
-# Modeling Workflow (ModelSpec)
+# Modeling Workflow (Low-level)
 
-Goal: define the desired model state and let model_pipeline plan/apply the changes.
+Goal: build the model one bone/cube at a time for better control and lower LLM cost.
 
 Steps:
 1) ensure_project (optional)
-2) model_pipeline with desired bone/cube (or stages for complex models)
-3) validate (optional) or preview (optional)
-4) export (optional)
+2) add_bone (optional) to define hierarchy
+3) add_cube (one cube per call)
+4) update_cube / update_bone as needed
+5) validate or render_preview
+6) export (optional)
 
-Minimal example:
+Minimal example (cube only, root auto-created):
 ```json
 {
-  "model": {
-    "rigTemplate": "empty",
-    "bone": { "id": "root", "pivot": [0,0,0] },
-    "cube": { "id": "body", "parentId": "root", "from": [-4,0,-2], "to": [4,12,2] }
-  },
-  "mode": "replace",
-  "preview": { "mode": "fixed", "output": "single", "angle": [30,45,0] },
-  "validate": true,
+  "name": "body",
+  "from": [4, 0, 4],
+  "to": [12, 10, 12],
   "ifRevision": { "$ref": { "kind": "tool", "tool": "get_project_state", "pointer": "/project/revision" } }
 }
 ```
 
-Staged example (skeleton -> body -> details):
+Skeleton-first example:
 ```json
 {
-  "stages": [
-    {
-      "label": "root",
-      "model": { "bone": { "id": "root", "pivot": [0,0,0] } }
-    },
-    {
-      "label": "body",
-      "model": {
-        "bone": { "id": "body", "parentId": "root", "pivot": [0,6,0] },
-        "cube": { "id": "body", "parentId": "body", "from": [-4,0,-2], "to": [4,12,2] }
-      }
-    },
-    {
-      "label": "details",
-      "model": { "cube": { "id": "button", "parentId": "body", "from": [-1,10,2], "to": [1,12,3] } }
-    }
-  ],
-  "preview": { "mode": "fixed", "output": "single", "angle": [30,45,0] },
+  "name": "root",
+  "pivot": [0, 0, 0],
   "ifRevision": { "$ref": { "kind": "tool", "tool": "get_project_state", "pointer": "/project/revision" } }
+}
+```
+
+Then add a cube under that bone:
+```json
+{
+  "name": "torso",
+  "bone": "root",
+  "from": [-4, 0, -2],
+  "to": [4, 12, 2],
+  "ifRevision": { "$ref": { "kind": "tool", "tool": "get_project_state", "pointer": "/project/revision" } }
+}
+```
+
+Bulk delete example (ids/names arrays):
+```json
+{
+  "names": ["arm_l", "arm_r", "leg_l", "leg_r"],
+  "ifRevision": { "$ref": { "kind": "tool", "tool": "get_project_state", "pointer": "/project/revision" } }
+}
+```
+
+Delete response shape:
+```json
+{
+  "id": "arm_l",
+  "name": "arm_l",
+  "removedBones": 4,
+  "removedCubes": 6,
+  "deleted": [
+    { "id": "arm_l", "name": "arm_l" },
+    { "id": "arm_r", "name": "arm_r" },
+    { "id": "leg_l", "name": "leg_l" },
+    { "id": "leg_r", "name": "leg_r" }
+  ]
 }
 ```
 
 Notes:
-- ModelSpec must include at least one of: bone, cube, or rigTemplate.
-- rigTemplate is limited to single-part templates (empty or block_entity). For complex rigs (biped/quadruped), use stages with explicit bones/cubes.
-- For stable edits, always use ids. If ids are omitted, the default idPolicy=stable_path derives ids from hierarchy/name; set idPolicy=explicit to enforce strict ids.
-- Use mode=merge to add/update without deleting; mode=replace to match the desired state.
-- deleteOrphans removes bones/cubes not in the spec (defaults to true when mode=replace).
-- For large/complex objects, use `stages` to apply the model in parts (skeleton first, then major cubes, then details). Each stage is planned/applied sequentially in one call.
-- `stagePreview` and `stageValidate` run preview/validate after each stage when preview/validate is set (defaults to true).
-- Single-create mode: each stage must include at most one bone and one cube. Split bones/cubes across stages or calls.
-- planOnly returns the plan without applying changes.
-- Mutations require ifRevision; planOnly is read-only and can omit it.
-- planOnly cannot be combined with ensureProject/preview/validate/export.
-- Anchors let you reuse positions. Use pivotAnchorId on bones and centerAnchorId/originAnchorId on cubes.
-- When enforceRoot=true (default), a root bone is auto-created if missing. If you include a "root" bone, avoid duplicates.
+- One bone/cube per call. This is intentional for quality and stability.
+- If cube bone is omitted, the server auto-creates/uses a root bone.
+- Always include ifRevision for mutations.
+- Use update_bone/update_cube for edits; delete_bone/delete_cube accept id/name or ids/names arrays for bulk removal.
+- delete_bone reports all removed bones (including descendants) in `deleted`.
+- Keep ids stable if you plan to animate.
+
+LLM prompt guidance:
+- Generate a small checklist (bone/cube names) and add them one at a time.
+- After each add/update, call get_project_state and verify the last change.
+- Never send multiple bones/cubes in a single request; rely on iteration instead.

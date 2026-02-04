@@ -6,7 +6,6 @@ import {
   SidecarResponseMessage
 } from '../../transport/protocol';
 import { ToolError, ToolResponse, ToolName } from '../../types';
-import type { ProxyTool } from '../../spec';
 import { toolError } from '../../shared/tooling/toolResponse';
 import { normalizeToolResponse } from '../../shared/tooling/toolResponseGuard';
 import { SIDECAR_INFLIGHT_LIMIT_REACHED, SIDECAR_TOOL_ERROR } from '../../shared/messages';
@@ -74,7 +73,7 @@ export class SidecarClient {
     };
   }
 
-  request(tool: ToolName | ProxyTool, payload: unknown, mode?: 'direct' | 'proxy'): Promise<ToolResponse<unknown>> {
+  request(tool: ToolName, payload: unknown): Promise<ToolResponse<unknown>> {
     if (!this.canAccept()) {
       return Promise.resolve({
         ok: false,
@@ -87,7 +86,6 @@ export class SidecarClient {
       type: 'request',
       id,
       ts: Date.now(),
-      mode,
       tool,
       payload
     };

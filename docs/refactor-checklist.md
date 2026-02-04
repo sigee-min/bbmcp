@@ -11,17 +11,13 @@
 - `list_capabilities` returns expected versions/limits/toolRegistry hash.
 - `ensure_project` creates or reuses a project as expected.
 - `get_project_state` returns a fresh revision after mutations.
-- `model_pipeline` creates/updates bones and cubes (merge/replace/planOnly).
-- `texture_pipeline` runs an end-to-end flow (assign -> preflight -> uv -> paint -> preview).
-- `entity_pipeline` applies model + textures + animations for GeckoLib.
-- `block_pipeline` generates blockstate/model/item JSON and stores resources.
+- `add_bone`/`add_cube` create bones/cubes one at a time (root auto-create for cubes).
 - `preflight_texture` returns uvUsageId + warnings + recommendedResolution.
-- `apply_uv_spec` updates UVs and returns a new uvUsageId.
-- `apply_texture_spec` create/update mutates textures and revision.
+- `set_face_uv` updates per-face UVs as provided.
 - `generate_texture_preset` create/update works with uvUsageId.
 - `auto_uv_atlas` plans/applies and updates resolution when needed (low-level only).
 - `assign_texture` binds textures without changing UVs.
-- `set_face_uv` updates per-face UVs as provided.
+- `create_animation_clip` / `set_keyframes` / `set_trigger_keyframes` apply animation changes for supported formats.
 - `render_preview` returns content output.
 - `export` writes a file when path is writable.
-- `resources/list` + `resources/templates/list` include guides and block pipeline templates.
+- `resources/list` + `resources/templates/list` include guides.

@@ -40,32 +40,6 @@ export const MCP_HIGH_LEVEL_TOOLS: McpToolDefinition[] = [
     inputSchema: toolSchemas.export_trace_log
   }),
   defineTool({
-    name: 'model_pipeline',
-    title: 'Model Pipeline',
-    description:
-      'High-level modeling pipeline: applies a structured ModelSpec with create/merge/replace/patch semantics, optional preview/validate/export, and returns a detailed report.',
-    inputSchema: toolSchemas.model_pipeline
-  }),
-  defineTool({
-    name: 'texture_pipeline',
-    title: 'Texture Pipeline',
-    description:
-      'Macro: runs the standard texture workflow in one call and returns nextActions for follow-ups when needed.',
-    inputSchema: toolSchemas.texture_pipeline
-  }),
-  defineTool({
-    name: 'entity_pipeline',
-    title: 'Entity Pipeline',
-    description: 'High-level entity pipeline (model + textures + animations) with GeckoLib targeting. Use texturePlan to auto-create textures + UVs.',
-    inputSchema: toolSchemas.entity_pipeline
-  }),
-  defineTool({
-    name: 'block_pipeline',
-    title: 'Block Pipeline',
-    description: 'Generates Minecraft blockstate + block/item models and exposes them as MCP resources.',
-    inputSchema: toolSchemas.block_pipeline
-  }),
-  defineTool({
     name: 'render_preview',
     title: 'Render Preview',
     description:
@@ -156,7 +130,7 @@ export const MCP_LOW_LEVEL_TOOLS: McpToolDefinition[] = [
   defineTool({
     name: 'delete_bone',
     title: 'Delete Bone',
-    description: 'Deletes a bone by id/name.',
+    description: 'Deletes a bone by id/name (or ids/names for bulk removal).',
     inputSchema: toolSchemas.delete_bone
   }),
   defineTool({
@@ -174,20 +148,38 @@ export const MCP_LOW_LEVEL_TOOLS: McpToolDefinition[] = [
   defineTool({
     name: 'delete_cube',
     title: 'Delete Cube',
-    description: 'Deletes a cube by id/name.',
+    description: 'Deletes a cube by id/name (or ids/names for bulk removal).',
     inputSchema: toolSchemas.delete_cube
   }),
   defineTool({
-    name: 'apply_uv_spec',
-    title: 'Apply UV Spec',
-    description: 'High-level UV assignment with uvUsageId guards.',
-    inputSchema: toolSchemas.apply_uv_spec
+    name: 'create_animation_clip',
+    title: 'Create Animation Clip',
+    description: 'Creates an animation clip (low-level).',
+    inputSchema: toolSchemas.create_animation_clip
   }),
   defineTool({
-    name: 'apply_texture_spec',
-    title: 'Apply Texture Spec',
-    description: 'Paints textures via deterministic ops + uvPaint mapping.',
-    inputSchema: toolSchemas.apply_texture_spec
+    name: 'update_animation_clip',
+    title: 'Update Animation Clip',
+    description: 'Updates an animation clip by id/name.',
+    inputSchema: toolSchemas.update_animation_clip
+  }),
+  defineTool({
+    name: 'delete_animation_clip',
+    title: 'Delete Animation Clip',
+    description: 'Deletes an animation clip by id/name (or ids/names for bulk removal).',
+    inputSchema: toolSchemas.delete_animation_clip
+  }),
+  defineTool({
+    name: 'set_keyframes',
+    title: 'Set Keyframes',
+    description: 'Sets keyframes for a single bone + channel (one key per call).',
+    inputSchema: toolSchemas.set_keyframes
+  }),
+  defineTool({
+    name: 'set_trigger_keyframes',
+    title: 'Set Trigger Keyframes',
+    description: 'Sets trigger keyframes (sound/particle/timeline), one key per call.',
+    inputSchema: toolSchemas.set_trigger_keyframes
   })
 ];
 
@@ -205,7 +197,7 @@ export const buildToolRegistry = (options?: { includeLowLevel?: boolean }): Tool
   };
 };
 
-export const DEFAULT_TOOL_REGISTRY = buildToolRegistry();
+export const DEFAULT_TOOL_REGISTRY = buildToolRegistry({ includeLowLevel: true });
 
 export const MCP_TOOLS = DEFAULT_TOOL_REGISTRY.tools;
 export const TOOL_REGISTRY_HASH = DEFAULT_TOOL_REGISTRY.hash;

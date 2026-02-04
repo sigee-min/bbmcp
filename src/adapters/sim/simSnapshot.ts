@@ -2,6 +2,7 @@ import type { SessionState, TrackedCube, TrackedTexture } from '../../session';
 import type { CubeInstance, TextureInstance } from '../../types/blockbench';
 import type { BlockbenchSimState } from './simTypes';
 import { normalizeVec2, normalizeVec3 } from './simUtils';
+import { resolveAnimationTimePolicy } from '../../domain/animation/timePolicy';
 
 export const buildSnapshot = (state: BlockbenchSimState): SessionState => ({
   id: state.project.id,
@@ -9,12 +10,12 @@ export const buildSnapshot = (state: BlockbenchSimState): SessionState => ({
   formatId: state.project.formatId ?? null,
   name: state.project.name,
   dirty: undefined,
-  meta: undefined,
   bones: [...state.bones],
   cubes: state.cubes.map((cube) => toTrackedCube(cube)),
   textures: state.textures.map((tex) => toTrackedTexture(tex)),
   animations: [...state.animations],
-  animationsStatus: 'available'
+  animationsStatus: 'available',
+  animationTimePolicy: resolveAnimationTimePolicy()
 });
 
 const toTrackedCube = (cube: CubeInstance): TrackedCube => {

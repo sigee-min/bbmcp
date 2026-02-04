@@ -1,5 +1,4 @@
 import type { Dispatcher } from '../types';
-import type { ProxyRouter } from '../proxy';
 import type { LogLevel } from '../logging';
 import { ConsoleLogger } from '../logging';
 import type { ResourceStore } from '../ports/resources';
@@ -24,7 +23,6 @@ export type RuntimeServerState = {
 export const restartServer = (args: {
   endpointConfig: EndpointConfig;
   dispatcher: Dispatcher | null;
-  proxy: ProxyRouter | null;
   logLevel: LogLevel;
   resourceStore: ResourceStore;
   toolRegistry: ToolRegistry;
@@ -48,11 +46,10 @@ export const restartServer = (args: {
     return { sidecar, inlineServerStop };
   }
 
-  if (args.dispatcher && args.proxy) {
+  if (args.dispatcher) {
     const inlineStop = startServer(
       { host: args.endpointConfig.host, port: args.endpointConfig.port, path: args.endpointConfig.path },
       args.dispatcher,
-      args.proxy,
       logger,
       args.resourceStore,
       args.toolRegistry
@@ -65,10 +62,9 @@ export const restartServer = (args: {
     const endpoint: SidecarLaunchConfig = {
       host: args.endpointConfig.host,
       port: args.endpointConfig.port,
-      path: args.endpointConfig.path,
-      exposeLowLevelTools: false
+      path: args.endpointConfig.path
     };
-    sidecar = new SidecarProcess(endpoint, args.dispatcher, args.proxy, logger);
+    sidecar = new SidecarProcess(endpoint, args.dispatcher, logger);
     if (!sidecar.start()) {
       sidecar = null;
       logger.warn(PLUGIN_LOG_SIDECAR_FAILED);

@@ -1,11 +1,9 @@
 import type { Dispatcher, ProjectState, ProjectStateDetail, ToolError, ToolResponse, ToolPayloadMap } from '../types';
-import type { ToolName, ProxyTool } from '../shared/toolConstants';
-import { PROXY_TOOL_NAMES, TOOL_NAMES } from '../shared/toolConstants';
+import type { ToolName } from '../shared/toolConstants';
+import { TOOL_NAMES } from '../shared/toolConstants';
 import { err } from '../shared/tooling/toolResponse';
 
-export type TraceOp = ToolName | ProxyTool;
-
-export type TraceRoute = 'tool' | 'proxy';
+export type TraceOp = ToolName;
 
 export type TraceCapture = {
   detail?: ProjectStateDetail;
@@ -15,7 +13,6 @@ export type TraceCapture = {
 export type TraceStep = {
   op: TraceOp;
   payload?: unknown;
-  route?: TraceRoute;
   captureState?: boolean | TraceCapture;
 };
 
@@ -40,25 +37,11 @@ export type TraceRunnerOptions = {
   defaultCaptureState?: boolean | TraceCapture;
 };
 
-export type TraceProxyRunner = {
-  handle: (tool: ProxyTool, payload: unknown) => Promise<ToolResponse<unknown>>;
-};
-
 type TraceRunnerDeps = {
   dispatcher: Dispatcher;
-  proxy: TraceProxyRunner;
 };
 
 const isToolName = (op: string): op is ToolName => (TOOL_NAMES as readonly string[]).includes(op);
-
-const isProxyTool = (op: string): op is ProxyTool => (PROXY_TOOL_NAMES as readonly string[]).includes(op);
-
-const resolveRoute = (op: TraceOp, route?: TraceRoute): TraceRoute | null => {
-  if (route === 'tool' || route === 'proxy') return route;
-  if (isToolName(op)) return 'tool';
-  if (isProxyTool(op)) return 'proxy';
-  return null;
-};
 
 const resolveCapturePayload = (
   captureState?: boolean | TraceCapture,
@@ -82,12 +65,6 @@ const runTool = (
   return deps.dispatcher.handle(op, toolPayload);
 };
 
-const runProxy = async (
-  deps: TraceRunnerDeps,
-  op: ProxyTool,
-  payload?: unknown
-): Promise<ToolResponse<unknown>> => deps.proxy.handle(op, payload ?? {});
-
 const captureState = (
   deps: TraceRunnerDeps,
   payload: ToolPayloadMap['get_project_state']
@@ -109,17 +86,14 @@ export const runTrace = async (
   const stopOnError = options.stopOnError !== false;
 
   for (const step of steps) {
-    const route = resolveRoute(step.op, step.route);
     let response: ToolResponse<unknown>;
-    if (!route) {
+    if (!isToolName(step.op)) {
       response = err('invalid_payload', `Unknown trace op: ${String(step.op)}`, {
         reason: 'unknown_op',
         op: String(step.op)
       });
-    } else if (route === 'tool') {
-      response = runTool(deps, step.op as ToolName, step.payload);
     } else {
-      response = await runProxy(deps, step.op as ProxyTool, step.payload);
+      response = runTool(deps, step.op as ToolName, step.payload);
     }
 
     const capturePayload = resolveCapturePayload(step.captureState, options.defaultCaptureState);
@@ -140,7 +114,3 @@ export const runTrace = async (
     ...(error ? { error } : {})
   };
 };
-
-
-
-

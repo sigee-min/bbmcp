@@ -15,8 +15,6 @@ This server can include suggested follow-up actions in tool responses.
 - `ask_user`: prompt the user for missing context
 - `noop`: a terminal marker (no further action)
 
-Pipelines may return `ask_user` actions when the payload is underspecified and set `planOnly=true` in the structured output.
-
 `ensure_project` may return `ask_user` actions when the Blockbench new-project dialog requires input. The response includes a missing-field list so the client can fill `ensure_project.dialog` and retry with the same payload.
 
 ### MCP response example
@@ -111,14 +109,14 @@ Historically this project used placeholder strings like `"<from get_project_stat
 ```json
 {
   "type": "call_tool",
-  "tool": "texture_pipeline",
+  "tool": "auto_uv_atlas",
   "arguments": {
-    "preflight": { "includeUsage": false },
+    "apply": true,
     "ifRevision": {
       "$ref": { "kind": "tool", "tool": "get_project_state", "pointer": "/project/revision" }
     }
   },
-  "reason": "Recover by plan-based re-UV (auto-split, <=512, max 16 textures), then repaint.",
+  "reason": "Recover by re-packing UVs, then preflight and repaint.",
   "priority": 3
 }
 ```

@@ -4,21 +4,22 @@ import type { EditorPort } from '../../ports/editor';
 import type { ProjectSession, SessionState } from '../../session';
 import { ok, fail, type UsecaseResult } from '../result';
 import { withActiveAndRevision } from '../guards';
-import { createId } from '../../shared/id';
 import { resolveBoneTarget, resolveCubeTarget } from '../targetResolvers';
 import { resolveBoneNameById } from '../../domain/sessionLookup';
 import {
-  MODEL_CUBE_BONE_REQUIRED,
-  MODEL_CUBE_BONE_REQUIRED_FIX,
   MODEL_CUBE_EXISTS,
   MODEL_CUBE_ID_EXISTS,
   MODEL_CUBE_LIMIT_EXCEEDED,
+  MODEL_CUBE_ID_OR_NAME_REQUIRED,
+  MODEL_CUBE_NOT_FOUND,
   MODEL_CUBE_NAME_REQUIRED,
   MODEL_CUBE_NAME_REQUIRED_FIX,
   MODEL_BONE_NOT_FOUND
 } from '../../shared/messages';
 import { ensureNonBlankFields } from './validators';
 import { ensureIdAvailable, ensureNameAvailable, ensureRenameAvailable, resolveEntityId } from '../crudChecks';
+import { resolveTargets } from '../targetSelectors';
+import { buildIdNameMismatchMessage } from '../../shared/targetMessages';
 
 export interface CubeServiceDeps {
   session: ProjectSession;
@@ -81,13 +82,11 @@ export class CubeService {
           [payload.boneId, 'Cube boneId']
         ]);
         if (blankErr) return fail(blankErr);
-        const resolvedBone = resolveBoneTarget(snapshot.bones, payload.boneId, payload.bone, {
-          idLabel: 'boneId',
-          nameLabel: 'bone',
-          required: { message: MODEL_CUBE_BONE_REQUIRED, fix: MODEL_CUBE_BONE_REQUIRED_FIX }
+        const resolvedBoneName = this.resolveCubeBone(snapshot, {
+          boneId: payload.boneId,
+          bone: payload.bone
         });
-        if (resolvedBone.error) return fail(resolvedBone.error);
-        const resolvedBoneName = resolvedBone.target!.name;
+        if (!resolvedBoneName.ok) return fail(resolvedBoneName.error);
         const nameErr = ensureNameAvailable(snapshot.cubes, payload.name, MODEL_CUBE_EXISTS);
         if (nameErr) return fail(nameErr);
         const limitErr = this.ensureCubeLimit(1);
@@ -100,7 +99,7 @@ export class CubeService {
           name: payload.name,
           from: payload.from,
           to: payload.to,
-          bone: resolvedBoneName,
+          bone: resolvedBoneName.value,
           origin: payload.origin,
           rotation: payload.rotation,
           inflate: payload.inflate,
@@ -115,7 +114,7 @@ export class CubeService {
           name: payload.name,
           from: payload.from,
           to: payload.to,
-          bone: resolvedBoneName,
+          bone: resolvedBoneName.value,
           origin: payload.origin,
           rotation: payload.rotation,
           inflate: payload.inflate,
@@ -175,6 +174,10 @@ export class CubeService {
         });
         if (!boneRes.ok) return fail(boneRes.error);
         const boneUpdate = boneRes.value;
+        if (payload.boneRoot || boneUpdate === 'root') {
+          const rootErr = this.ensureRootBone(snapshot);
+          if (rootErr) return fail(rootErr);
+        }
         const err = this.editor.updateCube({
           id: targetId,
           name: targetName,
@@ -192,9 +195,6 @@ export class CubeService {
           uvOffset: payload.uvOffset
         });
         if (err) return fail(err);
-        if (boneUpdate === 'root' && !snapshot.bones.some((b) => b.name === 'root')) {
-          this.session.addBone({ id: createId('bone'), name: 'root', pivot: [0, 0, 0] });
-        }
         this.session.updateCube(targetName, {
           id: targetId,
           newName: payload.newName,
@@ -214,25 +214,41 @@ export class CubeService {
     );
   }
 
-  deleteCube(payload: { id?: string; name?: string; ifRevision?: string }): UsecaseResult<{ id: string; name: string }> {
+  deleteCube(payload: {
+    id?: string;
+    name?: string;
+    ids?: string[];
+    names?: string[];
+    ifRevision?: string;
+  }): UsecaseResult<{ id: string; name: string; deleted: Array<{ id?: string; name: string }> }> {
     return withActiveAndRevision(
       this.ensureActive,
       this.ensureRevisionMatch,
       payload.ifRevision,
       () => {
         const snapshot = this.getSnapshot();
-        const blankErr = ensureNonBlankFields([
-          [payload.id, 'Cube id'],
-          [payload.name, 'Cube name']
-        ]);
-        if (blankErr) return fail(blankErr);
-        const resolved = resolveCubeTarget(snapshot.cubes, payload.id, payload.name);
-        if (resolved.error) return fail(resolved.error);
-        const target = resolved.target!;
-        const err = this.editor.deleteCube({ id: target.id ?? payload.id, name: target.name });
-        if (err) return fail(err);
-        this.session.removeCubes([target.name]);
-        return ok({ id: target.id ?? payload.id ?? target.name, name: target.name });
+        const resolvedTargets = resolveTargets(
+          snapshot.cubes,
+          payload,
+          { id: 'Cube id', name: 'Cube name' },
+          { message: MODEL_CUBE_ID_OR_NAME_REQUIRED },
+          {
+            required: { message: MODEL_CUBE_ID_OR_NAME_REQUIRED },
+            mismatch: { kind: 'Cube', plural: 'cubes', message: buildIdNameMismatchMessage },
+            notFound: MODEL_CUBE_NOT_FOUND
+          }
+        );
+        if (!resolvedTargets.ok) return fail(resolvedTargets.error);
+        const targets = resolvedTargets.value;
+        for (const target of targets) {
+          const err = this.editor.deleteCube({ id: target.id ?? undefined, name: target.name });
+          if (err) return fail(err);
+        }
+        const nameSet = new Set(targets.map((target) => target.name));
+        this.session.removeCubes(nameSet);
+        const deleted = targets.map((target) => ({ id: target.id ?? undefined, name: target.name }));
+        const primary = deleted[0] ?? { id: targets[0]?.id ?? undefined, name: targets[0]?.name ?? 'unknown' };
+        return ok({ id: primary.id ?? primary.name, name: primary.name, deleted });
       }
     );
   }
@@ -245,6 +261,27 @@ export class CubeService {
       return { code: 'invalid_payload', message: MODEL_CUBE_LIMIT_EXCEEDED(limit) };
     }
     return null;
+  }
+
+  private resolveCubeBone(
+    snapshot: SessionState,
+    payload: { boneId?: string; bone?: string }
+  ): UsecaseResult<string> {
+    const hasExplicit = payload.boneId !== undefined || payload.bone !== undefined;
+    if (hasExplicit) {
+      const resolved = resolveBoneTarget(snapshot.bones, payload.boneId, payload.bone, {
+        idLabel: 'boneId',
+        nameLabel: 'bone'
+      });
+      if (resolved.error) return fail(resolved.error);
+      return ok(resolved.target!.name);
+    }
+    const rootExists = snapshot.bones.some((bone) => bone.name === 'root');
+    if (!rootExists) {
+      const rootErr = this.ensureRootBone(snapshot);
+      if (rootErr) return fail(rootErr);
+    }
+    return ok('root');
   }
 
   private resolveCubeBoneUpdate(
@@ -269,5 +306,13 @@ export class CubeService {
       }
     }
     return ok(boneUpdate);
+  }
+
+  private ensureRootBone(snapshot: SessionState): ToolError | null {
+    if (snapshot.bones.some((bone) => bone.name === 'root')) return null;
+    const err = this.editor.addBone({ name: 'root', pivot: [0, 0, 0] });
+    if (err) return err;
+    this.session.addBone({ name: 'root', pivot: [0, 0, 0] });
+    return null;
   }
 }

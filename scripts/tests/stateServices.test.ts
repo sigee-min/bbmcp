@@ -19,6 +19,7 @@ import {
 } from '../../src/shared/textureData';
 import { validateUvBounds } from '../../src/domain/uv/bounds';
 import { buildUvBoundsMessages } from '../../src/shared/messages';
+import { resolveAnimationTimePolicy } from '../../src/domain/animation/timePolicy';
 
 const uvBoundsMessages = buildUvBoundsMessages();
 import type { SessionState } from '../../src/session';
@@ -33,7 +34,8 @@ const baseSnapshot: SessionState = {
   cubes: [],
   textures: [],
   animations: [],
-  animationsStatus: 'available'
+  animationsStatus: 'available',
+  animationTimePolicy: resolveAnimationTimePolicy()
 };
 
 const nextSnapshot: SessionState = {

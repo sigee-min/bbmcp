@@ -1,12 +1,10 @@
 import type { ToolError, ToolName, ToolPayloadMap } from '../types';
-import type { ProxyTool } from '../spec';
 import { isRecord } from '../domain/guards';
 import type { McpContentBlock, NextAction } from '../types/shared';
 
 export const PROTOCOL_VERSION = 1 as const;
 
 export type SidecarRole = 'plugin' | 'sidecar';
-export type SidecarMode = 'direct' | 'proxy';
 
 export type SidecarHelloMessage = {
   type: 'hello';
@@ -25,8 +23,7 @@ export type SidecarRequestMessage = {
   type: 'request';
   id: string;
   ts: number;
-  mode?: SidecarMode;
-  tool: ToolName | ProxyTool;
+  tool: ToolName;
   payload: ToolPayloadMap[ToolName] | unknown;
 };
 
@@ -84,7 +81,6 @@ export const isSidecarMessage = (value: unknown): value is SidecarMessage => {
   if (type === 'request') {
     if (typeof value.id !== 'string' || !value.id) return false;
     if (typeof value.tool !== 'string') return false;
-    if (typeof value.mode !== 'undefined' && value.mode !== 'direct' && value.mode !== 'proxy') return false;
     return true;
   }
   if (type === 'response') {

@@ -94,7 +94,8 @@ export class TextureService {
       editor: this.editor,
       getSnapshot: this.getSnapshot,
       ensureActive: this.ensureActive,
-      ensureRevisionMatch: this.ensureRevisionMatch
+      ensureRevisionMatch: this.ensureRevisionMatch,
+      getUvPolicyConfig: this.getUvPolicyConfig
     });
   }
 

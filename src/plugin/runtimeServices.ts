@@ -4,20 +4,18 @@ import type { ToolPolicies } from '../usecases/policies';
 import { computeCapabilities } from '../config';
 import { ToolDispatcherImpl } from '../dispatcher';
 import { ProjectSession } from '../session';
-import { ProxyRouter } from '../proxy';
 import { BlockbenchEditor } from '../adapters/blockbench/BlockbenchEditor';
 import { BlockbenchHost } from '../adapters/blockbench/BlockbenchHost';
 import { BlockbenchFormats } from '../adapters/blockbench/BlockbenchFormats';
 import { BlockbenchSnapshot } from '../adapters/blockbench/BlockbenchSnapshot';
 import { BlockbenchExport } from '../adapters/blockbench/BlockbenchExport';
 import { BlockbenchTextureRenderer } from '../adapters/blockbench/BlockbenchTextureRenderer';
-import { BlockbenchDom } from '../adapters/blockbench/BlockbenchDom';
 import { BlockbenchTraceLogWriter } from '../adapters/blockbench/BlockbenchTraceLogWriter';
 import type { FormatOverrides } from '../domain/formats';
 import { InMemoryResourceStore } from '../adapters/resources/resourceStore';
 import { LocalTmpStore } from '../adapters/tmp/LocalTmpStore';
 import { ToolService } from '../usecases/ToolService';
-import { buildToolRegistry } from '../transport/mcp/tools';
+import { DEFAULT_TOOL_REGISTRY } from '../transport/mcp/tools';
 import { TraceRecorder } from '../trace/traceRecorder';
 import { TraceLogStore } from '../trace/traceLogStore';
 import { ResourceTraceLogWriter } from '../trace/traceLogWriters';
@@ -30,7 +28,6 @@ export type RuntimeServices = {
   session: ProjectSession;
   capabilities: Capabilities;
   dispatcher: Dispatcher;
-  proxy: ProxyRouter;
   formats: BlockbenchFormats;
   traceRecorder: TraceRecorder;
   traceLogStore: TraceLogStore;
@@ -61,9 +58,6 @@ type BuildRuntimeServicesOptions = {
 };
 
 const DEFAULT_DETAIL_OPS = [
-  'texture_pipeline',
-  'apply_texture_spec',
-  'apply_uv_spec',
   'auto_uv_atlas',
   'preflight_texture',
   'generate_texture_preset',
@@ -80,7 +74,6 @@ export const buildRuntimeServices = (options: BuildRuntimeServicesOptions): Runt
   const snapshot = new BlockbenchSnapshot(options.logger);
   const exporter = new BlockbenchExport(options.logger);
   const textureRenderer = new BlockbenchTextureRenderer();
-  const dom = new BlockbenchDom();
   const tmpStore = new LocalTmpStore();
   const previewCapability = {
     pngOnly: true,
@@ -94,7 +87,7 @@ export const buildRuntimeServices = (options: BuildRuntimeServicesOptions): Runt
     options.formatOverrides,
     previewCapability
   );
-  const toolRegistry = buildToolRegistry({ includeLowLevel: Boolean(options.policies.exposeLowLevelTools) });
+  const toolRegistry = DEFAULT_TOOL_REGISTRY;
   capabilities.toolRegistry = { hash: toolRegistry.hash, count: toolRegistry.count };
   const service = new ToolService({
     session,
@@ -189,17 +182,10 @@ export const buildRuntimeServices = (options: BuildRuntimeServicesOptions): Runt
     traceRecorder,
     traceLogService
   });
-  const proxy = new ProxyRouter(service, dom, options.logger, capabilities.limits, {
-    includeStateByDefault: () => Boolean(options.policies.autoIncludeState),
-    includeDiffByDefault: () => Boolean(options.policies.autoIncludeDiff),
-    traceRecorder
-  });
-
   return {
     session,
     capabilities,
     dispatcher,
-    proxy,
     formats,
     traceRecorder,
     traceLogStore,

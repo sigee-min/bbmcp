@@ -100,13 +100,12 @@ assert.equal(sizeError.ok, false);
 const sizeOk = service.setProjectTextureResolution({ width: 32, height: 32 });
 assert.equal(sizeOk.ok, true);
 
-const boneRes = service.addBone({ name: 'arm', pivot: [0, 0, 0] });
+const boneRes = service.addBone({ name: 'arm' });
 assert.equal(boneRes.ok, true);
 const cubeRes = service.addCube({
   name: 'cube',
   from: [0, 0, 0],
-  to: [8, 8, 8],
-  bone: 'arm'
+  to: [8, 8, 8]
 });
 assert.equal(cubeRes.ok, true);
 
@@ -114,6 +113,14 @@ const updateBoneRes = service.updateBone({ name: 'arm', newName: 'arm2', parentR
 assert.equal(updateBoneRes.ok, true);
 const updateCubeRes = service.updateCube({ name: 'cube', newName: 'cube2', boneRoot: true });
 assert.equal(updateCubeRes.ok, true);
+const extraBoneRes = service.addBone({ name: 'arm3' });
+assert.equal(extraBoneRes.ok, true);
+const extraCubeRes = service.addCube({
+  name: 'cube3',
+  from: [1, 1, 1],
+  to: [4, 4, 4]
+});
+assert.equal(extraCubeRes.ok, true);
 
 const importRes = service.importTexture({
   name: 'tex',
@@ -181,22 +188,52 @@ const keyRes = service.setKeyframes({
   keys: [{ time: 0, value: [0, 0, 0] }]
 });
 assert.equal(keyRes.ok, true);
+const keyResOverwrite = service.setKeyframes({
+  clip: 'idle2',
+  bone: 'arm2',
+  channel: 'rot',
+  keys: [{ time: 0, value: [0, 10, 0] }]
+});
+assert.equal(keyResOverwrite.ok, true);
+const keyRes2 = service.setKeyframes({
+  clip: 'idle2',
+  bone: 'arm2',
+  channel: 'rot',
+  keys: [{ time: 0.75, value: [0, 20, 0] }]
+});
+assert.equal(keyRes2.ok, true);
 const triggerRes = service.setTriggerKeyframes({
   clip: 'idle2',
   channel: 'sound',
   keys: [{ time: 0, value: 'sound_event' }]
 });
 assert.equal(triggerRes.ok, true);
+const triggerRes2 = service.setTriggerKeyframes({
+  clip: 'idle2',
+  channel: 'sound',
+  keys: [{ time: 0, value: 'sound_event2' }]
+});
+assert.equal(triggerRes2.ok, true);
+const animStateRes = service.getProjectState({ detail: 'full' });
+assert.equal(animStateRes.ok, true);
+const animState = animStateRes.ok ? animStateRes.value.project : undefined;
+const anim = animState?.animations?.find((entry) => entry.name === 'idle2');
+assert.ok(anim);
+const channel = anim?.channels?.find((entry) => entry.bone === 'arm2' && entry.channel === 'rot');
+assert.equal(channel?.keys.length, 2);
+assert.equal(channel?.keys[0].time, 0);
+assert.equal(channel?.keys[0].value[1], 10);
+const trigger = anim?.triggers?.find((entry) => entry.type === 'sound');
+assert.equal(trigger?.keys.length, 2);
 const animDeleteRes = service.deleteAnimationClip({ name: 'idle2' });
 assert.equal(animDeleteRes.ok, true);
 
-const deleteCubeRes = service.deleteCube({ name: 'cube2' });
+const deleteCubeRes = service.deleteCube({ names: ['cube2', 'cube3'] });
 assert.equal(deleteCubeRes.ok, true);
-const deleteBoneRes = service.deleteBone({ name: 'arm2' });
+assert.equal(deleteCubeRes.ok && deleteCubeRes.value.deleted.length, 2);
+const deleteBoneRes = service.deleteBone({ names: ['arm2', 'arm3'] });
 assert.equal(deleteBoneRes.ok, true);
-
-const metaRes = service.setProjectMeta({ meta: { facePaint: [{ material: 'mat', cubeNames: ['cube2'] }] } });
-assert.equal(metaRes.ok, true);
+assert.equal(deleteBoneRes.ok && deleteBoneRes.value.deleted.length, 2);
 
 const diffRes = service.getProjectDiff({ sinceRevision: revision, detail: 'full' });
 assert.equal(diffRes.ok, true);
@@ -225,45 +262,4 @@ const reloadErr = service.reloadPlugins({ confirm: false });
 assert.equal(reloadErr.ok, false);
 const reloadOk = service.reloadPlugins({ confirm: true, delayMs: 10 });
 assert.equal(reloadOk.ok, true);
-
-const blockJson = service.blockPipeline({
-  name: 'stone',
-  texture: 'stone',
-  namespace: 'demo',
-  variants: ['block', 'slab'],
-  mode: 'json_only',
-  onConflict: 'overwrite'
-});
-assert.equal(blockJson.ok, true);
-
-const blockConflict = service.blockPipeline({
-  name: 'stone',
-  texture: 'stone',
-  namespace: 'demo',
-  variants: ['block'],
-  mode: 'json_only',
-  onConflict: 'error'
-});
-assert.equal(blockConflict.ok, false);
-
-const blockVersioned = service.blockPipeline({
-  name: 'stone',
-  texture: 'stone',
-  namespace: 'demo',
-  variants: ['block'],
-  mode: 'json_only',
-  onConflict: 'versioned'
-});
-assert.equal(blockVersioned.ok, true);
-
-const blockBench = service.blockPipeline({
-  name: 'planks',
-  texture: 'planks',
-  namespace: 'demo',
-  variants: ['block'],
-  mode: 'with_blockbench',
-  onConflict: 'overwrite',
-  ifRevision: revision
-});
-assert.equal(blockBench.ok, true);
 

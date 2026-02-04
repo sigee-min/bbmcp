@@ -6,15 +6,27 @@ import { resolveAnimationTarget } from './targetResolvers';
 import { ensureIdAvailable, ensureNameAvailable, ensureRenameAvailable, resolveEntityId } from './crudChecks';
 import { ensureNonBlankString } from '../shared/payloadValidation';
 import { withActiveAndRevision } from './guards';
+import { resolveTargets } from './targetSelectors';
+import { buildIdNameMismatchMessage } from '../shared/targetMessages';
 import {
   ANIMATION_CLIP_EXISTS,
+  ANIMATION_CLIP_ID_OR_NAME_REQUIRED,
   ANIMATION_CLIP_NAME_REQUIRED,
+  ANIMATION_CLIP_NOT_FOUND,
   ANIMATION_FPS_POSITIVE,
   ANIMATION_ID_EXISTS,
+  ANIMATION_KEYFRAME_SINGLE_REQUIRED,
   ANIMATION_LENGTH_EXCEEDS_MAX,
   ANIMATION_LENGTH_POSITIVE,
-  ANIMATION_UNSUPPORTED_FORMAT
+  ANIMATION_TRIGGER_KEYFRAME_SINGLE_REQUIRED,
+  ANIMATION_UNSUPPORTED_FORMAT,
+  KEYFRAME_TIME_INVALID,
+  KEYFRAME_VALUE_INVALID,
+  MODEL_BONE_NOT_FOUND,
+  TRIGGER_TIME_INVALID,
+  TRIGGER_VALUE_INVALID
 } from '../shared/messages';
+import { isRecord } from '../domain/guards';
 
 export interface AnimationServiceDeps {
   session: ProjectSession;
@@ -168,7 +180,13 @@ export class AnimationService {
     );
   }
 
-  deleteAnimationClip(payload: { id?: string; name?: string; ifRevision?: string }): UsecaseResult<{ id: string; name: string }> {
+  deleteAnimationClip(payload: {
+    id?: string;
+    name?: string;
+    ids?: string[];
+    names?: string[];
+    ifRevision?: string;
+  }): UsecaseResult<{ id: string; name: string; deleted: Array<{ id?: string; name: string }> }> {
     return withActiveAndRevision(
       this.ensureActive,
       this.ensureRevisionMatch,
@@ -177,17 +195,28 @@ export class AnimationService {
         const supportErr = this.ensureAnimationsSupported();
         if (supportErr) return fail(supportErr);
         const snapshot = this.getSnapshot();
-        const idBlankErr = ensureNonBlankString(payload.id, 'Animation clip id');
-        if (idBlankErr) return fail(idBlankErr);
-        const nameBlankErr = ensureNonBlankString(payload.name, 'Animation clip name');
-        if (nameBlankErr) return fail(nameBlankErr);
-        const resolved = resolveAnimationTarget(snapshot.animations, payload.id, payload.name);
-        if (resolved.error) return fail(resolved.error);
-        const target = resolved.target!;
-        const err = this.editor.deleteAnimation({ id: target.id ?? payload.id, name: target.name });
-        if (err) return fail(err);
-        this.session.removeAnimations([target.name]);
-        return ok({ id: target.id ?? payload.id ?? target.name, name: target.name });
+        const resolvedTargets = resolveTargets(
+          snapshot.animations,
+          payload,
+          { id: 'Animation clip id', name: 'Animation clip name' },
+          { message: ANIMATION_CLIP_ID_OR_NAME_REQUIRED },
+          {
+            required: { message: ANIMATION_CLIP_ID_OR_NAME_REQUIRED },
+            mismatch: { kind: 'Animation clip', plural: 'clips', message: buildIdNameMismatchMessage },
+            notFound: ANIMATION_CLIP_NOT_FOUND
+          }
+        );
+        if (!resolvedTargets.ok) return fail(resolvedTargets.error);
+        const targets = resolvedTargets.value;
+        for (const target of targets) {
+          const err = this.editor.deleteAnimation({ id: target.id ?? undefined, name: target.name });
+          if (err) return fail(err);
+        }
+        const nameSet = new Set(targets.map((target) => target.name));
+        this.session.removeAnimations(nameSet);
+        const deleted = targets.map((target) => ({ id: target.id ?? undefined, name: target.name }));
+        const primary = deleted[0] ?? { id: targets[0]?.id ?? undefined, name: targets[0]?.name ?? 'unknown' };
+        return ok({ id: primary.id ?? primary.name, name: primary.name, deleted });
       }
     );
   }
@@ -210,15 +239,28 @@ export class AnimationService {
         if (selectorErr) return fail(selectorErr);
         const boneBlankErr = ensureNonBlankString(payload.bone, 'Animation bone');
         if (boneBlankErr) return fail(boneBlankErr);
+        const boneExists = snapshot.bones.some((bone) => bone.name === payload.bone);
+        if (!boneExists) return fail({ code: 'invalid_payload', message: MODEL_BONE_NOT_FOUND(payload.bone) });
         const resolved = this.resolveClipTarget(snapshot, payload.clipId, payload.clip);
         if (!resolved.ok) return resolved;
         const anim = resolved.value;
+        if (payload.keys.length !== 1) {
+          return fail({ code: 'invalid_payload', message: ANIMATION_KEYFRAME_SINGLE_REQUIRED });
+        }
+        const key = payload.keys[0];
+        if (!Number.isFinite(key.time)) {
+          return fail({ code: 'invalid_payload', message: KEYFRAME_TIME_INVALID('set_keyframes') });
+        }
+        if (!Array.isArray(key.value) || key.value.length < 3 || key.value.some((v) => !Number.isFinite(v))) {
+          return fail({ code: 'invalid_payload', message: KEYFRAME_VALUE_INVALID('set_keyframes') });
+        }
         const err = this.editor.setKeyframes({
           clipId: anim.id,
           clip: anim.name,
           bone: payload.bone,
           channel: payload.channel,
-          keys: payload.keys
+          keys: payload.keys,
+          timePolicy: snapshot.animationTimePolicy
         });
         if (err) return fail(err);
         this.session.upsertAnimationChannel(anim.name, {
@@ -249,11 +291,27 @@ export class AnimationService {
         const resolved = this.resolveClipTarget(snapshot, payload.clipId, payload.clip);
         if (!resolved.ok) return resolved;
         const anim = resolved.value;
+        if (payload.keys.length !== 1) {
+          return fail({ code: 'invalid_payload', message: ANIMATION_TRIGGER_KEYFRAME_SINGLE_REQUIRED });
+        }
+        const key = payload.keys[0];
+        if (!Number.isFinite(key.time)) {
+          return fail({ code: 'invalid_payload', message: TRIGGER_TIME_INVALID('set_trigger_keyframes') });
+        }
+        const value = key.value;
+        const validValue =
+          typeof value === 'string' ||
+          (Array.isArray(value) && value.every((item) => typeof item === 'string')) ||
+          (isRecord(value) && this.isJsonSafe(value));
+        if (!validValue) {
+          return fail({ code: 'invalid_payload', message: TRIGGER_VALUE_INVALID('set_trigger_keyframes') });
+        }
         const err = this.editor.setTriggerKeyframes({
           clipId: anim.id,
           clip: anim.name,
           channel: payload.channel,
-          keys: payload.keys
+          keys: payload.keys,
+          timePolicy: snapshot.animationTimePolicy
         });
         if (err) return fail(err);
         this.session.upsertAnimationTrigger(anim.name, {
@@ -290,6 +348,20 @@ export class AnimationService {
     const clipBlankErr = ensureNonBlankString(clip, 'Animation clip name');
     if (clipBlankErr) return clipBlankErr;
     return null;
+  }
+
+  private isJsonSafe(value: unknown, seen: Set<object> = new Set()): boolean {
+    if (value === null) return true;
+    const valueType = typeof value;
+    if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') return Number.isFinite(value as number) || valueType !== 'number';
+    if (valueType !== 'object') return false;
+    if (seen.has(value as object)) return false;
+    seen.add(value as object);
+    if (Array.isArray(value)) {
+      return value.every((entry) => this.isJsonSafe(entry, seen));
+    }
+    const record = value as Record<string, unknown>;
+    return Object.keys(record).every((key) => this.isJsonSafe(record[key], seen));
   }
 }
 

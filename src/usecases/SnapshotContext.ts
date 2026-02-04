@@ -33,7 +33,10 @@ export class SnapshotContext implements SnapshotContextLike<ReturnType<ProjectSe
     if (!live) {
       return this.projectState.normalize(sessionSnapshot);
     }
-    const merged = policy === 'live' ? live : mergeSnapshots(sessionSnapshot, live);
+    const merged =
+      policy === 'live'
+        ? { ...live, animationTimePolicy: sessionSnapshot.animationTimePolicy }
+        : mergeSnapshots(sessionSnapshot, live);
     return this.projectState.normalize(merged);
   }
 

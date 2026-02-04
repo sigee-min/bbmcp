@@ -86,5 +86,5 @@ export const ensureRootBone = (bones: SessionState['bones'], cubes: SessionState
   if (!needsRoot) return;
   const hasRoot = bones.some((bone) => bone.name === 'root');
   if (hasRoot) return;
-  bones.unshift({ id: 'root', name: 'root', pivot: [0, 0, 0] });
+  bones.unshift({ name: 'root', pivot: [0, 0, 0] });
 };

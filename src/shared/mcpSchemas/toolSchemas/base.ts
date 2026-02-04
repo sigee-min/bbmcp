@@ -47,7 +47,7 @@ export const baseToolSchemas: Record<string, JsonSchema> = {
   preflight_texture: {
     type: 'object',
     description:
-      'Build a UV mapping table and compute uvUsageId. Call WITHOUT texture filters for a stable uvUsageId. Use this before apply_uv_spec/apply_texture_spec/generate_texture_preset.',
+      'Build a UV mapping table and compute uvUsageId. Call WITHOUT texture filters for a stable uvUsageId. Use this before generate_texture_preset or manual UV edits.',
     additionalProperties: false,
     properties: {
       textureId: { type: 'string', description: 'Optional: filter the report to one texture id.' },

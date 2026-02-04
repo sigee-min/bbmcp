@@ -9,18 +9,17 @@ Core rules:
 Workflow:
 - assign_texture
 - preflight_texture (uvUsageId)
-- apply_uv_spec (or set_face_uv)
+- set_face_uv
 - preflight_texture again
-- apply_texture_spec / generate_texture_preset
-- texture_pipeline.plan when UVs are crowded (auto-split, <=512, max 16 textures)
+- generate_texture_preset
+- auto_uv_atlas (apply=true) when UVs are crowded or invalid
 
 Notes:
-- preflight_texture computes uvUsageId; required by apply_uv_spec/apply_texture_spec/generate_texture_preset.
+- preflight_texture computes uvUsageId; required by generate_texture_preset.
 - validate reports uv_overlap/uv_scale_mismatch; mutation guards return invalid_state on overlap/scale/usage mismatch.
 - Small or non-square UV rects can distort stretch-mapped patterns; consider tile mapping or higher resolutions for detailed patterns.
 - If you see uv_scale_mismatch repeatedly, increase resolution (64+), reduce cube count, or allow split textures.
-- no_change indicates the rendered pixels match the existing texture; change ops or rename to force an update.
-- Automatic recovery may raise texture resolution to resolve uv_scale_mismatch.
+- auto_uv_atlas may raise texture resolution to resolve uv_scale_mismatch.
 - If you provide both cubeIds and cubeNames in targets, both must match. Use one for broader matching.
 
 See full spec in docs/texture-uv-spec.md.

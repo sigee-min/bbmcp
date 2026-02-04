@@ -3,7 +3,6 @@ import type {
   AnimationUpdate,
   BoneUpdate,
   CubeUpdate,
-  ProjectMeta,
   SessionState,
   TextureUpdate,
   TrackedAnimation,
@@ -13,6 +12,7 @@ import type {
   TrackedCube,
   TrackedTexture
 } from './types';
+import type { AnimationTimePolicy } from '../domain/animation/timePolicy';
 import { SessionStateStore } from './SessionStateStore';
 import { SessionMutators } from './SessionMutators';
 
@@ -38,6 +38,10 @@ export class ProjectSession {
 
   snapshot(): SessionState {
     return this.store.snapshot();
+  }
+
+  setAnimationTimePolicy(policy?: Partial<AnimationTimePolicy>) {
+    this.store.setAnimationTimePolicy(policy);
   }
 
   ensureActive(): ToolError | null {
@@ -98,9 +102,5 @@ export class ProjectSession {
 
   upsertAnimationTrigger(clip: string, trigger: TrackedAnimationTrigger) {
     this.mutators.upsertAnimationTrigger(clip, trigger);
-  }
-
-  updateMeta(meta: ProjectMeta) {
-    this.store.updateMeta(meta);
   }
 }

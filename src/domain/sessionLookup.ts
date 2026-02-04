@@ -17,18 +17,6 @@ export const resolveTargetByIdOrName = <T extends TargetNamed>(items: T[], id?: 
   return null;
 };
 
-export const resolveBoneTarget = (bones: SessionState['bones'], id?: string, name?: string) =>
-  resolveTargetByIdOrName(bones, id, name);
-
-export const resolveCubeTarget = (cubes: SessionState['cubes'], id?: string, name?: string) =>
-  resolveTargetByIdOrName(cubes, id, name);
-
-export const resolveTextureTarget = (textures: SessionState['textures'], id?: string, name?: string) =>
-  resolveTargetByIdOrName(textures, id, name);
-
-export const resolveAnimationTarget = (animations: SessionState['animations'], id?: string, name?: string) =>
-  resolveTargetByIdOrName(animations, id, name);
-
 export const resolveTargetLabel = (id?: string, name?: string): string => id ?? name ?? 'unknown';
 
 export const collectDescendantBones = (bones: SessionState['bones'], rootName: string): string[] => {

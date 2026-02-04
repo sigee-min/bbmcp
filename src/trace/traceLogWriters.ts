@@ -21,7 +21,7 @@ export class ResourceTraceLogWriter implements TraceLogWriter {
     this.store = store;
     this.uri = options?.uri ?? DEFAULT_URI;
     this.name = options?.name ?? 'bbmcp trace log';
-    this.description = options?.description ?? 'Trace log (ndjson) generated from tool/proxy calls.';
+    this.description = options?.description ?? 'Trace log (ndjson) generated from tool calls.';
     this.includeReport = options?.includeReport !== false;
     this.reportUri = options?.reportUri ?? DEFAULT_REPORT_URI;
   }

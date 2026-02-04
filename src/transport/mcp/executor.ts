@@ -1,8 +1,4 @@
 import { Dispatcher, ToolName, ToolPayloadMap, ToolResponse } from '../../types';
-import { ProxyRouter } from '../../proxy';
-import type { ProxyToolPayloadMap } from '../../proxy/types';
-import { ProxyTool } from '../../spec';
-import { PROXY_TOOL_NAMES } from '../../shared/toolConstants';
 import { normalizeToolResponse } from '../../shared/tooling/toolResponseGuard';
 import { decorateToolResponse } from './responseDecorators';
 
@@ -12,19 +8,12 @@ export interface ToolExecutor {
 
 export class LocalToolExecutor implements ToolExecutor {
   private readonly dispatcher: Dispatcher;
-  private readonly proxy: ProxyRouter;
 
-  constructor(dispatcher: Dispatcher, proxy: ProxyRouter) {
+  constructor(dispatcher: Dispatcher) {
     this.dispatcher = dispatcher;
-    this.proxy = proxy;
   }
 
   async callTool(name: string, args: unknown): Promise<ToolResponse<unknown>> {
-    if (isProxyTool(name)) {
-      const response = await this.proxy.handle(name, args as ProxyToolPayloadMap[ProxyTool]);
-      const decorated = decorateToolResponse(name, args, response);
-      return normalizeToolResponse(decorated, { source: 'mcp_executor', ensureReason: true });
-    }
     const toolName = name as ToolName;
     const response = this.dispatcher.handle(toolName, args as ToolPayloadMap[ToolName]);
     const decorated = decorateToolResponse(name, args, response);
@@ -34,10 +23,6 @@ export class LocalToolExecutor implements ToolExecutor {
     });
   }
 }
-
-const PROXY_TOOL_SET = new Set<string>(PROXY_TOOL_NAMES);
-
-const isProxyTool = (name: string): name is ProxyTool => PROXY_TOOL_SET.has(name);
 
 
 

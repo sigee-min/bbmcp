@@ -9,6 +9,8 @@ import type {
 import { errorMessage, type Logger } from '../../../logging';
 import { toolError } from '../../../shared/tooling/toolResponse';
 import type { AnimationClip } from '../../../types/blockbench';
+import { keyframeTimeBucket } from '../../../domain/animation/keyframes';
+import { normalizeAnimationChannel, normalizeTriggerChannel } from '../../../domain/animation/channels';
 import {
   ADAPTER_ANIMATION_API_UNAVAILABLE,
   ADAPTER_ANIMATOR_API_UNAVAILABLE,
@@ -34,6 +36,7 @@ type KeyframeLike = {
 
 type AnimatorLike = {
   createKeyframe?: (channel: string, time: number) => KeyframeLike | undefined;
+  keyframes?: unknown[];
 };
 
 type AnimatorConstructor = new (name: string, clip: AnimationClip) => AnimatorLike;
@@ -147,6 +150,11 @@ export const runSetKeyframes = (log: Logger, params: KeyframeCommand): ToolError
         animators[params.bone] = animator;
         clip.animators = animators;
         params.keys.forEach((k) => {
+          const matches = findExistingKeyframes(animator, params.channel, k.time, params.timePolicy);
+          if (matches.length > 0) {
+            matches.forEach((keyframe) => applyKeyframeValue(keyframe, k.value, k.interp));
+            return;
+          }
           const keyframe = animator.createKeyframe?.(params.channel, k.time);
           if (!keyframe) return;
           applyKeyframeValue(keyframe, k.value, k.interp);
@@ -177,6 +185,11 @@ export const runSetTriggerKeyframes = (log: Logger, params: TriggerKeyframeComma
     withUndo({ animations: true, keyframes: [] }, 'Set trigger keyframes', () => {
       const animator = resolveEffectAnimator(clip, AnimatorCtor);
       params.keys.forEach((k) => {
+        const matches = findExistingKeyframes(animator, params.channel, k.time, params.timePolicy);
+        if (matches.length > 0) {
+          matches.forEach((keyframe) => applyTriggerValue(keyframe, k.value));
+          return;
+        }
         const kf = animator?.createKeyframe?.(params.channel, k.time);
         if (!kf) return;
         applyTriggerValue(kf, k.value);
@@ -230,13 +243,57 @@ const resolveAnimator = (
   return new ctor(name, clip);
 };
 
+const readKeyframeTime = (keyframe: KeyframeLike): number => {
+  const raw = (keyframe as { time?: unknown; frame?: unknown }).time ?? (keyframe as { frame?: unknown }).frame;
+  const value = typeof raw === 'number' ? raw : Number(raw ?? 0);
+  return Number.isFinite(value) ? value : 0;
+};
+
+
+const findExistingKeyframes = (
+  animator: AnimatorLike | undefined,
+  channel: string,
+  time: number,
+  timePolicy?: KeyframeCommand['timePolicy']
+): KeyframeLike[] => {
+  if (!animator || !Array.isArray(animator.keyframes)) return [];
+  const targetTime = Number(time);
+  if (!Number.isFinite(targetTime)) return [];
+  const targetBucket = keyframeTimeBucket(targetTime, timePolicy);
+  const channelRaw = channel.toLowerCase();
+  const matches: KeyframeLike[] = [];
+  animator.keyframes.forEach((kf) => {
+    if (!kf || typeof kf !== 'object') return false;
+    const keyframe = kf as KeyframeLike;
+    const rawChannel = String(
+      (keyframe as { channel?: unknown; data_channel?: unknown; transform?: unknown }).channel ??
+        (keyframe as { data_channel?: unknown }).data_channel ??
+        (keyframe as { transform?: unknown }).transform ??
+        ''
+    ).toLowerCase();
+    const channelOk =
+      channelRaw === 'rot' || channelRaw === 'pos' || channelRaw === 'scale'
+        ? normalizeAnimationChannel(rawChannel) === channelRaw
+        : normalizeTriggerChannel(rawChannel) === channelRaw;
+    if (!channelOk) return;
+    const kfTime = readKeyframeTime(keyframe);
+    if (keyframeTimeBucket(kfTime, timePolicy) === targetBucket) {
+      matches.push(keyframe);
+    }
+  });
+  return matches;
+};
+
 const applyKeyframeValue = (keyframe: KeyframeLike, value: unknown, interp?: string) => {
+  const normalized = Array.isArray(value)
+    ? value.map((entry) => (typeof entry === 'number' && Number.isFinite(entry) ? entry : 0))
+    : value;
   if (keyframe.set) {
-    keyframe.set('data_points', value);
+    keyframe.set('data_points', normalized);
     if (interp) keyframe.set('interpolation', interp);
     return;
   }
-  keyframe.data_points = value;
+  keyframe.data_points = normalized;
   if (interp) keyframe.interpolation = interp;
 };
 

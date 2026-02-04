@@ -5,7 +5,6 @@ import { BlockbenchSimEngine } from '../../src/adapters/sim/BlockbenchSimEngine'
 import { ProjectSession } from '../../src/session';
 import { ToolService } from '../../src/usecases/ToolService';
 import { ToolDispatcherImpl } from '../../src/dispatcher';
-import { ProxyRouter } from '../../src/proxy';
 import { DEFAULT_LIMITS, noopLog } from './helpers';
 import {
   createExportPortStub,
@@ -15,7 +14,6 @@ import {
   createTextureRendererStub,
   createTmpStoreStub
 } from './fakes';
-import { createMockDom } from './helpers';
 
 export type SimHarnessProject = {
   format: FormatKind;
@@ -79,12 +77,6 @@ export const createBlockbenchSimHarness = (project: SimHarnessProject) => {
     logger: noopLog
   });
 
-  const dom = createMockDom();
-  const proxy = new ProxyRouter(service, dom, noopLog, DEFAULT_LIMITS, {
-    includeStateByDefault: false,
-    includeDiffByDefault: false
-  });
-
   const ensureRes = service.ensureProject({
     format: project.format,
     name: project.name ?? 'fixture',
@@ -102,6 +94,6 @@ export const createBlockbenchSimHarness = (project: SimHarnessProject) => {
     textures: project.textures ?? []
   });
 
-  return { engine, service, dispatcher, proxy };
+  return { engine, service, dispatcher };
 };
 

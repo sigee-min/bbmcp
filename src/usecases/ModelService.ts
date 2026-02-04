@@ -41,7 +41,7 @@ export class ModelService {
     name: string;
     parent?: string;
     parentId?: string;
-    pivot: [number, number, number];
+    pivot?: [number, number, number];
     rotation?: [number, number, number];
     scale?: [number, number, number];
     visibility?: boolean;
@@ -69,8 +69,16 @@ export class ModelService {
   deleteBone(payload: {
     id?: string;
     name?: string;
+    ids?: string[];
+    names?: string[];
     ifRevision?: string;
-  }): UsecaseResult<{ id: string; name: string; removedBones: number; removedCubes: number }> {
+  }): UsecaseResult<{
+    id: string;
+    name: string;
+    removedBones: number;
+    removedCubes: number;
+    deleted: Array<{ id?: string; name: string }>;
+  }> {
     return this.boneService.deleteBone(payload);
   }
 
@@ -114,7 +122,13 @@ export class ModelService {
     return this.cubeService.updateCube(payload);
   }
 
-  deleteCube(payload: { id?: string; name?: string; ifRevision?: string }): UsecaseResult<{ id: string; name: string }> {
+  deleteCube(payload: {
+    id?: string;
+    name?: string;
+    ids?: string[];
+    names?: string[];
+    ifRevision?: string;
+  }): UsecaseResult<{ id: string; name: string; deleted: Array<{ id?: string; name: string }> }> {
     return this.cubeService.deleteCube(payload);
   }
 }

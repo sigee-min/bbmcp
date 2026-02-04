@@ -16,7 +16,7 @@ export const GUIDE_RESOURCES: ResourceContent[] = [
     uri: 'bbmcp://guide/modeling-workflow',
     name: 'Modeling Workflow Guide',
     mimeType: 'text/markdown',
-    description: 'High-level model_pipeline workflow and ModelSpec basics.',
+    description: 'Low-level modeling workflow using add_bone/add_cube.',
     text: loadGuideMarkdown('modeling-workflow', GUIDE_FALLBACKS['modeling-workflow'])
   },
   {
@@ -25,6 +25,13 @@ export const GUIDE_RESOURCES: ResourceContent[] = [
     mimeType: 'text/markdown',
     description: 'Root-based bone hierarchy guidelines for animation-ready rigs.',
     text: loadGuideMarkdown('rigging', GUIDE_FALLBACKS.rigging)
+  },
+  {
+    uri: 'bbmcp://guide/animation-workflow',
+    name: 'Animation Workflow Guide',
+    mimeType: 'text/markdown',
+    description: 'Low-level animation workflow using clips + per-bone keyframes.',
+    text: loadGuideMarkdown('animation-workflow', GUIDE_FALLBACKS['animation-workflow'])
   },
   {
     uri: 'bbmcp://guide/texture-workflow',

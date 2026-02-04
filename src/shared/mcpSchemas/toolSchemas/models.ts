@@ -1,13 +1,10 @@
 import type { JsonSchema } from '../types';
-import { PREVIEW_MODES, PREVIEW_OUTPUTS } from '../../toolConstants';
-import { metaProps, mutationRevisionProp, numberArray, revisionProp, stateProps } from '../schemas/common';
-import { modelSpecSchema, modelStageSchema } from '../schemas/model';
-import { ensureProjectSchema } from '../schemas/project';
+import { metaProps, numberArray, revisionProp, stateProps } from '../schemas/common';
 
 export const modelToolSchemas: Record<string, JsonSchema> = {
   add_bone: {
     type: 'object',
-    required: ['name', 'pivot'],
+    required: ['name'],
     additionalProperties: false,
     properties: {
       id: { type: 'string' },
@@ -46,6 +43,8 @@ export const modelToolSchemas: Record<string, JsonSchema> = {
     properties: {
       id: { type: 'string' },
       name: { type: 'string' },
+      ids: { type: 'array', minItems: 1, items: { type: 'string' } },
+      names: { type: 'array', minItems: 1, items: { type: 'string' } },
       ifRevision: revisionProp,
       ...metaProps
     }
@@ -101,6 +100,8 @@ export const modelToolSchemas: Record<string, JsonSchema> = {
     properties: {
       id: { type: 'string' },
       name: { type: 'string' },
+      ids: { type: 'array', minItems: 1, items: { type: 'string' } },
+      names: { type: 'array', minItems: 1, items: { type: 'string' } },
       ifRevision: revisionProp,
       ...metaProps
     }
@@ -120,68 +121,6 @@ export const modelToolSchemas: Record<string, JsonSchema> = {
     additionalProperties: false,
     properties: {
       ...stateProps
-    }
-  },
-  model_pipeline: {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      model: modelSpecSchema,
-      stages: {
-        type: 'array',
-        minItems: 1,
-        items: modelStageSchema
-      },
-      stagePreview: {
-        type: 'boolean',
-        description: 'If true, run preview after each stage when stages are used (defaults to true when preview is set).'
-      },
-      stageValidate: {
-        type: 'boolean',
-        description: 'If true, run validate after each stage when stages are used (defaults to true when validate is set).'
-      },
-      mode: {
-        type: 'string',
-        enum: ['create', 'merge', 'replace', 'patch'],
-        description:
-          'create: fail if exists; merge: add/update without deleting; replace: match desired state; patch: update only if target exists.'
-      },
-      ensureProject: {
-        ...ensureProjectSchema({ includeFormat: true })
-      },
-      deleteOrphans: {
-        type: 'boolean',
-        description: 'Delete bones/cubes not in the spec. Defaults to true when mode=replace.'
-      },
-      planOnly: { type: 'boolean', description: 'Compute and return the plan without applying changes.' },
-      preview: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          mode: { enum: PREVIEW_MODES },
-          angle: numberArray(2, 3),
-          clip: { type: 'string' },
-          timeSeconds: { type: 'number' },
-          durationSeconds: { type: 'number' },
-          fps: { type: 'number' },
-          output: { enum: PREVIEW_OUTPUTS },
-          saveToTmp: { type: 'boolean' },
-          tmpName: { type: 'string' },
-          tmpPrefix: { type: 'string' }
-        }
-      },
-      validate: { type: 'boolean' },
-      export: {
-        type: 'object',
-        required: ['format', 'destPath'],
-        additionalProperties: false,
-        properties: {
-          format: { enum: ['java_block_item_json', 'gecko_geo_anim', 'animated_java'] },
-          destPath: { type: 'string' }
-        }
-      },
-      ifRevision: mutationRevisionProp,
-      ...metaProps
     }
   }
 };

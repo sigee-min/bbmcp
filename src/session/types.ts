@@ -1,7 +1,6 @@
 import type { FormatKind } from '../types';
-import type { CubeFaceDirection } from '../domain/model';
-import type { UvPaintMapping, UvPaintScope } from '../domain/uv/paintSpec';
 import type { TextureFrameOrderType, TextureMeta, TexturePbrChannel, TextureRenderMode, TextureRenderSides } from '../types/texture';
+import type { AnimationTimePolicy } from '../domain/animation/timePolicy';
 
 export interface TrackedBone {
   id?: string;
@@ -130,34 +129,17 @@ export type AnimationUpdate = {
   fps?: number;
 };
 
-export type FacePaintIntent = {
-  material: string;
-  palette?: string[];
-  seed?: number;
-  cubeIds?: string[];
-  cubeNames?: string[];
-  faces?: CubeFaceDirection[];
-  scope?: UvPaintScope;
-  mapping?: UvPaintMapping;
-  padding?: number;
-  anchor?: [number, number];
-};
-
-export type ProjectMeta = {
-  facePaint?: FacePaintIntent[];
-};
-
 export interface SessionState {
   id: string | null;
   format: FormatKind | null;
   formatId?: string | null;
   name: string | null;
   dirty?: boolean;
-  meta?: ProjectMeta;
   bones: TrackedBone[];
   cubes: TrackedCube[];
   textures: TrackedTexture[];
   animations: TrackedAnimation[];
   animationsStatus?: 'available' | 'unavailable';
+  animationTimePolicy: AnimationTimePolicy;
 }
 

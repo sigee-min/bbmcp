@@ -5,7 +5,7 @@ import {
   buildTextureContent,
   buildTextureStructured
 } from './content';
-import { buildEnsureProjectNextActions, buildPreflightNextActions } from '../../shared/nextActionPolicies';
+import { buildEnsureProjectNextActions, buildPreflightNextActions, buildSetFaceUvNextActions } from '../../shared/nextActionPolicies';
 import { askUser, callTool, readResource, refTool, refUser } from './nextActions';
 
 const nextActionFactories = { askUser, callTool, readResource, refTool, refUser };
@@ -42,6 +42,14 @@ export const attachPreflightNextActions = (
   return nextActions ? { ...response, nextActions } : response;
 };
 
+export const attachSetFaceUvNextActions = (
+  response: ToolResponse<ToolResultMap['set_face_uv']>
+): ToolResponse<ToolResultMap['set_face_uv']> => {
+  if (!response.ok) return response;
+  const nextActions = buildSetFaceUvNextActions(response, nextActionFactories);
+  return nextActions ? { ...response, nextActions } : response;
+};
+
 export const attachEnsureProjectDialogNextActions = (
   payload: ToolPayloadMap['ensure_project'],
   response: ToolResponse<ToolResultMap['ensure_project']>
@@ -64,6 +72,9 @@ export const decorateToolResponse = (
   }
   if (toolName === 'preflight_texture') {
     return attachPreflightNextActions(response as ToolResponse<ToolResultMap['preflight_texture']>);
+  }
+  if (toolName === 'set_face_uv') {
+    return attachSetFaceUvNextActions(response as ToolResponse<ToolResultMap['set_face_uv']>);
   }
   if (toolName === 'ensure_project') {
     return attachEnsureProjectDialogNextActions(

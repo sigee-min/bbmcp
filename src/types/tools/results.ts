@@ -11,18 +11,6 @@ export interface EnsureProjectResult {
   project: { id: string; format: FormatKind; name: string | null; formatId?: string | null };
 }
 
-export interface BlockPipelineResult {
-  name: string;
-  namespace: string;
-  variants: string[];
-  resources?: Array<{ uri: string; name: string; kind: string; mimeType?: string }>;
-  assets?: {
-    blockstates?: Record<string, unknown>;
-    models?: Record<string, unknown>;
-    items?: Record<string, unknown>;
-  };
-}
-
 export interface ReadTextureResult {
   texture: {
     id?: string;
@@ -141,6 +129,28 @@ export interface ValidateResult {
   findings: ValidateFinding[];
 }
 
+export interface AnimationClipResult {
+  id: string;
+  name: string;
+}
+
+export interface DeletedTarget {
+  id?: string;
+  name: string;
+}
+
+export interface AnimationKeyframeResult {
+  clip: string;
+  clipId?: string;
+  bone: string;
+}
+
+export interface AnimationTriggerResult {
+  clip: string;
+  clipId?: string;
+  channel: string;
+}
+
 export interface ToolResultMap {
   list_capabilities: Capabilities;
   get_project_state: GetProjectStateResult;
@@ -152,16 +162,26 @@ export interface ToolResultMap {
   set_project_texture_resolution: WithState<SetProjectTextureResolutionResult>;
   preflight_texture: PreflightTextureResult;
   ensure_project: WithState<EnsureProjectResult>;
-  block_pipeline: WithState<BlockPipelineResult>;
   delete_texture: WithState<{ id: string; name: string }>;
   assign_texture: WithState<{ textureId?: string; textureName: string; cubeCount: number; faces?: CubeFaceDirection[] }>;
-  set_face_uv: WithState<{ cubeId?: string; cubeName: string; faces: CubeFaceDirection[] }>;
+  set_face_uv: WithState<{
+    cubeId?: string;
+    cubeName: string;
+    faces: CubeFaceDirection[];
+    warnings?: string[];
+    warningCodes?: string[];
+  }>;
   add_bone: WithState<{ id: string; name: string }>;
   update_bone: WithState<{ id: string; name: string }>;
-  delete_bone: WithState<{ id: string; name: string; removedBones: number; removedCubes: number }>;
+  delete_bone: WithState<{ id: string; name: string; removedBones: number; removedCubes: number; deleted: DeletedTarget[] }>;
   add_cube: WithState<{ id: string; name: string }>;
   update_cube: WithState<{ id: string; name: string }>;
-  delete_cube: WithState<{ id: string; name: string }>;
+  delete_cube: WithState<{ id: string; name: string; deleted: DeletedTarget[] }>;
+  create_animation_clip: WithState<AnimationClipResult>;
+  update_animation_clip: WithState<AnimationClipResult>;
+  delete_animation_clip: WithState<AnimationClipResult & { deleted: DeletedTarget[] }>;
+  set_keyframes: WithState<AnimationKeyframeResult>;
+  set_trigger_keyframes: WithState<AnimationTriggerResult>;
   export: WithState<ExportResult>;
   render_preview: WithState<RenderPreviewResult>;
   validate: WithState<ValidateResult>;

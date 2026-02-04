@@ -1,3 +1,4 @@
+import type { AnimationTimePolicy } from '../domain/animation/timePolicy';
 import type { ExportPolicy } from '../usecases/policies';
 import type { FormatOverrides } from '../domain/formats';
 import { DEFAULT_UV_POLICY } from '../domain/uv/policy';
@@ -15,7 +16,10 @@ export const createDefaultPolicies = (formatOverrides: FormatOverrides) => ({
   autoIncludeDiff: false,
   requireRevision: true,
   autoRetryRevision: true,
-  exposeLowLevelTools: false
+  animationTimePolicy: {
+    timeEpsilon: 1e-9,
+    triggerDedupeByValue: true
+  } satisfies AnimationTimePolicy
 });
 
 export const createTraceLogDefaults = () => ({

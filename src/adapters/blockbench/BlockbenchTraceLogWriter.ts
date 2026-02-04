@@ -71,7 +71,7 @@ const resolveTraceLogPath = (
   if (!savePath) return null;
   const normalized = savePath.replace(/\\/g, '/');
   const dir = normalized.includes('/') ? normalized.slice(0, normalized.lastIndexOf('/')) : '';
-  if (!dir) return fileName;
+  if (!dir) return null;
   return `${dir}/${fileName}`;
 };
 

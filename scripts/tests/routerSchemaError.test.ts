@@ -20,11 +20,12 @@ registerAsync(
       id: 1,
       method: 'tools/call',
       params: {
-        name: 'model_pipeline',
+        name: 'ensure_project',
         arguments: {
-          ensureProject: { name: 'flower_pot', onMissing: 'create', onMismatch: 'create', format: 'bedrock' },
-          mode: 'replace',
-          model: { cube: { id: 'cube_base', name: 'base', from: [0, 0, 0], to: [1, 1, 1] } }
+          name: 'flower_pot',
+          onMissing: 'create',
+          onMismatch: 'create',
+          format: 'bedrock'
         }
       }
     };
@@ -45,7 +46,7 @@ registerAsync(
     assert.equal(Boolean(result?.isError), true);
     assert.equal(result?.structuredContent?.code, 'invalid_payload');
     assert.equal(result?.structuredContent?.details?.reason, 'schema_validation');
-    assert.equal(result?.structuredContent?.details?.path, '$.ensureProject.format');
+    assert.equal(result?.structuredContent?.details?.path, '$.format');
     assert.deepEqual(result?.structuredContent?.details?.candidates, ['Java Block/Item', 'geckolib', 'animated_java']);
   })()
 );

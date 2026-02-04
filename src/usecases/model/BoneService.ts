@@ -9,6 +9,8 @@ import {
   MODEL_BONE_DESCENDANT_PARENT,
   MODEL_BONE_EXISTS,
   MODEL_BONE_ID_EXISTS,
+  MODEL_BONE_ID_OR_NAME_REQUIRED,
+  MODEL_BONE_NOT_FOUND,
   MODEL_BONE_NAME_REQUIRED,
   MODEL_BONE_NAME_REQUIRED_FIX,
   MODEL_BONE_SELF_PARENT,
@@ -16,6 +18,8 @@ import {
 } from '../../shared/messages';
 import { ensureNonBlankFields } from './validators';
 import { ensureIdAvailable, ensureNameAvailable, ensureRenameAvailable, resolveEntityId } from '../crudChecks';
+import { resolveTargets } from '../targetSelectors';
+import { buildIdNameMismatchMessage } from '../../shared/targetMessages';
 
 export interface BoneServiceDeps {
   session: ProjectSession;
@@ -45,7 +49,7 @@ export class BoneService {
     name: string;
     parent?: string;
     parentId?: string;
-    pivot: [number, number, number];
+    pivot?: [number, number, number];
     rotation?: [number, number, number];
     scale?: [number, number, number];
     visibility?: boolean;
@@ -82,11 +86,12 @@ export class BoneService {
         const id = resolveEntityId(undefined, payload.id, 'bone');
         const idErr = ensureIdAvailable(snapshot.bones, id, MODEL_BONE_ID_EXISTS);
         if (idErr) return fail(idErr);
+        const pivot = payload.pivot ?? [0, 0, 0];
         const err = this.editor.addBone({
           id,
           name: payload.name,
           parent,
-          pivot: payload.pivot,
+          pivot,
           rotation: payload.rotation,
           scale: payload.scale,
           visibility: payload.visibility
@@ -96,7 +101,7 @@ export class BoneService {
           id,
           name: payload.name,
           parent,
-          pivot: payload.pivot,
+          pivot,
           rotation: payload.rotation,
           scale: payload.scale,
           visibility: payload.visibility
@@ -177,32 +182,75 @@ export class BoneService {
   deleteBone(payload: {
     id?: string;
     name?: string;
+    ids?: string[];
+    names?: string[];
     ifRevision?: string;
-  }): UsecaseResult<{ id: string; name: string; removedBones: number; removedCubes: number }> {
+  }): UsecaseResult<{
+    id: string;
+    name: string;
+    removedBones: number;
+    removedCubes: number;
+    deleted: Array<{ id?: string; name: string }>;
+  }> {
     return withActiveAndRevision(
       this.ensureActive,
       this.ensureRevisionMatch,
       payload.ifRevision,
       () => {
         const snapshot = this.getSnapshot();
-        const blankErr = ensureNonBlankFields([
-          [payload.id, 'Bone id'],
-          [payload.name, 'Bone name']
-        ]);
-        if (blankErr) return fail(blankErr);
-        const resolved = resolveBoneTarget(snapshot.bones, payload.id, payload.name);
-        if (resolved.error) return fail(resolved.error);
-        const target = resolved.target!;
-        const descendants = collectDescendantBones(snapshot.bones, target.name);
-        const boneSet = new Set<string>([target.name, ...descendants]);
-        const err = this.editor.deleteBone({ id: target.id ?? payload.id, name: target.name });
-        if (err) return fail(err);
-        const removed = this.session.removeBones(boneSet);
+        const resolvedTargets = resolveTargets(
+          snapshot.bones,
+          payload,
+          { id: 'Bone id', name: 'Bone name' },
+          { message: MODEL_BONE_ID_OR_NAME_REQUIRED },
+          {
+            required: { message: MODEL_BONE_ID_OR_NAME_REQUIRED },
+            mismatch: { kind: 'Bone', plural: 'bones', message: buildIdNameMismatchMessage },
+            notFound: MODEL_BONE_NOT_FOUND
+          }
+        );
+        if (!resolvedTargets.ok) return fail(resolvedTargets.error);
+        const targets = resolvedTargets.value;
+        const parentByName = new Map(snapshot.bones.map((bone) => [bone.name, bone.parent ?? null]));
+        const targetNameSet = new Set(targets.map((target) => target.name));
+        const topLevelTargets = targets.filter((target) => {
+          let parent = parentByName.get(target.name);
+          const visited = new Set<string>([target.name]);
+          while (parent) {
+            if (visited.has(parent)) return true;
+            visited.add(parent);
+            if (targetNameSet.has(parent)) return false;
+            parent = parentByName.get(parent);
+          }
+          return true;
+        });
+        const boneByName = new Map(snapshot.bones.map((bone) => [bone.name, bone]));
+        const removedNameSet = new Set<string>();
+        const deleted: Array<{ id?: string; name: string }> = [];
+        for (const target of topLevelTargets) {
+          const descendants = collectDescendantBones(snapshot.bones, target.name);
+          const chain = [target.name, ...descendants];
+          for (const name of chain) {
+            if (removedNameSet.has(name)) continue;
+            removedNameSet.add(name);
+            const bone = boneByName.get(name);
+            deleted.push({ id: bone?.id ?? undefined, name });
+          }
+        }
+        for (const target of topLevelTargets) {
+          const err = this.editor.deleteBone({ id: target.id ?? undefined, name: target.name });
+          if (err) return fail(err);
+        }
+        const removed = this.session.removeBones(removedNameSet);
+        const removedBones = removed.removedBones;
+        const removedCubes = removed.removedCubes;
+        const primary = deleted[0] ?? { id: targets[0]?.id ?? undefined, name: targets[0]?.name ?? 'unknown' };
         return ok({
-          id: target.id ?? payload.id ?? target.name,
-          name: target.name,
-          removedBones: removed.removedBones,
-          removedCubes: removed.removedCubes
+          id: primary.id ?? primary.name,
+          name: primary.name,
+          removedBones,
+          removedCubes,
+          deleted
         });
       }
     );

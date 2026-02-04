@@ -1,4 +1,5 @@
 import { FormatKind, RenderPreviewPayload, RenderPreviewResult, ToolError } from '../types';
+import type { AnimationTimePolicy } from '../domain/animation/timePolicy';
 import type { CubeFaceDirection, FaceUvMap } from '../domain/model';
 import type {
   TextureUsageResult,
@@ -197,6 +198,7 @@ export type KeyframeCommand = {
   bone: string;
   channel: 'rot' | 'pos' | 'scale';
   keys: { time: number; value: Vec3; interp?: 'linear' | 'step' | 'catmullrom' }[];
+  timePolicy?: AnimationTimePolicy;
 };
 
 export type TriggerChannel = 'sound' | 'particle' | 'timeline';
@@ -206,6 +208,7 @@ export type TriggerKeyframeCommand = {
   clipId?: string;
   channel: TriggerChannel;
   keys: { time: number; value: string | string[] | Record<string, unknown> }[];
+  timePolicy?: AnimationTimePolicy;
 };
 
 export interface EditorPort {

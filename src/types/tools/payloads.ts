@@ -5,7 +5,6 @@ import {
   IfRevisionOption,
   ProjectStateDetail
 } from '../shared';
-import { BlockPipelineMode, BlockPipelineOnConflict, BlockPipelineTextures, BlockVariant } from '../blockPipeline';
 import type { UvPaintSpec } from '../../domain/uv/paintSpec';
 import type { CubeFaceDirection, FaceUvMap } from '../../domain/model';
 import type {
@@ -27,17 +26,6 @@ export interface EnsureProjectPayload extends IncludeStateOption, IncludeDiffOpt
   confirmDiscard?: boolean;
   force?: boolean;
   dialog?: Record<string, unknown>;
-}
-
-export interface BlockPipelinePayload {
-  name: string;
-  texture: string;
-  namespace?: string;
-  variants?: BlockVariant[];
-  textures?: BlockPipelineTextures;
-  onConflict?: BlockPipelineOnConflict;
-  mode?: BlockPipelineMode;
-  ifRevision?: string;
 }
 
 export interface GenerateTexturePresetPayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
@@ -121,7 +109,7 @@ export interface AddBonePayload extends IncludeStateOption, IncludeDiffOption, I
   name: string;
   parent?: string;
   parentId?: string;
-  pivot: [number, number, number];
+  pivot?: [number, number, number];
   rotation?: [number, number, number];
   scale?: [number, number, number];
   visibility?: boolean;
@@ -143,6 +131,8 @@ export interface UpdateBonePayload extends IncludeStateOption, IncludeDiffOption
 export interface DeleteBonePayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
   id?: string;
   name?: string;
+  ids?: string[];
+  names?: string[];
 }
 
 export interface AddCubePayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
@@ -182,6 +172,47 @@ export interface UpdateCubePayload extends IncludeStateOption, IncludeDiffOption
 export interface DeleteCubePayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
   id?: string;
   name?: string;
+  ids?: string[];
+  names?: string[];
+}
+
+export interface CreateAnimationClipPayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
+  id?: string;
+  name: string;
+  length: number;
+  loop: boolean;
+  fps: number;
+}
+
+export interface UpdateAnimationClipPayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
+  id?: string;
+  name?: string;
+  newName?: string;
+  length?: number;
+  loop?: boolean;
+  fps?: number;
+}
+
+export interface DeleteAnimationClipPayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
+  id?: string;
+  name?: string;
+  ids?: string[];
+  names?: string[];
+}
+
+export interface SetKeyframesPayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
+  clipId?: string;
+  clip: string;
+  bone: string;
+  channel: 'rot' | 'pos' | 'scale';
+  keys: [{ time: number; value: [number, number, number]; interp?: 'linear' | 'step' | 'catmullrom' }];
+}
+
+export interface SetTriggerKeyframesPayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
+  clipId?: string;
+  clip: string;
+  channel: 'sound' | 'particle' | 'timeline';
+  keys: [{ time: number; value: string | string[] | Record<string, unknown> }];
 }
 
 export interface ExportPayload extends IncludeStateOption, IfRevisionOption {

@@ -18,6 +18,8 @@ export const ID_NAME_MISMATCH_MESSAGE = (
   id: string,
   name: string
 ) => `${kind} ${idLabel} and ${nameLabel} refer to different ${plural} (${id}, ${name}).`;
+export const TARGET_NAME_AMBIGUOUS = (kind: string, name: string) =>
+  `Multiple ${kind} entries named: ${name}. Use id to disambiguate.`;
 
 export const TOOL_RESPONSE_MALFORMED = 'malformed tool response';
 export const TOOL_ERROR_GENERIC = 'tool error';
@@ -41,7 +43,6 @@ export const REVISION_REQUIRED_FIX = 'Call get_project_state and retry with ifRe
 export const REVISION_MISMATCH_MESSAGE = 'Project revision mismatch. Refresh project state before retrying.';
 export const REVISION_MISMATCH_FIX = 'Call get_project_state and retry with the latest revision.';
 
-export const PROXY_TOOL_UNKNOWN = (tool: string) => `Unknown proxy tool ${tool}`;
 export const PROXY_FORMAT_NOT_IMPLEMENTED = (format: string) => `Format not implemented: ${format}`;
 
 

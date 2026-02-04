@@ -13,6 +13,7 @@ import {
   getProjectName,
   guessFormatKind
 } from './snapshot/projectMeta';
+import { resolveAnimationTimePolicy } from '../../domain/animation/timePolicy';
 
 const readGlobals = (): BlockbenchGlobals => readBlockbenchGlobals();
 
@@ -79,7 +80,8 @@ export class BlockbenchSnapshot implements SnapshotPort {
         cubes,
         textures,
         animations,
-        animationsStatus: animState.status
+        animationsStatus: animState.status,
+        animationTimePolicy: resolveAnimationTimePolicy()
       };
     } catch (err) {
       const message = errorMessage(err, 'snapshot read failed');

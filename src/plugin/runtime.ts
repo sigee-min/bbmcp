@@ -7,14 +7,10 @@ import {
   TOOL_SCHEMA_VERSION
 } from '../config';
 import { Capabilities, Dispatcher } from '../types';
-import { ProxyRouter } from '../proxy';
 import { ConsoleLogger, errorMessage, LogLevel } from '../logging';
-import { ProxyTool } from '../spec';
-import type { ProxyToolPayloadMap } from '../proxy/types';
 import type { ExportPolicy } from '../usecases/policies';
 import { FormatOverrides } from '../domain/formats';
-import { buildToolRegistry } from '../transport/mcp/tools';
-import { BLOCK_PIPELINE_RESOURCE_TEMPLATES } from '../domain/blockPipeline';
+import { DEFAULT_TOOL_REGISTRY } from '../transport/mcp/tools';
 import { GUIDE_RESOURCE_TEMPLATES, GUIDE_RESOURCES } from '../shared/resources/guides';
 import { InMemoryResourceStore } from '../adapters/resources/resourceStore';
 import { readGlobals } from '../adapters/blockbench/blockbenchUtils';
@@ -34,17 +30,13 @@ import { PLUGIN_LOG_LOADING, PLUGIN_LOG_PREVIOUS_CLEANUP_FAILED, PLUGIN_UI_LOADE
 
 type BbmcpBridge = {
   invoke: Dispatcher['handle'];
-  invokeProxy: (tool: ProxyTool, payload: unknown) => unknown;
   capabilities: Capabilities;
   serverConfig: () => EndpointConfig;
   settings: () => EndpointConfig;
 };
 
 const formatOverrides: FormatOverrides = {};
-const resourceStore = new InMemoryResourceStore([
-  ...BLOCK_PIPELINE_RESOURCE_TEMPLATES,
-  ...GUIDE_RESOURCE_TEMPLATES
-]);
+const resourceStore = new InMemoryResourceStore([...GUIDE_RESOURCE_TEMPLATES]);
 GUIDE_RESOURCES.forEach((resource) => resourceStore.put(resource));
 const policies = createDefaultPolicies(formatOverrides) as {
   formatOverrides: FormatOverrides;
@@ -57,7 +49,6 @@ const policies = createDefaultPolicies(formatOverrides) as {
   autoIncludeDiff: boolean;
   requireRevision: boolean;
   autoRetryRevision: boolean;
-  exposeLowLevelTools: boolean;
 };
 
 let logLevel: LogLevel = 'info';
@@ -72,12 +63,10 @@ let endpointConfig: EndpointConfig = {
 
 let serverState: RuntimeServerState = { sidecar: null, inlineServerStop: null };
 let globalDispatcher: Dispatcher | null = null;
-let globalProxy: ProxyRouter | null = null;
-let globalCapabilities: Capabilities | null = null;
 let globalTraceRecorder: TraceRecorder | null = null;
 let globalTraceLogWriter: TraceLogWriter | null = null;
 let globalTraceLogFlushScheduler: TraceLogFlushScheduler | null = null;
-const toolRegistry = buildToolRegistry({ includeLowLevel: false });
+const toolRegistry = DEFAULT_TOOL_REGISTRY;
 
 const cleanupRuntime = () => {
   if (globalTraceLogFlushScheduler) {
@@ -104,7 +93,6 @@ const cleanupRuntime = () => {
     serverState.sidecar = null;
   }
   globalDispatcher = null;
-  globalProxy = null;
   globalTraceRecorder = null;
   globalTraceLogWriter = null;
   globalTraceLogFlushScheduler = null;
@@ -132,7 +120,6 @@ const restartServerWithState = () => {
   serverState = restartServer({
     endpointConfig,
     dispatcher: globalDispatcher,
-    proxy: globalProxy,
     logLevel,
     resourceStore,
     toolRegistry,
@@ -164,15 +151,16 @@ export const registerPlugin = () => {
 
 bbmcp exposes a clean MCP-facing tool surface for AI/agents:
 
-- High-level pipelines: model_pipeline, texture_pipeline, entity_pipeline, block_pipeline.
-- Low-level tools are not exposed in automation mode.
+- Modeling is low-level only: add_bone/add_cube (one item per call).
+- UV + texture flow is explicit: assign_texture -> preflight_texture -> set_face_uv (as needed) -> generate_texture_preset.
+- Deterministic low-level tools only; no high-level pipelines.
   - Formats: Java Block/Item enabled by default; GeckoLib/Animated Java gated by capability flags.
-- MCP endpoint: set in Settings (bbmcp: Server) or read from .bbmcp/endpoint.json or BBMCP_HOST/PORT/PATH env vars (default 0.0.0.0:8787/mcp).
+- MCP endpoint: set in Settings (bbmcp: Server) or read from user/project .bbmcp/endpoint.json, or BBMCP_HOST/PORT/PATH env vars (default 0.0.0.0:8787/mcp).
 - Server starts automatically and restarts on endpoint changes.
 
 Recommended flow:
 1) Configure endpoint via Settings or .bbmcp/endpoint.json when needed.
-2) Use \`bbmcp.invokeProxy\` with sanitized specs (model/anim).
+  2) Use \`bbmcp.invoke\` with low-level tools (model/texture/animation).
 3) Export, render preview, and run validate to catch issues early.
 
 Notes:
@@ -217,16 +205,12 @@ Notes:
         session,
         capabilities,
         dispatcher,
-        proxy,
         formats,
         traceRecorder,
         traceLogFileWriter,
         traceLogFlushScheduler
       } = runtime;
-      globalCapabilities = capabilities;
-      globalCapabilities.toolRegistry = { hash: toolRegistry.hash, count: toolRegistry.count };
       globalDispatcher = dispatcher;
-      globalProxy = proxy;
       globalTraceRecorder = traceRecorder;
       globalTraceLogWriter = traceLogFileWriter;
       globalTraceLogFlushScheduler = traceLogFlushScheduler;
@@ -242,8 +226,6 @@ Notes:
 
       exposeBridgeWithVersion({
         invoke: dispatcher.handle.bind(dispatcher),
-        invokeProxy: (tool: ProxyTool, payload: unknown) =>
-          proxy.handle(tool, payload as ProxyToolPayloadMap[ProxyTool]),
         capabilities,
         serverConfig: () => ({ ...endpointConfig }),
         settings: () => ({ ...endpointConfig })
@@ -259,6 +241,9 @@ Notes:
     }
   });
 };
+
+
+
 
 
 

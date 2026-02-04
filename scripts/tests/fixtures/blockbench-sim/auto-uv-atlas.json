@@ -18,18 +18,11 @@
       "expect": [{ "path": "ok", "equals": true }]
     },
     {
-      "op": "apply_texture_spec",
-      "payload": {
-        "uvUsageId": "stale",
-        "textures": [
-          { "mode": "update", "targetName": "tex", "width": 16, "height": 16, "background": "#222222" }
-        ]
-      },
+      "op": "auto_uv_atlas",
+      "payload": { "apply": true },
       "expect": [
         { "path": "ok", "equals": true },
-        { "path": "data.recovery.method", "equals": "auto_uv_atlas" },
-        { "path": "data.recovery.reason", "equals": "uv_missing" },
-        { "path": "data.uvUsageId", "defined": true }
+        { "path": "data.applied", "equals": true }
       ]
     }
   ]

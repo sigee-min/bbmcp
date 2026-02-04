@@ -86,7 +86,7 @@ const appendStep = (store: TraceLogStore, seq: number, op: string) =>
       diffDetail: 'summary',
       detailRules: [
         {
-          ops: ['texture_pipeline'],
+          ops: ['preflight_texture'],
           includeUsage: true,
           stateDetail: 'full',
           diffDetail: 'full'
@@ -95,13 +95,13 @@ const appendStep = (store: TraceLogStore, seq: number, op: string) =>
     }
   );
 
-  recorder.record('proxy', 'texture_pipeline', {}, { ok: true, data: { applied: true } });
-  recorder.record('tool', 'get_project_state', { detail: 'summary' }, { ok: true, data: { ok: true } });
+  recorder.record('preflight_texture', {}, { ok: true, data: { ok: true } });
+  recorder.record('get_project_state', { detail: 'summary' }, { ok: true, data: { ok: true } });
 
   const parsed = parseTraceLogText(store.getText());
   assert.equal(parsed.ok, true);
   if (parsed.ok) {
-    const detailed = parsed.records.find((record) => record.kind === 'step' && record.op === 'texture_pipeline');
+    const detailed = parsed.records.find((record) => record.kind === 'step' && record.op === 'preflight_texture');
     const summary = parsed.records.find((record) => record.kind === 'step' && record.op === 'get_project_state');
     assert.ok(detailed && detailed.kind === 'step');
     assert.ok(summary && summary.kind === 'step');

@@ -6,7 +6,8 @@ import type {
   AddCubePayload,
   AssignTexturePayload,
   AutoUvAtlasPayload,
-  BlockPipelinePayload,
+  CreateAnimationClipPayload,
+  DeleteAnimationClipPayload,
   DeleteBonePayload,
   DeleteCubePayload,
   DeleteTexturePayload,
@@ -18,10 +19,13 @@ import type {
   PreflightTexturePayload,
   ReadTexturePayload,
   ReloadPluginsPayload,
+  SetKeyframesPayload,
   SetFaceUvPayload,
   SetProjectTextureResolutionPayload,
+  SetTriggerKeyframesPayload,
   UpdateBonePayload,
   UpdateCubePayload,
+  UpdateAnimationClipPayload,
   ValidatePayload
 } from './tools/payloads';
 import type { ToolResultMap } from './tools/results';
@@ -35,7 +39,8 @@ export type {
   AddCubePayload,
   AssignTexturePayload,
   AutoUvAtlasPayload,
-  BlockPipelinePayload,
+  CreateAnimationClipPayload,
+  DeleteAnimationClipPayload,
   DeleteBonePayload,
   DeleteCubePayload,
   DeleteTexturePayload,
@@ -48,16 +53,18 @@ export type {
   PreflightTexturePayload,
   ReadTexturePayload,
   ReloadPluginsPayload,
+  SetKeyframesPayload,
   SetFaceUvPayload,
   SetProjectTextureResolutionPayload,
+  SetTriggerKeyframesPayload,
   UpdateBonePayload,
   UpdateCubePayload,
+  UpdateAnimationClipPayload,
   ValidatePayload
 } from './tools/payloads';
 
 export type {
   AutoUvAtlasResult,
-  BlockPipelineResult,
   EnsureProjectResult,
   ExportResult,
   ExportTraceLogResult,
@@ -85,7 +92,6 @@ export interface ToolPayloadMap {
   set_project_texture_resolution: SetProjectTextureResolutionPayload;
   preflight_texture: PreflightTexturePayload;
   ensure_project: EnsureProjectPayload;
-  block_pipeline: BlockPipelinePayload;
   delete_texture: DeleteTexturePayload;
   assign_texture: AssignTexturePayload;
   set_face_uv: SetFaceUvPayload;
@@ -95,6 +101,11 @@ export interface ToolPayloadMap {
   add_cube: AddCubePayload;
   update_cube: UpdateCubePayload;
   delete_cube: DeleteCubePayload;
+  create_animation_clip: CreateAnimationClipPayload;
+  update_animation_clip: UpdateAnimationClipPayload;
+  delete_animation_clip: DeleteAnimationClipPayload;
+  set_keyframes: SetKeyframesPayload;
+  set_trigger_keyframes: SetTriggerKeyframesPayload;
   export: ExportPayload;
   render_preview: RenderPreviewPayload;
   validate: ValidatePayload;

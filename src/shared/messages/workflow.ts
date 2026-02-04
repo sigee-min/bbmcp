@@ -1,6 +1,3 @@
-export const MODELING_WORKFLOW_WARNING_REASON =
-  'Model pipeline warnings were reported. Review the modeling workflow to address anchors/id policy.';
-
 export const VALIDATE_REASON_DEFAULT = 'Run validation to catch structural issues.';
 
 export const VALIDATE_FINDINGS_REASON =
@@ -35,7 +32,7 @@ export const TEXTURE_ASSIGN_ASK_REASON_DEFAULT =
 export const TEXTURE_PREVIEW_VALIDATE_REASON = 'Render a preview to validate textures.';
 
 export const CLARIFICATION_REASON_DEFAULT =
-  'Provide the missing details so the pipeline can proceed. Reply with short answers or pick an option.';
+  'Provide the missing details so the workflow can proceed. Reply with short answers or pick an option.';
 
 
 

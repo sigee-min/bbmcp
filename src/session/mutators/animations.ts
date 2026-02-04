@@ -1,4 +1,5 @@
 import type { AnimationUpdate, SessionState, TrackedAnimation, TrackedAnimationChannel, TrackedAnimationTrigger } from '../types';
+import { mergeChannelKeys, mergeTriggerKeys } from '../../domain/animation/keyframes';
 
 export const addAnimation = (state: SessionState, anim: TrackedAnimation) => {
   state.animations.push(anim);
@@ -30,7 +31,12 @@ export const upsertAnimationChannel = (state: SessionState, clip: string, channe
     (ch) => ch.bone === channel.bone && ch.channel === channel.channel
   );
   if (existingIndex >= 0) {
-    anim.channels[existingIndex] = channel;
+    const existing = anim.channels[existingIndex];
+    anim.channels[existingIndex] = {
+      ...existing,
+      ...channel,
+      keys: mergeChannelKeys(existing.keys, channel.keys, state.animationTimePolicy)
+    };
   } else {
     anim.channels.push(channel);
   }
@@ -42,7 +48,12 @@ export const upsertAnimationTrigger = (state: SessionState, clip: string, trigge
   anim.triggers ??= [];
   const existingIndex = anim.triggers.findIndex((tr) => tr.type === trigger.type);
   if (existingIndex >= 0) {
-    anim.triggers[existingIndex] = trigger;
+    const existing = anim.triggers[existingIndex];
+    anim.triggers[existingIndex] = {
+      ...existing,
+      ...trigger,
+      keys: mergeTriggerKeys(existing.keys, trigger.keys, state.animationTimePolicy)
+    };
   } else {
     anim.triggers.push(trigger);
   }

@@ -1,19 +1,3 @@
-export const BLOCK_PIPELINE_NAME_REQUIRED = 'name is required';
-export const BLOCK_PIPELINE_TEXTURE_REQUIRED = 'texture is required';
-export const BLOCK_PIPELINE_NAMESPACE_INVALID = (value: string) => `Invalid namespace: ${value}`;
-export const BLOCK_PIPELINE_NAME_INVALID = (value: string) => `Invalid name: ${value}`;
-export const BLOCK_PIPELINE_TOKEN_FIX = 'Use lowercase letters, numbers, underscore, dash, or dot.';
-export const BLOCK_PIPELINE_NAME_PREFIX_INVALID = 'name must not include a namespace prefix.';
-export const BLOCK_PIPELINE_NAME_PREFIX_FIX = 'Provide only the base name (e.g., adamantium_ore).';
-export const BLOCK_PIPELINE_VARIANTS_REQUIRED =
-  'variants must include at least one of block, slab, stairs, or wall.';
-export const BLOCK_PIPELINE_RESOURCE_STORE_MISSING = 'Resource store is not available.';
-export const BLOCK_PIPELINE_RESOURCES_EXIST = 'Resources already exist for this block pipeline.';
-export const BLOCK_PIPELINE_VERSIONED_FAILED = 'Could not allocate versioned resource names.';
-export const BLOCK_PIPELINE_IFREVISION_REQUIRED = 'ifRevision is required when mode=with_blockbench.';
-export const BLOCK_PIPELINE_IFREVISION_FIX = 'Call get_project_state and retry with ifRevision.';
-export const BLOCK_PIPELINE_CREATED_NOTE = 'Blockbench project created with a base cube. Import textures separately.';
-
 export const PROJECT_NO_ACTIVE = 'No active project.';
 export const PROJECT_MATCH_FORMAT_REQUIRED = 'format is required when match includes format.';
 export const PROJECT_MATCH_NAME_REQUIRED = 'name is required when match includes name.';

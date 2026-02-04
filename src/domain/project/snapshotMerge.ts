@@ -14,7 +14,6 @@ export function mergeSnapshots(session: SessionState, live: SessionState | null)
     formatId: live.formatId ?? session.formatId,
     name: live.name ?? session.name,
     dirty: live.dirty ?? session.dirty,
-    meta: live.meta ?? session.meta,
     bones: live.bones,
     cubes: live.cubes,
     textures: mergedTextures,
@@ -44,23 +43,30 @@ function mergeTextures(sessionTex: SessionState['textures'], liveTex: SessionSta
   if (sessionTex.length === 0) return liveTex;
   if (liveTex.length === 0) return sessionTex;
   const merged = new Map<string, SessionState['textures'][number]>();
-  const nameIndex = new Map<string, string>();
+  const nameCounts = new Map<string, number>();
   for (const tex of sessionTex) {
+    if (tex.name) nameCounts.set(tex.name, (nameCounts.get(tex.name) ?? 0) + 1);
     const key = textureKey(tex);
     merged.set(key, { ...tex });
-    if (tex.name) nameIndex.set(tex.name, key);
   }
+  const nameIndex = new Map<string, string>();
+  nameCounts.forEach((count, name) => {
+    if (count === 1) {
+      const match = sessionTex.find((tex) => tex.name === name);
+      if (match) nameIndex.set(name, textureKey(match));
+    }
+  });
   for (const tex of liveTex) {
     const key = textureKey(tex);
-    const existingKey = merged.has(key) ? key : tex.name ? nameIndex.get(tex.name) : undefined;
+    const nameKey =
+      !tex.id && !tex.path && tex.name ? nameIndex.get(tex.name) : undefined;
+    const existingKey = merged.has(key) ? key : nameKey;
     const existing = existingKey ? merged.get(existingKey) : undefined;
     if (!existing) {
       merged.set(key, { ...tex });
-      if (tex.name) nameIndex.set(tex.name, key);
       continue;
     }
     merged.set(existingKey ?? key, mergeTexture(existing, tex));
-    if (tex.name) nameIndex.set(tex.name, existingKey ?? key);
   }
   return Array.from(merged.values());
 }
@@ -83,6 +89,7 @@ function mergeTexture(
 
 function textureKey(tex: SessionState['textures'][number]): string {
   if (tex.id) return `id:${tex.id}`;
+  if (tex.path) return `path:${tex.path}`;
   return `name:${tex.name}`;
 }
 

@@ -56,6 +56,25 @@ export const buildPreflightNextActions = (
   return actions;
 };
 
+export const buildSetFaceUvNextActions = (
+  response: ToolResponse<ToolResultMap['set_face_uv']>,
+  factories: NextActionFactories
+): NextAction[] | null => {
+  if (!response.ok) return null;
+  const warningCodes = response.data.warningCodes ?? [];
+  if (!Array.isArray(warningCodes) || warningCodes.length === 0) return null;
+  const hasTinyRects = warningCodes.includes('uv_rect_small') || warningCodes.includes('uv_rect_skewed');
+  if (!hasTinyRects) return null;
+  return [
+    factories.callTool('preflight_texture', { includeUsage: false }, 'Review UV warnings after set_face_uv.', 1),
+    factories.readResource(
+      'bbmcp://guide/texture-workflow',
+      'UV rects are tiny or non-square; review mapping and resolution guidance.',
+      2
+    )
+  ];
+};
+
 export const buildEnsureProjectNextActions = (
   payload: ToolPayloadMap['ensure_project'],
   response: ToolResponse<ToolResultMap['ensure_project']>,

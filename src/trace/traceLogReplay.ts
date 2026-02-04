@@ -50,8 +50,7 @@ export const stepsFromTraceLog = (records: TraceLogRecord[]): TraceStep[] =>
     .filter(isTraceLogEntry)
     .map((entry) => ({
       op: entry.op as TraceStep['op'],
-      payload: entry.payload,
-      route: entry.route
+      payload: entry.payload
     }));
 
 

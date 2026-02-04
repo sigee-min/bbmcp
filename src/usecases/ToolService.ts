@@ -2,7 +2,6 @@ import {
   Capabilities,
   AutoUvAtlasResult,
   FormatKind,
-  BlockPipelineResult,
   GenerateTexturePresetResult,
   PreflightTextureResult,
   ProjectDiff,
@@ -19,7 +18,6 @@ import { UsecaseResult } from './result';
 import { UvPolicyConfig } from '../domain/uv/policy';
 import type { HostPort } from '../ports/host';
 import type { PolicyContextLike, RevisionContextLike } from './contextTypes';
-import type { ProjectMeta } from '../session';
 import { runReloadPlugins } from './toolService/reloadPlugins';
 import { createToolServiceContext, ToolServiceDeps } from './toolServiceContext';
 import { createToolServiceFacades, ToolServiceFacades } from './toolServiceFacades';
@@ -124,14 +122,6 @@ export class ToolService {
     return this.facades.project.ensureProject(payload);
   }
 
-  setProjectMeta(payload: { meta: ProjectMeta; ifRevision?: string }): UsecaseResult<{ meta: ProjectMeta }> {
-    return this.facades.project.setProjectMeta(payload);
-  }
-
-  blockPipeline(payload: ToolPayloadMap['block_pipeline']): UsecaseResult<BlockPipelineResult> {
-    return this.facades.blockPipeline.blockPipeline(payload);
-  }
-
   createProject(
     format: Capabilities['formats'][number]['format'],
     name: string,
@@ -197,7 +187,13 @@ export class ToolService {
 
   deleteBone(
     payload: ToolPayloadMap['delete_bone']
-  ): UsecaseResult<{ id: string; name: string; removedBones: number; removedCubes: number }> {
+  ): UsecaseResult<{
+    id: string;
+    name: string;
+    removedBones: number;
+    removedCubes: number;
+    deleted: Array<{ id?: string; name: string }>;
+  }> {
     return this.facades.model.deleteBone(payload);
   }
 
@@ -209,55 +205,35 @@ export class ToolService {
     return this.facades.model.updateCube(payload);
   }
 
-  deleteCube(payload: ToolPayloadMap['delete_cube']): UsecaseResult<{ id: string; name: string }> {
+  deleteCube(
+    payload: ToolPayloadMap['delete_cube']
+  ): UsecaseResult<{ id: string; name: string; deleted: Array<{ id?: string; name: string }> }> {
     return this.facades.model.deleteCube(payload);
   }
 
-  createAnimationClip(payload: {
-    id?: string;
-    name: string;
-    length: number;
-    loop: boolean;
-    fps: number;
-    ifRevision?: string;
-  }): UsecaseResult<{ id: string; name: string }> {
+  createAnimationClip(payload: ToolPayloadMap['create_animation_clip']): UsecaseResult<{ id: string; name: string }> {
     return this.facades.animation.createAnimationClip(payload);
   }
 
-  updateAnimationClip(payload: {
-    id?: string;
-    name?: string;
-    newName?: string;
-    length?: number;
-    loop?: boolean;
-    fps?: number;
-    ifRevision?: string;
-  }): UsecaseResult<{ id: string; name: string }> {
+  updateAnimationClip(payload: ToolPayloadMap['update_animation_clip']): UsecaseResult<{ id: string; name: string }> {
     return this.facades.animation.updateAnimationClip(payload);
   }
 
-  deleteAnimationClip(payload: { id?: string; name?: string; ifRevision?: string }): UsecaseResult<{ id: string; name: string }> {
+  deleteAnimationClip(payload: ToolPayloadMap['delete_animation_clip']): UsecaseResult<{
+    id: string;
+    name: string;
+    deleted: Array<{ id?: string; name: string }>;
+  }> {
     return this.facades.animation.deleteAnimationClip(payload);
   }
 
-  setKeyframes(payload: {
-    clipId?: string;
-    clip: string;
-    bone: string;
-    channel: 'rot' | 'pos' | 'scale';
-    keys: { time: number; value: [number, number, number]; interp?: 'linear' | 'step' | 'catmullrom' }[];
-    ifRevision?: string;
-  }): UsecaseResult<{ clip: string; clipId?: string; bone: string }> {
+  setKeyframes(payload: ToolPayloadMap['set_keyframes']): UsecaseResult<{ clip: string; clipId?: string; bone: string }> {
     return this.facades.animation.setKeyframes(payload);
   }
 
-  setTriggerKeyframes(payload: {
-    clipId?: string;
-    clip: string;
-    channel: TriggerChannel;
-    keys: { time: number; value: string | string[] | Record<string, unknown> }[];
-    ifRevision?: string;
-  }): UsecaseResult<{ clip: string; clipId?: string; channel: TriggerChannel }> {
+  setTriggerKeyframes(
+    payload: ToolPayloadMap['set_trigger_keyframes']
+  ): UsecaseResult<{ clip: string; clipId?: string; channel: TriggerChannel }> {
     return this.facades.animation.setTriggerKeyframes(payload);
   }
 

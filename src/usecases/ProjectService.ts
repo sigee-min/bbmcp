@@ -1,20 +1,15 @@
 import type { Capabilities, EnsureProjectAction, FormatKind, ProjectDiff, ProjectState, ProjectStateDetail } from '../types';
-import type { ProjectMeta } from '../session';
-import { ok, fail, type UsecaseResult } from './result';
+import { type UsecaseResult } from './result';
 import { ProjectLifecycleService } from './project/ProjectLifecycleService';
 import { ProjectStateService } from './project/ProjectStateService';
 import type { ProjectServiceDeps } from './project/projectServiceTypes';
 
 export class ProjectService {
-  private readonly session: ProjectServiceDeps['session'];
-  private readonly ensureRevisionMatch: ProjectServiceDeps['ensureRevisionMatch'];
   private readonly projectState: ProjectServiceDeps['projectState'];
   private readonly lifecycle: ProjectLifecycleService;
   private readonly state: ProjectStateService;
 
   constructor(deps: ProjectServiceDeps) {
-    this.session = deps.session;
-    this.ensureRevisionMatch = deps.ensureRevisionMatch;
     this.projectState = deps.projectState;
     this.lifecycle = new ProjectLifecycleService(deps);
     this.state = new ProjectStateService(deps);
@@ -42,16 +37,6 @@ export class ProjectService {
     ifRevision?: string;
   }): UsecaseResult<{ action: 'created' | 'reused' | 'deleted'; project: { id: string; format: FormatKind; name: string | null; formatId?: string | null } }> {
     return this.lifecycle.ensureProject(payload);
-  }
-
-  setProjectMeta(payload: { meta: ProjectMeta; ifRevision?: string }): UsecaseResult<{ meta: ProjectMeta }> {
-    const revisionErr = this.ensureRevisionMatch(payload.ifRevision);
-    if (revisionErr) return fail(revisionErr);
-    const stateErr = this.session.ensureActive();
-    if (stateErr) return fail(stateErr);
-    this.session.updateMeta(payload.meta);
-    const next = this.session.snapshot().meta ?? payload.meta;
-    return ok({ meta: next });
   }
 
   createProject(

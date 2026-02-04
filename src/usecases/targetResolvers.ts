@@ -1,5 +1,5 @@
-import { resolveTargetOrError } from '../domain/targetGuards';
 import { buildIdNameMismatchMessage } from '../shared/targetMessages';
+import type { ToolError } from '../types';
 import {
   ANIMATION_CLIP_ID_OR_NAME_REQUIRED,
   ANIMATION_CLIP_NOT_FOUND,
@@ -11,6 +11,7 @@ import {
   TEXTURE_ID_OR_NAME_REQUIRED_FIX,
   TEXTURE_NOT_FOUND
 } from '../shared/messages';
+import { resolveTargetsFromSelectors } from './targetSelectors';
 
 type TargetNamed = { id?: string | null; name: string };
 
@@ -25,7 +26,7 @@ export const resolveAnimationTarget = <T extends TargetNamed>(
   id: string | undefined,
   name: string | undefined
 ) =>
-  resolveTargetOrError(items, id, name, {
+  resolveSingleTarget(items, id, name, {
     required: { message: ANIMATION_CLIP_ID_OR_NAME_REQUIRED },
     mismatch: { kind: 'Animation clip', plural: 'clips', message: buildIdNameMismatchMessage },
     notFound: ANIMATION_CLIP_NOT_FOUND
@@ -37,7 +38,7 @@ export const resolveBoneTarget = <T extends TargetNamed>(
   name: string | undefined,
   options?: ResolveOptions
 ) =>
-  resolveTargetOrError(items, id, name, {
+  resolveSingleTarget(items, id, name, {
     required: options?.required ?? { message: MODEL_BONE_ID_OR_NAME_REQUIRED },
     mismatch: {
       kind: 'Bone',
@@ -55,7 +56,7 @@ export const resolveCubeTarget = <T extends TargetNamed>(
   name: string | undefined,
   options?: ResolveOptions
 ) =>
-  resolveTargetOrError(items, id, name, {
+  resolveSingleTarget(items, id, name, {
     required: options?.required ?? { message: MODEL_CUBE_ID_OR_NAME_REQUIRED },
     mismatch: {
       kind: 'Cube',
@@ -73,7 +74,7 @@ export const resolveTextureTarget = <T extends TargetNamed>(
   name: string | undefined,
   options?: ResolveOptions
 ) =>
-  resolveTargetOrError(items, id, name, {
+  resolveSingleTarget(items, id, name, {
     required:
       options?.required ??
       ({
@@ -89,3 +90,31 @@ export const resolveTextureTarget = <T extends TargetNamed>(
     },
     notFound: TEXTURE_NOT_FOUND
   });
+
+const resolveSingleTarget = <T extends TargetNamed>(
+  items: T[],
+  id: string | undefined,
+  name: string | undefined,
+  options: {
+    required: { message: string; fix?: string };
+    mismatch?: {
+      kind: string;
+      plural: string;
+      idLabel?: string;
+      nameLabel?: string;
+      message?: (args: {
+        kind: string;
+        plural: string;
+        idLabel: string;
+        nameLabel: string;
+        id: string;
+        name: string;
+      }) => string;
+    };
+    notFound: (label: string) => string;
+  }
+): { target?: T; error?: ToolError } => {
+  const resolved = resolveTargetsFromSelectors(items, [{ id, name }], options);
+  if (!resolved.ok) return { error: resolved.error };
+  return { target: resolved.value[0] };
+};

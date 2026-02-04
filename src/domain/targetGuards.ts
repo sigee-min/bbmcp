@@ -2,6 +2,7 @@ import type { ToolError } from '../types';
 import { resolveTargetByIdOrName, resolveTargetLabel } from './sessionLookup';
 import type { IdNameMismatchMessage } from './payloadValidation';
 import { ensureIdNameMatch, ensureIdOrName } from './payloadValidation';
+import { TARGET_NAME_AMBIGUOUS } from '../shared/messages/tool';
 
 type TargetNamed = { id?: string | null; name: string };
 
@@ -28,6 +29,13 @@ export const resolveTargetOrError = <T extends TargetNamed>(
   if (options.mismatch) {
     const mismatchErr = ensureIdNameMatch(items, id, name, options.mismatch);
     if (mismatchErr) return { error: mismatchErr };
+  }
+  if (!id && name) {
+    const matches = items.filter((item) => item.name === name);
+    if (matches.length > 1) {
+      const kind = options.mismatch?.kind ?? 'Target';
+      return { error: { code: 'invalid_payload', message: TARGET_NAME_AMBIGUOUS(kind, name) } };
+    }
   }
   const target = resolveTargetByIdOrName(items, id, name);
   if (!target) {

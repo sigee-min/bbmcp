@@ -9,7 +9,7 @@ export const TEXTURE_DATA_UNAVAILABLE = 'texture data unavailable';
 export const TEXTURE_CONTENT_UNCHANGED = 'texture content unchanged';
 export const TEXTURE_CONTENT_UNCHANGED_FIX =
   'Provide different image content or rename the texture to force an update. ' +
-  'If you used texture_pipeline.plan, it already created the texture. Avoid a redundant update unless ops change.';
+  'Avoid redundant updates when the intended pixels are unchanged.';
 
 export const TEXTURE_RESOLUTION_POSITIVE = 'width and height must be positive numbers.';
 export const TEXTURE_RESOLUTION_INTEGER = 'width and height must be integers.';

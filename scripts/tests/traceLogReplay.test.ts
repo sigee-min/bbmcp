@@ -45,8 +45,8 @@ const recorder = new TraceRecorder(
   { includeState: true, includeDiff: true }
 );
 
-recorder.record('tool', 'get_project_state', { detail: 'summary' }, { ok: true, data: { ok: true } });
-recorder.record('proxy', 'texture_pipeline', { textures: [] }, { ok: true, data: { applied: true } });
+recorder.record('get_project_state', { detail: 'summary' }, { ok: true, data: { ok: true } });
+recorder.record('assign_texture', { textureName: 'tex', cubeNames: ['cube'] }, { ok: true, data: { applied: true } });
 
 const logText = store.getText();
 assert.equal(logText.length > 0, true);
@@ -57,9 +57,7 @@ if (parsed.ok) {
   const steps = stepsFromTraceLog(parsed.records);
   assert.equal(steps.length, 2);
   assert.equal(steps[0].op, 'get_project_state');
-  assert.equal(steps[0].route, 'tool');
-  assert.equal(steps[1].op, 'texture_pipeline');
-  assert.equal(steps[1].route, 'proxy');
+  assert.equal(steps[1].op, 'assign_texture');
 }
 
 

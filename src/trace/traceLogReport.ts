@@ -35,7 +35,7 @@ export const buildTraceLogReport = (text: string): TraceLogReport => {
       generatedAt,
       steps: 0,
       errors: 1,
-      routes: { tool: 0, proxy: 0 },
+      routes: { tool: 0 },
       ops: {},
       warnings: parsed.warnings ?? [],
       lastError: {
@@ -53,14 +53,13 @@ export const buildTraceLogReport = (text: string): TraceLogReport => {
     generatedAt,
     steps: steps.length,
     errors: 0,
-    routes: { tool: 0, proxy: 0 },
+    routes: { tool: 0 },
     ops: {},
     diffCounts: emptyCountsByKind()
   };
 
   steps.forEach((entry) => {
-    if (entry.route === 'tool') report.routes.tool += 1;
-    if (entry.route === 'proxy') report.routes.proxy += 1;
+    report.routes.tool += 1;
     const opSummary = report.ops[entry.op] ?? { count: 0, errors: 0 };
     opSummary.count += 1;
     if (!entry.response.ok) {

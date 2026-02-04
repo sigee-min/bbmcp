@@ -1,5 +1,4 @@
 import { Dispatcher } from './types';
-import { ProxyRouter } from './proxy';
 import { errorMessage, Logger } from './logging';
 import { PLUGIN_ID, PLUGIN_VERSION } from './config';
 import { SERVER_TOOL_INSTRUCTIONS } from './shared/tooling/toolInstructions';
@@ -73,7 +72,6 @@ const startHttpServer = (http: HttpModule, config: ServerConfig, router: McpRout
 export function startServer(
   rawConfig: ServerConfig,
   dispatcher: Dispatcher,
-  proxy: ProxyRouter,
   log: Logger,
   resources?: ResourceStore,
   toolRegistry?: ToolRegistry
@@ -85,7 +83,7 @@ export function startServer(
   }
 
   const config: ServerConfig = { ...rawConfig, path: normalizePath(rawConfig.path) };
-  const executor = new LocalToolExecutor(dispatcher, proxy);
+  const executor = new LocalToolExecutor(dispatcher);
   const router = new McpRouter(
     {
       path: config.path,

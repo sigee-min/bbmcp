@@ -5,7 +5,6 @@ import type {
   TraceLogResponse,
   TraceLogStateSummary
 } from '../types/traceLog';
-import { summarizeStageResults } from '../shared/formatters/stageSummary';
 
 const REDACT_KEYS = new Set(['dataUri', 'image', 'canvas', 'ctx', 'img']);
 const MAX_DEPTH = 6;
@@ -64,9 +63,6 @@ export const sanitizeTraceValue = (value: unknown, depth = 0, seen?: WeakSet<obj
   for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
     if (REDACT_KEYS.has(key)) {
       record[key] = '<redacted>';
-    } else if (key === 'stages' || key === 'modelStages') {
-      const summary = summarizeStageResults(entry);
-      record[key] = summary ?? sanitizeTraceValue(entry, depth + 1, tracker);
     } else {
       record[key] = sanitizeTraceValue(entry, depth + 1, tracker);
     }

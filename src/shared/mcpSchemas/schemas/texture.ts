@@ -1,5 +1,5 @@
 import type { JsonSchema } from '../types';
-import { TEXTURE_PLAN_DETAILS, TEXTURE_PRESET_NAMES, UV_PAINT_MAPPINGS, UV_PAINT_SCOPES } from '../../texturePolicy';
+import { TEXTURE_PRESET_NAMES, UV_PAINT_MAPPINGS, UV_PAINT_SCOPES } from '../../texturePolicy';
 import { cubeFaceSchema, numberArray } from './common';
 
 export const texturePresetSchema: JsonSchema = {
@@ -89,68 +89,3 @@ export const uvPaintSchema: JsonSchema = {
   }
 };
 
-const facePaintEntrySchema: JsonSchema = {
-  type: 'object',
-  description: 'Face-centric material paint instruction (maps to texture presets + UV targets).',
-  additionalProperties: false,
-  required: ['material'],
-  properties: {
-    material: { type: 'string', description: 'Material keyword (e.g., metal, wood, rubber).' },
-    palette: { type: 'array', items: { type: 'string' } },
-    seed: { type: 'number' },
-    cubeIds: {
-      type: 'array',
-      minItems: 1,
-      items: { type: 'string' },
-      description: 'Limit painting to these cube ids. If cubeNames is also provided, both must match.'
-    },
-    cubeNames: {
-      type: 'array',
-      minItems: 1,
-      items: { type: 'string' },
-      description: 'Limit painting to these cube names. If cubeIds is also provided, both must match.'
-    },
-    faces: { type: 'array', minItems: 1, items: cubeFaceSchema },
-    scope: { type: 'string', enum: UV_PAINT_SCOPES },
-    mapping: { type: 'string', enum: UV_PAINT_MAPPINGS },
-    padding: { type: 'number' },
-    anchor: numberArray(2, 2)
-  }
-};
-
-export const facePaintSchema: JsonSchema = {
-  type: 'array',
-  minItems: 1,
-  items: facePaintEntrySchema
-};
-
-export const texturePlanSchema: JsonSchema = {
-  type: 'object',
-  description: 'Auto-plan textures + UVs from high-level intent. When provided, assignment/UV steps are generated automatically.',
-  additionalProperties: false,
-  properties: {
-    name: { type: 'string', description: 'Base texture name for generated textures.' },
-    detail: { type: 'string', enum: TEXTURE_PLAN_DETAILS },
-    maxTextures: { type: 'number', description: 'Max number of textures to split into (>=1).' },
-    allowSplit: { type: 'boolean', description: 'Allow splitting cubes across multiple textures.' },
-    padding: { type: 'number', description: 'UV atlas padding in pixels.' },
-    resolution: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        width: { type: 'number' },
-        height: { type: 'number' }
-      }
-    },
-    paint: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        preset: texturePresetSchema,
-        palette: { type: 'array', items: { type: 'string' } },
-        seed: { type: 'number' },
-        background: { type: 'string', description: 'Optional base fill color (hex).' }
-      }
-    }
-  }
-};

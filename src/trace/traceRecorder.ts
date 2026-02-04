@@ -1,5 +1,5 @@
 import type { ProjectDiff, ProjectState, ProjectStateDetail, ToolError, ToolResponse } from '../types';
-import type { TraceLogEntry, TraceLogHeader, TraceLogRoute } from '../types/traceLog';
+import type { TraceLogEntry, TraceLogHeader } from '../types/traceLog';
 import type { UsecaseResult } from '../usecases/result';
 import { summarizeProjectDiff, summarizeProjectState, sanitizeTraceValue, sanitizeToolResponse } from './traceLogFormat';
 import { TraceLogStore } from './traceLogStore';
@@ -77,7 +77,7 @@ export class TraceRecorder {
     if (options.onRecord !== undefined) this.onRecord = options.onRecord;
   }
 
-  record(route: TraceLogRoute, op: string, payload: unknown, response: ToolResponse<unknown>): void {
+  record(op: string, payload: unknown, response: ToolResponse<unknown>): void {
     if (!this.enabled) return;
     if (!this.headerWritten) {
       const header = this.buildHeader();
@@ -89,7 +89,7 @@ export class TraceRecorder {
       kind: 'step',
       seq: ++this.seq,
       ts: new Date().toISOString(),
-      route,
+      route: 'tool',
       op,
       payload: sanitizeTraceValue(payload),
       response: sanitizeToolResponse(response)

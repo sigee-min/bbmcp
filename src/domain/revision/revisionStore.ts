@@ -44,29 +44,14 @@ const hashSnapshot = (snapshot: SessionState): string => {
     formatId: snapshot.formatId ?? '',
     name: snapshot.name ?? '',
     dirty: snapshot.dirty ?? null,
-    meta: snapshot.meta
-      ? {
-          facePaint: snapshot.meta.facePaint?.map((entry) => ({
-            material: entry.material,
-            palette: entry.palette ?? null,
-            seed: entry.seed ?? null,
-            cubeIds: entry.cubeIds ?? null,
-            cubeNames: entry.cubeNames ?? null,
-            faces: entry.faces ?? null,
-            scope: entry.scope ?? null,
-            mapping: entry.mapping ?? null,
-            padding: entry.padding ?? null,
-            anchor: entry.anchor ?? null
-          }))
-        }
-      : null,
     bones: snapshot.bones.map((b) => [
       b.id ?? '',
       b.name,
       b.parent ?? '',
       b.pivot,
       b.rotation ?? null,
-      b.scale ?? null
+      b.scale ?? null,
+      b.visibility ?? null
     ]),
     cubes: snapshot.cubes.map((c) => [
       c.id ?? '',
@@ -74,9 +59,14 @@ const hashSnapshot = (snapshot: SessionState): string => {
       c.bone,
       c.from,
       c.to,
+      c.origin ?? null,
+      c.rotation ?? null,
       c.uv ?? null,
+      c.uvOffset ?? null,
       c.inflate ?? null,
-      c.mirror ?? null
+      c.mirror ?? null,
+      c.visibility ?? null,
+      c.boxUv ?? null
     ]),
     textures: snapshot.textures.map((t) => [
       t.id ?? '',
@@ -106,9 +96,24 @@ const hashSnapshot = (snapshot: SessionState): string => {
       a.length,
       a.loop,
       a.fps ?? null,
-      a.channels?.length ?? 0,
-      a.triggers?.length ?? 0
-    ])
+      a.channels
+        ? a.channels.map((ch) => [
+            ch.bone,
+            ch.channel,
+            ch.keys.map((key) => [key.time, key.value[0], key.value[1], key.value[2], key.interp ?? null])
+          ])
+        : [],
+      a.triggers
+        ? a.triggers.map((tr) => [
+            tr.type,
+            tr.keys.map((key) => [key.time, normalizeTriggerValueForHash(key.value)])
+          ])
+        : []
+    ]),
+    animationTimePolicy: [
+      snapshot.animationTimePolicy.timeEpsilon,
+      snapshot.animationTimePolicy.triggerDedupeByValue
+    ]
   };
   return hashString(JSON.stringify(data));
 };
@@ -123,32 +128,77 @@ const hashString = (value: string): string => {
 
 const cloneSnapshot = (snapshot: SessionState): SessionState => ({
   ...snapshot,
-  meta: snapshot.meta
-    ? {
-        facePaint: snapshot.meta.facePaint?.map((entry) => ({
-          material: entry.material,
-          palette: entry.palette ? [...entry.palette] : undefined,
-          seed: entry.seed,
-          cubeIds: entry.cubeIds ? [...entry.cubeIds] : undefined,
-          cubeNames: entry.cubeNames ? [...entry.cubeNames] : undefined,
-          faces: entry.faces ? [...entry.faces] : undefined,
-          scope: entry.scope,
-          mapping: entry.mapping,
-          padding: entry.padding,
-          anchor: entry.anchor ? ([entry.anchor[0], entry.anchor[1]] as [number, number]) : undefined
-        }))
-      }
-    : undefined,
   bones: snapshot.bones.map((bone) => ({ ...bone })),
   cubes: snapshot.cubes.map((cube) => ({ ...cube })),
   textures: snapshot.textures.map((tex) => ({ ...tex })),
   animations: snapshot.animations.map((anim) => ({
     ...anim,
-    channels: anim.channels ? anim.channels.map((ch) => ({ ...ch, keys: [...ch.keys] })) : undefined,
-    triggers: anim.triggers ? anim.triggers.map((tr) => ({ ...tr, keys: [...tr.keys] })) : undefined
+    channels: anim.channels
+      ? anim.channels.map((ch) => ({
+          ...ch,
+          keys: ch.keys.map((key) => ({
+            time: key.time,
+            value: [key.value[0], key.value[1], key.value[2]],
+            interp: key.interp
+          }))
+        }))
+      : undefined,
+    triggers: anim.triggers
+      ? anim.triggers.map((tr) => ({
+          ...tr,
+          keys: tr.keys.map((key) => ({
+            time: key.time,
+            value: cloneTriggerValue(key.value)
+          }))
+        }))
+      : undefined
   })),
-  animationsStatus: snapshot.animationsStatus
+  animationsStatus: snapshot.animationsStatus,
+  animationTimePolicy: { ...snapshot.animationTimePolicy }
 });
+
+const normalizeTriggerValueForHash = (value: string | string[] | Record<string, unknown>): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((entry) =>
+      typeof entry === 'object' && entry !== null
+        ? normalizeTriggerValueForHash(entry as Record<string, unknown>)
+        : entry
+    );
+  }
+  if (typeof value === 'object' && value !== null) {
+    const record = value as Record<string, unknown>;
+    return Object.keys(record)
+      .sort()
+      .map((key) => [key, normalizeTriggerValueForHash(record[key] as Record<string, unknown>)]);
+  }
+  return value;
+};
+
+const cloneTriggerValue = (value: string | string[] | Record<string, unknown>): typeof value => {
+  if (Array.isArray(value)) {
+    return value.map((entry) =>
+      typeof entry === 'object' && entry !== null ? cloneTriggerValue(entry as Record<string, unknown>) : entry
+    ) as typeof value;
+  }
+  if (typeof value === 'object' && value !== null) {
+    const record = value as Record<string, unknown>;
+    const cloned: Record<string, unknown> = {};
+    Object.keys(record).forEach((key) => {
+      const entry = record[key];
+      if (Array.isArray(entry)) {
+        cloned[key] = entry.map((item) =>
+          typeof item === 'object' && item !== null ? cloneTriggerValue(item as Record<string, unknown>) : item
+        );
+      } else if (typeof entry === 'object' && entry !== null) {
+        cloned[key] = cloneTriggerValue(entry as Record<string, unknown>);
+      } else {
+        cloned[key] = entry;
+      }
+    });
+    return cloned as typeof value;
+  }
+  return value;
+};
 
 
 

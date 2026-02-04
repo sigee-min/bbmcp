@@ -1,19 +1,46 @@
-import type {
-  FacePaintIntent,
-  ProjectMeta,
-  TrackedAnimation,
-  TrackedAnimationChannel,
-  TrackedAnimationTrigger
-} from './types';
+import type { TrackedAnimation, TrackedAnimationChannel, TrackedAnimationTrigger } from './types';
+
+const cloneTriggerValue = (value: string | string[] | Record<string, unknown>): typeof value => {
+  if (Array.isArray(value)) {
+    return value.map((entry) =>
+      typeof entry === 'object' && entry !== null ? cloneTriggerValue(entry as Record<string, unknown>) : entry
+    ) as typeof value;
+  }
+  if (typeof value === 'object' && value !== null) {
+    const record = value as Record<string, unknown>;
+    const cloned: Record<string, unknown> = {};
+    Object.keys(record).forEach((key) => {
+      const entry = record[key];
+      if (Array.isArray(entry)) {
+        cloned[key] = entry.map((item) =>
+          typeof item === 'object' && item !== null ? cloneTriggerValue(item as Record<string, unknown>) : item
+        );
+      } else if (typeof entry === 'object' && entry !== null) {
+        cloned[key] = cloneTriggerValue(entry as Record<string, unknown>);
+      } else {
+        cloned[key] = entry;
+      }
+    });
+    return cloned as typeof value;
+  }
+  return value;
+};
 
 const cloneAnimationChannel = (channel: TrackedAnimationChannel): TrackedAnimationChannel => ({
   ...channel,
-  keys: [...channel.keys]
+  keys: channel.keys.map((key) => ({
+    time: key.time,
+    value: [key.value[0], key.value[1], key.value[2]],
+    interp: key.interp
+  }))
 });
 
 const cloneAnimationTrigger = (trigger: TrackedAnimationTrigger): TrackedAnimationTrigger => ({
   ...trigger,
-  keys: [...trigger.keys]
+  keys: trigger.keys.map((key) => ({
+    time: key.time,
+    value: cloneTriggerValue(key.value)
+  }))
 });
 
 const cloneAnimation = (anim: TrackedAnimation): TrackedAnimation => ({
@@ -23,23 +50,3 @@ const cloneAnimation = (anim: TrackedAnimation): TrackedAnimation => ({
 });
 
 export const cloneAnimations = (animations: TrackedAnimation[]): TrackedAnimation[] => animations.map(cloneAnimation);
-
-const cloneFacePaintIntent = (intent: FacePaintIntent): FacePaintIntent => ({
-  material: intent.material,
-  palette: intent.palette ? [...intent.palette] : undefined,
-  seed: intent.seed,
-  cubeIds: intent.cubeIds ? [...intent.cubeIds] : undefined,
-  cubeNames: intent.cubeNames ? [...intent.cubeNames] : undefined,
-  faces: intent.faces ? [...intent.faces] : undefined,
-  scope: intent.scope,
-  mapping: intent.mapping,
-  padding: intent.padding,
-  anchor: intent.anchor ? ([intent.anchor[0], intent.anchor[1]] as [number, number]) : undefined
-});
-
-export const cloneProjectMeta = (meta?: ProjectMeta): ProjectMeta | undefined => {
-  if (!meta) return undefined;
-  return {
-    facePaint: meta.facePaint ? meta.facePaint.map(cloneFacePaintIntent) : undefined
-  };
-};

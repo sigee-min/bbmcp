@@ -20,7 +20,6 @@ export const STATEFUL_TOOL_NAMES = [
   'auto_uv_atlas',
   'set_project_texture_resolution',
   'ensure_project',
-  'block_pipeline',
   'delete_texture',
   'assign_texture',
   'set_face_uv',
@@ -30,6 +29,11 @@ export const STATEFUL_TOOL_NAMES = [
   'add_cube',
   'update_cube',
   'delete_cube',
+  'create_animation_clip',
+  'update_animation_clip',
+  'delete_animation_clip',
+  'set_keyframes',
+  'set_trigger_keyframes',
   'export',
   'validate',
   'render_preview'
@@ -60,7 +64,6 @@ export const createHandlerMaps = (args: {
     auto_uv_atlas: (payload) => args.service.autoUvAtlas(payload),
     set_project_texture_resolution: (payload) => args.service.setProjectTextureResolution(payload),
     ensure_project: (payload) => args.service.ensureProject(payload),
-    block_pipeline: (payload) => args.service.blockPipeline(payload),
     delete_texture: (payload) => args.service.deleteTexture(payload),
     assign_texture: (payload) => args.service.assignTexture(payload),
     set_face_uv: (payload) => args.service.setFaceUv(payload),
@@ -69,7 +72,12 @@ export const createHandlerMaps = (args: {
     delete_bone: (payload) => args.service.deleteBone(payload),
     add_cube: (payload) => args.service.addCube(payload),
     update_cube: (payload) => args.service.updateCube(payload),
-    delete_cube: (payload) => args.service.deleteCube(payload)
+    delete_cube: (payload) => args.service.deleteCube(payload),
+    create_animation_clip: (payload) => args.service.createAnimationClip(payload),
+    update_animation_clip: (payload) => args.service.updateAnimationClip(payload),
+    delete_animation_clip: (payload) => args.service.deleteAnimationClip(payload),
+    set_keyframes: (payload) => args.service.setKeyframes(payload),
+    set_trigger_keyframes: (payload) => args.service.setTriggerKeyframes(payload)
   };
 
   const statefulHandlers: StatefulHandlerMap = {

@@ -1,5 +1,4 @@
 import { Dispatcher } from '../types';
-import { ProxyRouter } from '../proxy';
 import { errorMessage, Logger } from '../logging';
 import { SidecarHost } from './transport/SidecarHost';
 import { SidecarLaunchConfig } from './types';
@@ -61,7 +60,6 @@ const RESTART_MAX_DELAY_MS = 30_000;
 export class SidecarProcess {
   private readonly config: SidecarLaunchConfig;
   private readonly dispatcher: Dispatcher;
-  private readonly proxy: ProxyRouter;
   private readonly log: Logger;
   private child: ChildProcessHandle | null = null;
   private host: SidecarHost | null = null;
@@ -69,10 +67,9 @@ export class SidecarProcess {
   private restartDelayMs = RESTART_INITIAL_DELAY_MS;
   private disableRunAsNode = false;
 
-  constructor(config: SidecarLaunchConfig, dispatcher: Dispatcher, proxy: ProxyRouter, log: Logger) {
+  constructor(config: SidecarLaunchConfig, dispatcher: Dispatcher, log: Logger) {
     this.config = config;
     this.dispatcher = dispatcher;
-    this.proxy = proxy;
     this.log = log;
   }
 
@@ -122,8 +119,7 @@ export class SidecarProcess {
       '--port',
       String(this.config.port),
       '--path',
-      this.config.path,
-      ...(this.config.exposeLowLevelTools ? ['--expose-low-level-tools'] : []),
+      this.config.path
     ];
 
     let child: ChildProcessHandle;
@@ -145,7 +141,7 @@ export class SidecarProcess {
     }
 
     this.child = child;
-    this.host = new SidecarHost(child.stdout, child.stdin, this.dispatcher, this.proxy, this.log);
+    this.host = new SidecarHost(child.stdout, child.stdin, this.dispatcher, this.log);
     const current = child;
 
     child.stderr?.on('data', (chunk: string | Uint8Array) => {

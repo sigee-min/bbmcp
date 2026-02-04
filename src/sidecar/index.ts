@@ -3,15 +3,13 @@ import { SidecarClient } from './transport/SidecarClient';
 import { StderrLogger } from './logger';
 import { errorMessage } from '../logging';
 import { McpRouter } from '../transport/mcp/router';
-import { buildToolRegistry } from '../transport/mcp/tools';
+import { DEFAULT_TOOL_REGISTRY } from '../transport/mcp/tools';
 import { createMcpHttpServer } from '../transport/mcp/httpServer';
-import { PLUGIN_ID, PLUGIN_VERSION } from '../config';
-import { BLOCK_PIPELINE_RESOURCE_TEMPLATES } from '../domain/blockPipeline';
+import { DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT, DEFAULT_SERVER_PATH, PLUGIN_ID, PLUGIN_VERSION } from '../config';
 import { GUIDE_RESOURCE_TEMPLATES, GUIDE_RESOURCES } from '../shared/resources/guides';
 import { InMemoryResourceStore } from '../adapters/resources/resourceStore';
 import { SIDECAR_TOOL_INSTRUCTIONS } from '../shared/tooling/toolInstructions';
 import { ToolResponse } from '../types';
-import { PROXY_TOOL_NAMES } from '../shared/toolConstants';
 
 const getArg = (args: string[], name: string, fallback?: string): string | undefined => {
   const index = args.indexOf(name);
@@ -21,36 +19,26 @@ const getArg = (args: string[], name: string, fallback?: string): string | undef
 
 
 const args = process.argv.slice(2);
-const portValue = parseInt(getArg(args, '--port', '8787') ?? '8787', 10);
-const exposeLowLevelTools = args.includes('--expose-low-level-tools');
+const portValue = parseInt(getArg(args, '--port', String(DEFAULT_SERVER_PORT)) ?? String(DEFAULT_SERVER_PORT), 10);
 const config = {
-  host: getArg(args, '--host', '127.0.0.1') ?? '127.0.0.1',
-  port: Number.isFinite(portValue) ? portValue : 8787,
-  path: getArg(args, '--path', '/mcp') ?? '/mcp',
+  host: getArg(args, '--host', DEFAULT_SERVER_HOST) ?? DEFAULT_SERVER_HOST,
+  port: Number.isFinite(portValue) ? portValue : DEFAULT_SERVER_PORT,
+  path: getArg(args, '--path', DEFAULT_SERVER_PATH) ?? DEFAULT_SERVER_PATH,
   token: getArg(args, '--token')
 };
 
 const log = new StderrLogger('bbmcp-sidecar', 'info');
 const client = new SidecarClient(process.stdin, process.stdout, log);
-const resourceStore = new InMemoryResourceStore([
-  ...BLOCK_PIPELINE_RESOURCE_TEMPLATES,
-  ...GUIDE_RESOURCE_TEMPLATES
-]);
+const resourceStore = new InMemoryResourceStore([...GUIDE_RESOURCE_TEMPLATES]);
 GUIDE_RESOURCES.forEach((resource) => resourceStore.put(resource));
 client.start();
 
 const executor = {
   callTool: async (name: string, args: unknown): Promise<ToolResponse<unknown>> => {
-    const mode = PROXY_TOOL_SET.has(name) ? 'proxy' : 'direct';
-    const response = await client.request(name as Parameters<typeof client.request>[0], args, mode);
-    if (name === 'block_pipeline') {
-      storePipelineResources(resourceStore, response);
-    }
+    const response = await client.request(name as Parameters<typeof client.request>[0], args);
     return response;
   }
 };
-
-const PROXY_TOOL_SET = new Set<string>(PROXY_TOOL_NAMES);
 
 const router = new McpRouter(
   {
@@ -62,42 +50,8 @@ const router = new McpRouter(
   executor,
   log,
   resourceStore,
-  buildToolRegistry({ includeLowLevel: exposeLowLevelTools })
+  DEFAULT_TOOL_REGISTRY
 );
-
-const storePipelineResources = (store: InMemoryResourceStore, response: ToolResponse<unknown>) => {
-  if (!response.ok) return;
-  const data = response.data as {
-    resources?: Array<{ uri: string; name: string; kind: string; mimeType?: string }>;
-    assets?: {
-      blockstates?: Record<string, unknown>;
-      models?: Record<string, unknown>;
-      items?: Record<string, unknown>;
-    };
-  };
-  const resources = Array.isArray(data?.resources) ? data.resources : [];
-  const assets = data?.assets;
-  if (!assets || resources.length === 0) return;
-  const blockstates = assets.blockstates ?? {};
-  const models = assets.models ?? {};
-  const items = assets.items ?? {};
-  const resolveJson = (kind: string, name: string) => {
-    if (kind === 'blockstate') return blockstates[name];
-    if (kind === 'model') return models[name];
-    if (kind === 'item') return items[name];
-    return undefined;
-  };
-  resources.forEach((resource) => {
-    const json = resolveJson(resource.kind, resource.name);
-    if (!json) return;
-    store.put({
-      uri: resource.uri,
-      name: resource.name,
-      mimeType: resource.mimeType ?? 'application/json',
-      text: JSON.stringify(json, null, 2)
-    });
-  });
-};
 
 const server = createMcpHttpServer(http, router, log);
 

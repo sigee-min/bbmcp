@@ -2,7 +2,7 @@ import type { ProjectDiff, ProjectDiffCountsByKind, ProjectState } from './proje
 import type { ToolError } from './shared';
 import type { FormatKind } from './shared';
 
-export type TraceLogRoute = 'tool' | 'proxy';
+export type TraceLogRoute = 'tool';
 
 export type TraceLogHeader = {
   kind: 'header';
@@ -62,7 +62,7 @@ export type TraceLogReport = {
   generatedAt: string;
   steps: number;
   errors: number;
-  routes: { tool: number; proxy: number };
+  routes: { tool: number };
   ops: Record<string, TraceLogReportOpSummary>;
   firstTs?: string;
   lastTs?: string;

@@ -35,8 +35,6 @@ Rules enforced by the script:
 - `as unknown as`
 - `console.*` in `src/**` (allowed only in `src/logging.ts`)
 - bare `document` / `window` identifier access
-- `globalThis.document` inside `src/proxy/**`
-- `throw` in `src/proxy/**`
 - `throw` in `src/**` except the Blockbench codec compile guard in `src/plugin/runtime.ts`
 - TODO/FIXME comments in `src/**`
 - `catch {}` without binding in `src/**`

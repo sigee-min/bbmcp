@@ -5,14 +5,14 @@ bbmcp turns Blockbench into an MCP-native modeling backend with a clean tool sur
 
 ## Highlights
 - MCP-first HTTP server with tool discovery and schema versioning.
-- High-level pipelines (`model_pipeline`, `texture_pipeline`, `entity_pipeline`, `block_pipeline`).
-- Pipelines may return `planOnly` + `ask_user` prompts when a request is underspecified.
-- Low-level tools are not exposed in automation mode.
-- Explicit texture assignment via `assign_texture` (auto-assign only when using `texture_pipeline.plan`).
+- Modeling is low-level only (`add_bone`, `add_cube`).
+- Low-level tools are exposed for deterministic workflows.
+- Explicit texture assignment via `assign_texture` (no auto-assign).
+- Per-face UVs via `set_face_uv`; preset painting via `generate_texture_preset`.
 - Revision guard (`ifRevision`) for safe concurrent edits.
 - Preview output as MCP `content` image blocks (base64 PNG).
 - Java Block/Item enabled by default; GeckoLib/Animated Java gated by capabilities.
-- MCP resources for generated JSON (via `resources/list` and `resources/read`).
+- MCP resources for guides (via `resources/list` and `resources/read`).
 
 ## Quickstart
 1) Install dependencies
@@ -31,72 +31,42 @@ npm run build
 
 4) Start MCP
 - The plugin starts an MCP server on `0.0.0.0:8787/mcp` by default.
-- Configure host/port/path via Settings (bbmcp: Server), `.bbmcp/endpoint.json`, or env vars (`BBMCP_HOST`, `BBMCP_PORT`, `BBMCP_PATH`).
+- Configure host/port/path via Settings (bbmcp: Server), user config (`%APPDATA%\\bbmcp\\endpoint.json` or `~/.bbmcp/endpoint.json`), project config (`.bbmcp/endpoint.json`), or env vars (`BBMCP_HOST`, `BBMCP_PORT`, `BBMCP_PATH`).
 
 ## Default Endpoint
 ```
 http://0.0.0.0:8787/mcp
 ```
+`0.0.0.0` binds to all interfaces. Use `127.0.0.1` for local-only access.
 ### Endpoint Config
-Create `.bbmcp/endpoint.json` in the working directory:
+Create `.bbmcp/endpoint.json` in the working directory, or a user config at `%APPDATA%\\bbmcp\\endpoint.json` (Windows) / `~/.bbmcp/endpoint.json` (macOS/Linux):
 ```json
 { "host": "0.0.0.0", "port": 8787, "path": "/mcp" }
 ```
-Settings values override the config file if set. Env vars override the file as well: `BBMCP_HOST`, `BBMCP_PORT`, `BBMCP_PATH`. If Settings are saved, they take precedence over env/file.
+Settings values override the config file if set. Env vars override user/project files: `BBMCP_HOST`, `BBMCP_PORT`, `BBMCP_PATH`. If Settings are saved, they take precedence over env/file.
+
+## Tool Discovery Notes
+- If `toolRegistry.hash` changes, re-run `tools/list` or `list_capabilities` to refresh schemas.
 
 ## Core Flow (Recommended)
 1) `ensure_project` (or `get_project_state`) to confirm an active project and read `revision`.
    - The project dialog is auto-confirmed; supply `ensure_project.dialog` with required fields to avoid UI prompts.
    - To close a project, call `ensure_project` with `action="delete"` and `target.name` matching the open project; set `force=true` to discard unsaved changes (no auto-save).
-2) Prefer high-level pipelines (`model_pipeline`, `texture_pipeline`, `entity_pipeline`, `block_pipeline`) with `ifRevision`.
+2) Use low-level modeling (`add_bone`, `add_cube`) and explicit UV/texture tools with `ifRevision`.
 3) `validate` to catch issues early.
 4) `render_preview` for images.
 5) `export` for JSON output.
 
-## Block Pipeline
-`block_pipeline` creates blockstates + models + item models using vanilla parents and stores them as MCP resources.
-```json
-{
-  "name": "adamantium_ore",
-  "texture": "adamantium_ore",
-  "variants": ["block", "slab", "stairs", "wall"],
-  "namespace": "mymod",
-  "mode": "json_only"
-}
-```
-Use `resources/list` to discover generated assets and `resources/read` to fetch JSON.
-
-## Entity Pipeline
-`entity_pipeline` applies model + textures + animations for GeckoLib projects.
-Use `texturePlan` to auto-create textures + UVs (no manual preflight required), then `facePaint` or `textures` to paint.
-```json
-{
-  "format": "geckolib",
-  "targetVersion": "v4",
-  "ensureProject": { "name": "my_entity", "match": "format", "onMissing": "create" },
-  "model": {
-    "rigTemplate": "empty",
-    "bone": { "id": "root", "pivot": [0, 0, 0] }
-  },
-  "texturePlan": { "name": "my_entity", "detail": "medium", "maxTextures": 1 },
-  "animations": [
-    { "name": "idle", "length": 1, "loop": true, "channels": [{ "bone": "root", "channel": "rot", "keys": [{ "time": 0, "value": [0, 0, 0] }] }] }
-  ],
-  "ifRevision": { "$ref": { "kind": "tool", "tool": "get_project_state", "pointer": "/project/revision" } }
-}
-```
-
 ## Texture Flow (Recommended)
-Low-level tools are not exposed; use `texture_pipeline` to run the entire flow.
-- Use `texture_pipeline.plan` for auto-assign + auto-UV with texel-density planning from high-level intent.
-- Plan respects active format constraints (e.g., single-texture formats disable splitting).
-- Use `facePaint` to describe materials per cube/face without manual UV work (maps to presets + uvPaint).
-- Always `preflight_texture` without filters to get a stable `uvUsageId`.
-- If UVs change, preflight again and repaint.
-- For 64x64+ textures, prefer `generate_texture_preset`.
-- Automatic recovery handles overlap/scale issues (plan-based re-UV, auto-split, <=512, max 16 textures). For low-level recovery, prefer `texture_pipeline.plan` over `auto_uv_atlas`.
-- Use `cleanup` to delete explicit textures (blocked if still assigned unless `force=true`).
-- See `docs/texture-uv-spec.md`, `docs/texture-pipeline-plan.md`, `docs/llm-texture-strategy.md`.
+Use the low-level texture tools explicitly.
+1) `assign_texture` to bind textures to cubes/faces.
+2) `preflight_texture` (no filters) to get a stable `uvUsageId`.
+3) `set_face_uv` to set UVs per face (repeat per cube).
+4) `generate_texture_preset` to paint/update textures (uvPaint enforced).
+5) If UVs change, repeat `preflight_texture` and repaint.
+6) Use `auto_uv_atlas` (apply=true) to recover from overlap/scale issues.
+7) Use `delete_texture` to remove textures (blocked if still assigned unless `force=true`).
+See `docs/texture-uv-spec.md`, `docs/llm-texture-strategy.md`.
 
 ## Preview Output (MCP Standard)
 `render_preview` responds with MCP `content` blocks plus `structuredContent` metadata:
@@ -142,7 +112,8 @@ Notes:
 Static guides are exposed via MCP resources. Use `resources/list` and `resources/read` to fetch them.
 - Template: `bbmcp://guide/{name}` (see `resources/templates/list`).
 - `bbmcp://guide/rigging` (root-based hierarchy example for animation-ready rigs)
-- `bbmcp://guide/modeling-workflow` (model_pipeline workflow + ModelSpec)
+- `bbmcp://guide/animation-workflow` (low-level animation workflow)
+- `bbmcp://guide/modeling-workflow` (low-level add_bone/add_cube workflow)
 - `bbmcp://guide/texture-workflow` (uvPaint-first texture workflow + preset example)
 - `bbmcp://guide/uv-atlas` (auto atlas packing + resolution growth)
 - `bbmcp://guide/texture-spec` (UV/texturing invariants)
@@ -151,8 +122,6 @@ Static guides are exposed via MCP resources. Use `resources/list` and `resources
 - `bbmcp://guide/llm-texture-strategy` (LLM workflow + recovery loop)
 
 ## Spec Docs
-- `docs/block-pipeline.md`
-- `docs/entity-pipeline.md`
 - `docs/texture-uv-spec.md`
 - `docs/llm-texture-strategy.md`
 - `bbmcp://guide/vision-fallback` (preview/texture snapshot workflow for manual uploads)

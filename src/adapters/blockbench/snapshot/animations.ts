@@ -1,6 +1,8 @@
 import type { AnimationClip, BlockbenchGlobals, UnknownRecord } from '../../../types/blockbench';
 import type { TrackedAnimationChannel, TrackedAnimationTrigger } from '../../../session';
 import { isRecord } from '../../../domain/guards';
+import { normalizeKeyframeTime } from '../../../domain/animation/keyframes';
+import { normalizeAnimationChannel, normalizeTriggerChannel } from '../../../domain/animation/channels';
 
 export const getAnimationState = (
   globals: BlockbenchGlobals
@@ -59,11 +61,11 @@ const collectAnimatorChannels = (
   const keyframes = Array.isArray(animator.keyframes) ? animator.keyframes : [];
   keyframes.forEach((kf) => {
     if (!isRecord(kf)) return;
-    const channel = normalizeChannel(kf.channel ?? kf.data_channel ?? kf.transform);
+    const channel = normalizeAnimationChannel(kf.channel ?? kf.data_channel ?? kf.transform);
     const value = kf.data_points ?? kf.value ?? kf.data_point;
     if (!channel || !Array.isArray(value) || value.length < 3) return;
     buckets[channel].push({
-      time: Number(kf.time ?? kf.frame ?? 0),
+      time: normalizeKeyframeTime(Number(kf.time ?? kf.frame ?? 0)),
       value: [value[0], value[1], value[2]],
       interp: normalizeInterp(kf.interpolation)
     });
@@ -89,7 +91,7 @@ const collectAnimatorTriggers = (
     const value = normalizeTriggerValue(kf.data_point ?? kf.data_points ?? kf.value ?? kf.data);
     if (value === null) return;
     buckets[type].push({
-      time: Number(kf.time ?? kf.frame ?? 0),
+      time: normalizeKeyframeTime(Number(kf.time ?? kf.frame ?? 0)),
       value
     });
   });
@@ -98,22 +100,6 @@ const collectAnimatorTriggers = (
   >)
     .filter(([, keys]) => keys.length > 0)
     .map(([type, keys]) => ({ type, keys }));
-};
-
-const normalizeChannel = (value: unknown): 'rot' | 'pos' | 'scale' | null => {
-  const channel = String(value ?? '').toLowerCase();
-  if (channel.includes('rot')) return 'rot';
-  if (channel.includes('pos')) return 'pos';
-  if (channel.includes('scale')) return 'scale';
-  return null;
-};
-
-const normalizeTriggerChannel = (value: unknown): 'sound' | 'particle' | 'timeline' | null => {
-  const channel = String(value ?? '').toLowerCase();
-  if (channel.includes('sound')) return 'sound';
-  if (channel.includes('particle')) return 'particle';
-  if (channel.includes('timeline') || channel.includes('event')) return 'timeline';
-  return null;
 };
 
 const normalizeTriggerValue = (

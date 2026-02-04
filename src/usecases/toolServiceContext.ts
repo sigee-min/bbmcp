@@ -17,12 +17,11 @@ import { ProjectStateBuilder } from '../domain/project/projectStateBuilder';
 import { RevisionStore } from '../domain/revision/revisionStore';
 import { ProjectService } from './ProjectService';
 import { TextureService } from './TextureService';
-import { AnimationService } from './AnimationService';
 import { ModelService } from './ModelService';
+import { AnimationService } from './AnimationService';
 import { ExportService } from './ExportService';
 import { RenderService } from './RenderService';
 import { ValidationService } from './ValidationService';
-import { BlockPipelineService } from './BlockPipelineService';
 
 const REVISION_CACHE_LIMIT = 5;
 
@@ -46,16 +45,18 @@ export type ToolServiceContext = {
   revisionContext: RevisionContextLike;
   projectService: ProjectService;
   textureService: TextureService;
-  animationService: AnimationService;
   modelService: ModelService;
+  animationService: AnimationService;
   exportService: ExportService;
   renderService: RenderService;
   validationService: ValidationService;
-  blockPipelineService: BlockPipelineService;
 };
 
 export const createToolServiceContext = (deps: ToolServiceDeps): ToolServiceContext => {
   const policies = deps.policies ?? {};
+  if (policies.animationTimePolicy) {
+    deps.session.setAnimationTimePolicy(policies.animationTimePolicy);
+  }
   const projectState = new ProjectStateBuilder(deps.formats, policies.formatOverrides);
   const revisionStore = new RevisionStore(REVISION_CACHE_LIMIT);
   const policyContext = new PolicyContext(policies);
@@ -101,7 +102,7 @@ export const createToolServiceContext = (deps: ToolServiceDeps): ToolServiceCont
     ensureRevisionMatch: (ifRevision?: string) => revisionContext.ensureRevisionMatch(ifRevision),
     getUvPolicyConfig: () => policyContext.getUvPolicyConfig()
   });
-  const animationService = new AnimationService({
+  const modelService = new ModelService({
     session: deps.session,
     editor: deps.editor,
     capabilities: deps.capabilities,
@@ -109,7 +110,7 @@ export const createToolServiceContext = (deps: ToolServiceDeps): ToolServiceCont
     ensureActive: () => snapshotContext.ensureActive(),
     ensureRevisionMatch: (ifRevision?: string) => revisionContext.ensureRevisionMatch(ifRevision)
   });
-  const modelService = new ModelService({
+  const animationService = new AnimationService({
     session: deps.session,
     editor: deps.editor,
     capabilities: deps.capabilities,
@@ -142,13 +143,6 @@ export const createToolServiceContext = (deps: ToolServiceDeps): ToolServiceCont
     getSnapshot: () => snapshotContext.getSnapshot(),
     getUvPolicyConfig: () => policyContext.getUvPolicyConfig()
   });
-  const blockPipelineService = new BlockPipelineService({
-    resources: deps.resources,
-    createProject: (format, name, options) => projectService.createProject(format, name, options),
-    runWithoutRevisionGuard: (fn) => revisionContext.runWithoutRevisionGuard(fn),
-    addBone: (payload) => modelService.addBone(payload),
-    addCube: (payload) => modelService.addCube(payload)
-  });
 
   return {
     policyContext,
@@ -156,12 +150,11 @@ export const createToolServiceContext = (deps: ToolServiceDeps): ToolServiceCont
     revisionContext,
     projectService,
     textureService,
-    animationService,
     modelService,
+    animationService,
     exportService,
     renderService,
-    validationService,
-    blockPipelineService
+    validationService
   };
 };
 

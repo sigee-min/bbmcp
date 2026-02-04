@@ -27,14 +27,6 @@ export const TEXTURE_AUTO_UV_UNRESOLVED_REFS = (count: number) =>
 
 export const UV_ASSIGNMENT_TARGET_REQUIRED =
   'assignment must include cubeId/cubeName or cubeIds/cubeNames.';
-export const UV_ASSIGNMENT_CUBE_ID_NOT_FOUND = (id: string) => `Cube not found for id: ${id}`;
-export const UV_ASSIGNMENT_CUBE_NAME_DUPLICATE = (name: string) =>
-  `Cube name "${name}" is duplicated. Use cubeId instead.`;
-export const UV_ASSIGNMENT_CUBE_NAME_NOT_FOUND = (name: string) => `Cube not found: ${name}`;
-export const UV_ASSIGNMENT_UNBOUND_FACE = (cubeName: string, face: string) =>
-  `UV target ${cubeName} (${face}) is not bound to a texture. Assign the texture first.`;
-export const UV_ASSIGNMENT_CONFLICT = (cubeName: string, face: string) =>
-  `Conflicting UV assignments for ${cubeName} (${face}).`;
 
 export const UV_ASSIGNMENTS_REQUIRED = 'assignments must be a non-empty array';
 export const UV_ASSIGNMENT_OBJECT_REQUIRED = 'assignment must be an object';
@@ -46,6 +38,22 @@ export const UV_ASSIGNMENT_INVALID_FACE = (face: string) => `invalid face: ${fac
 export const UV_ASSIGNMENT_UV_FORMAT = (face: string) => `UV for ${face} must be [x1,y1,x2,y2]`;
 export const UV_ASSIGNMENT_UV_NUMBERS = (face: string) => `UV for ${face} must contain finite numbers`;
 
+export const TEXTURE_FACE_UV_SMALL_RECTS = (
+  cubeName: string,
+  count: number,
+  minArea: number,
+  example: string
+) =>
+  `UV rects on "${cubeName}" are very small (<= ${minArea}px²). ${count} face(s) affected.${example}`;
+
+export const TEXTURE_FACE_UV_SKEWED_RECTS = (
+  cubeName: string,
+  count: number,
+  maxAspect: number,
+  example: string
+) =>
+  `UV rects on "${cubeName}" are highly non-square (aspect >= ${maxAspect}:1). ${count} face(s) affected.${example}`;
+
 export const UV_OVERLAP_MESSAGE = (
   names: string,
   suffix: string,
@@ -55,7 +63,7 @@ export const UV_OVERLAP_MESSAGE = (
   `UV overlap detected for texture${plural ? 's' : ''} ${names}${suffix}. Only identical UV rects may overlap.${example}`;
 export const UV_OVERLAP_FIX =
   'Adjust UVs so only identical rects overlap, then call preflight_texture and retry. ' +
-  'For high-level recovery, run texture_pipeline to re-pack UVs automatically.';
+  'For recovery, run auto_uv_atlas (apply=true), then preflight_texture again.';
 
 export const UV_SCALE_MESSAGE = (
   names: string,
@@ -64,5 +72,5 @@ export const UV_SCALE_MESSAGE = (
   plural: boolean
 ) => `UV scale mismatch detected for texture${plural ? 's' : ''} ${names}${suffix}.${example}`;
 export const UV_SCALE_FIX =
-  'For high-level recovery, run texture_pipeline to re-pack UVs and repaint automatically. ' +
-  'If this repeats, increase texture resolution (e.g., 64x64+), reduce cube count, or allow split textures.';
+  'For recovery, run auto_uv_atlas (apply=true), then preflight_texture again. ' +
+  'If this repeats, increase texture resolution (e.g., 64x64+), reduce cube count, or simplify UVs.';

@@ -14,7 +14,10 @@ export interface ToolPolicies {
   autoIncludeDiff?: boolean;
   requireRevision?: boolean;
   autoRetryRevision?: boolean;
-  exposeLowLevelTools?: boolean;
+  animationTimePolicy?: {
+    timeEpsilon?: number;
+    triggerDedupeByValue?: boolean;
+  };
   uvPolicy?: {
     modelUnitsPerBlock?: number;
     scaleTolerance?: number;

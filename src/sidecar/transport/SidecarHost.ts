@@ -1,6 +1,4 @@
 import { Dispatcher, ToolName, ToolPayloadMap, ToolResponse } from '../../types';
-import { ProxyRouter } from '../../proxy';
-import type { ProxyToolPayloadMap } from '../../proxy/types';
 import { errorMessage, Logger } from '../../logging';
 import {
   PROTOCOL_VERSION,
@@ -8,7 +6,6 @@ import {
   SidecarRequestMessage,
   SidecarResponseMessage
 } from '../../transport/protocol';
-import { ProxyTool } from '../../spec';
 import { toolError } from '../../shared/tooling/toolResponse';
 import { attachIpcReadable, createIpcDecoder, detachIpcReadable, IpcReadable, IpcWritable, sendIpcMessage } from './ipc';
 
@@ -19,15 +16,13 @@ export class SidecarHost {
   private readonly readable: IpcReadable;
   private readonly writable: IpcWritable;
   private readonly dispatcher: Dispatcher;
-  private readonly proxy: ProxyRouter;
   private readonly log: Logger;
   private readonly onData: (chunk: string | Uint8Array) => void;
 
-  constructor(readable: IpcReadable, writable: IpcWritable, dispatcher: Dispatcher, proxy: ProxyRouter, log: Logger) {
+  constructor(readable: IpcReadable, writable: IpcWritable, dispatcher: Dispatcher, log: Logger) {
     this.readable = readable;
     this.writable = writable;
     this.dispatcher = dispatcher;
-    this.proxy = proxy;
     this.log = log;
     const { onData } = createIpcDecoder(this.log, (message) => this.handleMessage(message));
     this.onData = onData;
@@ -59,13 +54,9 @@ export class SidecarHost {
       this.log.warn('sidecar request missing id');
       return;
     }
-    const mode = message.mode === 'proxy' ? 'proxy' : 'direct';
     let result: ToolResponse<unknown>;
     try {
-      result =
-        mode === 'proxy'
-          ? await this.proxy.handle(message.tool as ProxyTool, message.payload as ProxyToolPayloadMap[ProxyTool])
-          : this.dispatcher.handle(message.tool as DispatcherToolName, message.payload as DispatcherPayload);
+      result = this.dispatcher.handle(message.tool as DispatcherToolName, message.payload as DispatcherPayload);
     } catch (err) {
       const msg = errorMessage(err, 'handler error');
       const response: SidecarResponseMessage = {
@@ -75,8 +66,7 @@ export class SidecarHost {
         ok: false,
         error: toolError('unknown', msg, {
           reason: 'sidecar_handler_exception',
-          tool: message.tool,
-          mode
+          tool: message.tool
         })
       };
       this.send(response);

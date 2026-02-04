@@ -86,8 +86,8 @@ const assertExpectations = (result: unknown, expects: FixtureExpect[] | undefine
 };
 
 const createServiceHarness = (fixture: Fixture) => {
-  const { dispatcher, proxy } = createBlockbenchSimHarness(fixture.project);
-  return { dispatcher, proxy };
+  const { dispatcher } = createBlockbenchSimHarness(fixture.project);
+  return { dispatcher };
 };
 
 const fixtures = loadFixtures();
@@ -96,10 +96,7 @@ fixtures.forEach((fixture) => {
     (async () => {
       const captures = new Map<string, unknown>();
       const harness = createServiceHarness(fixture);
-      const runResult = await runTrace(
-        { dispatcher: harness.dispatcher, proxy: harness.proxy },
-        fixture.steps
-      );
+      const runResult = await runTrace({ dispatcher: harness.dispatcher }, fixture.steps);
       for (let idx = 0; idx < fixture.steps.length; idx += 1) {
         const step = fixture.steps[idx];
         const result = runResult.steps[idx]?.response;

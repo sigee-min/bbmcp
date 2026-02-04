@@ -1,6 +1,6 @@
 # UV Atlas Guide
 
-Use auto_uv_atlas only for low-level workflows. For high-level workflows, rely on texture_pipeline (plan-based re-UV, auto-split, <=512, max 16 textures).
+Use auto_uv_atlas to re-pack UVs when overlaps or scale mismatches occur.
 
 Key points:
 - Only identical rects may overlap.

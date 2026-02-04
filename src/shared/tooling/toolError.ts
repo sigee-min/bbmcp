@@ -67,8 +67,7 @@ const normalizeTerminology = (value: string): string =>
     .replace(/uvPaint/g, 'UV paint')
     .replace(/textureResolution/g, 'texture resolution')
     .replace(/get_project_state/g, 'get_project_state')
-    .replace(/set_project_texture_resolution/g, 'set_project_texture_resolution')
-    .replace(/apply_texture_spec/g, 'apply_texture_spec');
+    .replace(/set_project_texture_resolution/g, 'set_project_texture_resolution');
 
 
 

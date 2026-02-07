@@ -8,7 +8,7 @@ No manual setup.
 
 | Item | Value |
 | --- | --- |
-| Workflow | bone -> cube -> uv -> texture -> animation |
+| Workflow | bone, cube, uv, texture, animation |
 | Build time | < 5 minutes |
 | Generation model | gpt-5.3-codex xhigh |
 
@@ -21,7 +21,7 @@ No manual setup.
 ## Features
 - Low-level modeling only: add_bone/add_cube (one item per call).
 - Low-level animation only: create_animation_clip + set_frame_pose.
-- UVs are internal: assign_texture -> paint_faces (no manual UV tools).
+- UVs are managed internally with assign_texture and paint_faces (no manual UV tools).
 - Auto UV atlas runs on cube add and geometry-changing cube updates; pixels are reprojected to follow the new layout.
 - Auto density reduction when atlas overflows (uvPixelsPerBlock is lowered to fit).
 - Revision guard (ifRevision) for safe concurrent edits.
@@ -56,13 +56,13 @@ Note: 0.0.0.0 binds all interfaces. Use 127.0.0.1 for local-only access.
 Config precedence (highest to lowest):
 1) Blockbench Settings (bbmcp: Server)
 2) Environment variables: BBMCP_HOST, BBMCP_PORT, BBMCP_PATH
-3) User config: %APPDATA%\bbmcp\endpoint.json (Windows) or ~/.bbmcp/endpoint.json
-4) Project config: .bbmcp/endpoint.json
-5) Defaults
+3) Defaults
 
-Example endpoint.json:
-```json
-{ "host": "0.0.0.0", "port": 8787, "path": "/mcp" }
+Environment example:
+```bash
+BBMCP_HOST=127.0.0.1
+BBMCP_PORT=8787
+BBMCP_PATH=/mcp
 ```
 
 ## Recommended Flow

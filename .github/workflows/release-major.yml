@@ -1,0 +1,132 @@
+name: release-major-minor
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - package-lock.json
+      - .github/workflows/release-major.yml
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect major or minor version bump
+        id: version
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { execSync } = require('node:child_process');
+
+          const outputPath = process.env.GITHUB_OUTPUT;
+          let beforeSha = process.env.BEFORE_SHA || '';
+          const currentVersion = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+
+          const parseVersion = (value) => {
+            const match = String(value).trim().match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
+            if (!match) return null;
+            return {
+              major: Number(match[1]),
+              minor: Number(match[2]),
+              patch: Number(match[3])
+            };
+          };
+
+          let previousVersion = null;
+          if (!beforeSha || /^0+$/.test(beforeSha)) {
+            try {
+              beforeSha = execSync('git rev-parse HEAD^', { encoding: 'utf8' }).trim();
+            } catch (error) {
+              beforeSha = '';
+            }
+          }
+          if (beforeSha && !/^0+$/.test(beforeSha)) {
+            try {
+              const previousRaw = execSync(`git show ${beforeSha}:package.json`, {
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore']
+              });
+              previousVersion = JSON.parse(previousRaw).version;
+            } catch (error) {
+              previousVersion = null;
+            }
+          }
+
+          const current = parseVersion(currentVersion);
+          const previous = previousVersion ? parseVersion(previousVersion) : null;
+          let releaseBumped = false;
+          let bumpKind = '';
+          if (current && previous) {
+            if (current.major > previous.major) {
+              releaseBumped = true;
+              bumpKind = 'major';
+            } else if (current.major === previous.major && current.minor > previous.minor) {
+              releaseBumped = true;
+              bumpKind = 'minor';
+            }
+          }
+
+          const lines = [
+            `current_version=${currentVersion}`,
+            `previous_version=${previousVersion ?? ''}`,
+            `current_major=${current?.major ?? ''}`,
+            `previous_major=${previous?.major ?? ''}`,
+            `current_minor=${current?.minor ?? ''}`,
+            `previous_minor=${previous?.minor ?? ''}`,
+            `release_bumped=${releaseBumped ? 'true' : 'false'}`,
+            `bump_kind=${bumpKind}`,
+            `tag=v${currentVersion}`
+          ];
+          fs.appendFileSync(outputPath, `${lines.join('\n')}\n`);
+
+          console.log(
+            `current=${currentVersion} previous=${previousVersion ?? 'unknown'} release_bumped=${releaseBumped} kind=${bumpKind || 'none'}`
+          );
+          NODE
+
+      - name: Skip when major/minor version is unchanged
+        if: steps.version.outputs.release_bumped != 'true'
+        run: echo "No major/minor version bump detected. Skipping release."
+
+      - name: Setup Node
+        if: steps.version.outputs.release_bumped == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        if: steps.version.outputs.release_bumped == 'true'
+        run: npm ci
+
+      - name: Build
+        if: steps.version.outputs.release_bumped == 'true'
+        run: npm run build
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.release_bumped == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          make_latest: true
+          files: |
+            dist/bbmcp.js
+            dist/bbmcp.js.map
+            dist/bbmcp-sidecar.js
+            dist/bbmcp-sidecar.js.map
+          overwrite_files: true

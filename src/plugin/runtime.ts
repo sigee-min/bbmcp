@@ -143,11 +143,11 @@ bbmcp exposes a clean MCP-facing tool surface for AI/agents:
 - UVs are fully internal: assign_texture -> paint_faces (no manual UV tools).
 - Deterministic low-level tools only; no high-level pipelines.
   - Formats: Java Block/Item enabled by default; GeckoLib/Animated Java gated by capability flags.
-- MCP endpoint: set in Settings (bbmcp: Server) or read from user/project .bbmcp/endpoint.json, or BBMCP_HOST/PORT/PATH env vars (default 0.0.0.0:8787/mcp).
+- MCP endpoint: set in Settings (bbmcp: Server) or BBMCP_HOST/PORT/PATH env vars (default 0.0.0.0:8787/mcp).
 - Server starts automatically and restarts on endpoint changes.
 
 Recommended flow:
-1) Configure endpoint via Settings or .bbmcp/endpoint.json when needed.
+1) Configure endpoint via Settings or BBMCP_HOST/PORT/PATH env vars when needed.
   2) Use \`bbmcp.invoke\` with low-level tools (model/texture/animation).
 3) Export, render preview, and run validate to catch issues early.
 
@@ -162,7 +162,7 @@ Notes:
       const blockbench = readGlobals().Blockbench;
       const logger = new ConsoleLogger(PLUGIN_ID, () => logLevel);
       logger.info(PLUGIN_LOG_LOADING, { version: PLUGIN_VERSION, schema: TOOL_SCHEMA_VERSION });
-      endpointConfig = resolveEndpointConfig(logger);
+      endpointConfig = resolveEndpointConfig();
       registerPluginSettings({
         readGlobals,
         endpointConfig,

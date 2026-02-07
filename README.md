@@ -3,13 +3,18 @@
 Blockbench MCP bridge plugin. bbmcp exposes a low-level, deterministic tool surface for modeling, texturing, and animation over MCP.
 
 ## Showcase
-This is a real result created with bbmcp from natural language in under 5 minutes, with no manual setup.
-Supports bone, cube, uv, texture, and animation workflows.
-Built with codex5.3 xhigh.
+Real output from bbmcp, created from natural language in under 5 minutes.
+No manual setup.
+
+| Item | Value |
+| --- | --- |
+| Workflow | bone -> cube -> uv -> texture -> animation |
+| Build time | < 5 minutes |
+| Generation model | gpt-5.3-codex xhigh |
 
 ![Greyfox Animation](assets/images/greyfox-animation.gif)
 
-| Hero Render | Texture Sheet |
+| Final Model (Hero) | Texture Atlas |
 | --- | --- |
 | ![Greyfox Model](assets/images/greyfox.png) | ![Greyfox Texture](assets/images/greyfox-texture.png) |
 

@@ -20,7 +20,7 @@ Use this checklist before publishing a release or major public update.
 - [ ] Confirm viewport refresh behavior after mutations
 
 ## 3. Docs and Schema Consistency
-- [ ] `README.md` and `README.ko.md` reflect current behavior
+- [ ] `README.md` and any localized README files reflect current behavior
 - [ ] `docs/guides/` reflect current payloads and constraints
 - [ ] MCP schemas and examples match implementation
 - [ ] Breaking changes and migration notes documented

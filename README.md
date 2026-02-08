@@ -228,17 +228,18 @@ npm run quality:check
 
 ## Release Automation
 - Release workflows run only by manual `workflow_dispatch` (Actions tab).
-- Run `release-please` to open/update the version bump PR from conventional commits on `main`.
+- Run `release-please` and select `bump`:
+  - `auto`: follow conventional commits
+  - `patch` / `minor` / `major`: force the next release PR version
 - Merging the release PR updates `package.json`/`CHANGELOG.md` via bot.
-- Run `.github/workflows/release-major.yml` manually to publish GitHub Releases.
+- Run `.github/workflows/release-major.yml` (release-publish) manually to publish GitHub Releases.
 - `release-please` auth:
   - recommended: set repository secret `RELEASE_PLEASE_TOKEN` (token must allow `contents:write` and `pull_requests:write`)
   - optional fallback: set repository variable `RELEASE_PLEASE_ALLOW_GITHUB_TOKEN=true` and enable GitHub Actions PR creation in repository settings
   - if neither is configured, the workflow exits cleanly with a notice (no failure)
 - Publish policy:
   - first release: auto-create
-  - after bootstrap: only `major`/`minor` version bumps publish releases
-  - `patch` bumps are intentionally skipped
+  - after bootstrap: publish when version is bumped (`major`/`minor`/`patch`)
 
 ## Community and Security
 - Contributing guide: `CONTRIBUTING.md`

@@ -1,4 +1,4 @@
-name: release-major-minor
+name: release-publish
 
 on:
   workflow_dispatch:
@@ -114,16 +114,23 @@ jobs:
             } else if (current.major === previous.major && current.minor > previous.minor) {
               releaseBumped = true;
               bumpKind = 'minor';
+            } else if (
+              current.major === previous.major &&
+              current.minor === previous.minor &&
+              current.patch > previous.patch
+            ) {
+              releaseBumped = true;
+              bumpKind = 'patch';
             }
           }
           let releaseNeeded = false;
-          let releaseReason = 'patch_or_no_version_bump';
+          let releaseReason = 'no_version_bump';
           if (!hasAnyRelease) {
             releaseNeeded = true;
             releaseReason = 'bootstrap_first_release';
           } else if (releaseBumped) {
             releaseNeeded = !tagExists || !releaseExists;
-            releaseReason = bumpKind === 'major' ? 'major_bump' : 'minor_bump';
+            releaseReason = `${bumpKind}_bump`;
           }
 
           const lines = [

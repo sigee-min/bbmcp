@@ -5,7 +5,11 @@
       "release-type": "node",
       "changelog-path": "CHANGELOG.md",
       "component": "ashfox",
-      "package-name": "ashfox"
+      "package-name": "ashfox",
+      "bump-patch-for-minor-pre-major": true,
+      "extra-files": [
+        "src/config.ts"
+      ]
     }
   }
 }

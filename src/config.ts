@@ -4,7 +4,7 @@ import { FormatOverrides, resolveFormatId } from './domain/formats';
 import { TEXTURE_WORKFLOW_INSTRUCTIONS } from './shared/tooling/toolInstructions';
 
 export const PLUGIN_ID = 'ashfox';
-export const PLUGIN_VERSION = '0.0.2';
+export const PLUGIN_VERSION = '0.0.2'; // x-release-please-version
 export const TOOL_SCHEMA_VERSION = '2026-02-09';
 export const DEFAULT_SERVER_HOST = '0.0.0.0';
 export const DEFAULT_SERVER_PORT = 8787;

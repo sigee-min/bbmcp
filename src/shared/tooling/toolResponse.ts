@@ -1,5 +1,5 @@
 import type { UsecaseResult } from '../../usecases/result';
-import type { ToolError, ToolErrorCode, ToolErrorResponse, ToolResponse } from '../../types/internal';
+import type { ToolError, ToolErrorCode, ToolErrorResponse, ToolResponse } from '@ashfox/contracts/types/internal';
 import { applyToolErrorPolicy } from './toolError';
 
 const ensureReason = (error: ToolError): ToolError => {

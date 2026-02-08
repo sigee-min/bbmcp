@@ -1,4 +1,4 @@
-import type { FormatKind } from '../../types/internal';
+import type { FormatKind } from '@ashfox/contracts/types/internal';
 import { ok, fail, type UsecaseResult } from '../result';
 import { ensureNonBlankString } from '../../shared/payloadValidation';
 import {

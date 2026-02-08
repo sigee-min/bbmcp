@@ -6,7 +6,7 @@ import {
   PLUGIN_VERSION,
   TOOL_SCHEMA_VERSION
 } from '../config';
-import { Capabilities, Dispatcher } from '../types/internal';
+import { Capabilities, Dispatcher } from '@ashfox/contracts/types/internal';
 import { ConsoleLogger, errorMessage, LogLevel } from '../logging';
 import { FormatOverrides } from '../domain/formats';
 import { DEFAULT_TOOL_REGISTRY } from '../transport/mcp/tools';

@@ -1,4 +1,4 @@
-import type { ProjectDiff, ProjectState, ProjectStateDetail } from '../../types/internal';
+import type { ProjectDiff, ProjectState, ProjectStateDetail } from '@ashfox/contracts/types/internal';
 import { ok, fail, type UsecaseResult } from '../result';
 import { diffSnapshots } from '../../domain/project/diff';
 import { ensureNonBlankString } from '../../shared/payloadValidation';

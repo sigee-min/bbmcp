@@ -1,4 +1,4 @@
-import type { ToolError } from '../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import { createId } from '../shared/id';
 
 type NamedEntity = { name: string; id?: string | null };

@@ -1,4 +1,4 @@
-import type { ToolError } from '../../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import type { TmpSaveResult, TmpStorePort } from '../../ports/tmpStore';
 import { errorMessage } from '../../logging';
 import { toolError } from '../../shared/tooling/toolResponse';

@@ -5,7 +5,7 @@ import type {
   ProjectDiff,
   ProjectState,
   ProjectStateDetail
-} from '../../types/internal';
+} from '@ashfox/contracts/types/internal';
 
 export type GetProjectStatePayload = { detail?: ProjectStateDetail; includeUsage?: boolean };
 

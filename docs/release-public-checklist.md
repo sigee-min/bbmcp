@@ -7,6 +7,7 @@ Use this checklist before publishing a release or major public update.
 - [ ] `npm run build`
 - [ ] `npm test`
 - [ ] `npm run quality`
+- [ ] `npm run release:validate`
 - [ ] Confirm no failing or skipped critical tests
 
 ## 2. Behavior Validation
@@ -40,5 +41,5 @@ Use this checklist before publishing a release or major public update.
   - [ ] new features
   - [ ] fixes
   - [ ] known limitations
-- [ ] Version/tag is updated consistently
+- [ ] Version/tag is updated consistently (`package.json`, `src/config.ts`, `.github/release-please/manifest.json`)
 - [ ] Final smoke test on a clean environment

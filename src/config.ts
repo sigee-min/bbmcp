@@ -1,4 +1,4 @@
-import { Capabilities, Capability, Limits, FormatKind, PreviewCapability } from './types/internal';
+import { Capabilities, Capability, Limits, FormatKind, PreviewCapability } from '@ashfox/contracts/types/internal';
 import { FormatDescriptor } from './ports/formats';
 import { FormatOverrides, resolveFormatId } from './domain/formats';
 import { TEXTURE_WORKFLOW_INSTRUCTIONS } from './shared/tooling/toolInstructions';

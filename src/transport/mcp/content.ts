@@ -1,5 +1,5 @@
-import { McpContentBlock, ReadTextureResult, RenderPreviewResult } from '../../types/internal';
-import type { RenderPreviewStructured } from '../../types/preview';
+import { McpContentBlock, ReadTextureResult, RenderPreviewResult } from '@ashfox/contracts/types/internal';
+import type { RenderPreviewStructured } from '@ashfox/contracts/types/preview';
 
 export const buildRenderPreviewContent = (result: RenderPreviewResult): McpContentBlock[] => {
   if (result.kind === 'single' && result.image) {

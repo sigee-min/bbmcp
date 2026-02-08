@@ -1,4 +1,4 @@
-import type { FormatKind } from '../../types/internal';
+import type { FormatKind } from '@ashfox/contracts/types/internal';
 
 type DialogDefaultsInput = {
   format: FormatKind;

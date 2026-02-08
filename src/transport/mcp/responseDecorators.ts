@@ -1,4 +1,4 @@
-import type { RenderPreviewResult, ToolPayloadMap, ToolResponse, ToolResultMap } from '../../types/internal';
+import type { RenderPreviewResult, ToolPayloadMap, ToolResponse, ToolResultMap } from '@ashfox/contracts/types/internal';
 import {
   buildRenderPreviewContent,
   buildRenderPreviewStructured,

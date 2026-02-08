@@ -1,6 +1,6 @@
-import type { TraceLogRecord } from '../types/traceLog';
+import type { TraceLogRecord } from '@ashfox/contracts/types/traceLog';
 import { toolError } from '../shared/tooling/toolResponse';
-import type { ToolError } from '../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 
 export type TraceLogParseResult =
   | { ok: true; records: TraceLogRecord[]; warnings?: string[] }

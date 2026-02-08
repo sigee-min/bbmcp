@@ -1,4 +1,4 @@
-import type { ToolError, ToolErrorCode } from '../types/internal';
+import type { ToolError, ToolErrorCode } from '@ashfox/contracts/types/internal';
 
 export type DomainErrorCode = ToolErrorCode;
 

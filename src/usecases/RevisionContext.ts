@@ -1,4 +1,4 @@
-import type { ToolError } from '../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import { RevisionStore } from '../domain/revision/revisionStore';
 import { ProjectStateBuilder } from '../domain/project/projectStateBuilder';
 import { decideRevisionMatch } from './revision/revisionCompare';

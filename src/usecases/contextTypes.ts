@@ -1,4 +1,4 @@
-import type { ToolError } from '../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import type { FormatOverrides } from '../domain/formats';
 import type { ExportPolicy, SnapshotPolicy } from './policies';
 import type { UvPolicyConfig } from '../domain/uv/policy';

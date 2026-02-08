@@ -1,4 +1,4 @@
-import type { ToolName } from '../shared/toolConstants';
+import type { ToolName } from '@ashfox/contracts/types/internal';
 import type { ViewportEffect } from '../shared/tooling/viewportEffects';
 
 export type ViewportRefreshRequest = {

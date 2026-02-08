@@ -1,4 +1,4 @@
-import { FormatKind } from '../types/internal';
+import { FormatKind } from '@ashfox/contracts/types/internal';
 import { FormatDescriptor } from '../ports/formats';
 
 export type FormatOverrides = Partial<Record<FormatKind, string>>;

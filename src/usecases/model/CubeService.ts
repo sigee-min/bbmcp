@@ -1,4 +1,4 @@
-import type { AutoUvAtlasPayload, AutoUvAtlasResult, Capabilities, ToolError } from '../../types/internal';
+import type { AutoUvAtlasPayload, AutoUvAtlasResult, Capabilities, ToolError } from '@ashfox/contracts/types/internal';
 import type { EditorPort } from '../../ports/editor';
 import type { ProjectSession, SessionState } from '../../session';
 import { ok, fail, type UsecaseResult } from '../result';

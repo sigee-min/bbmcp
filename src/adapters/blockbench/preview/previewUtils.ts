@@ -1,5 +1,5 @@
 import type { PreviewItem } from '../../../types/blockbench';
-import type { ToolError } from '../../../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import { toolError } from '../../../shared/tooling/toolResponse';
 import { readGlobals } from '../blockbenchUtils';
 import { getAnimations } from '../animation/animationCommands';

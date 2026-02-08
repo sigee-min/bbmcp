@@ -1,4 +1,4 @@
-import type { ToolError } from '../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import { ProjectSession } from '../session';
 import type { SnapshotPort } from '../ports/snapshot';
 import { ProjectStateBuilder } from '../domain/project/projectStateBuilder';

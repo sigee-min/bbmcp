@@ -1,4 +1,4 @@
-import type { Capabilities, ExportPayload, FormatKind } from '../types/internal';
+import type { Capabilities, ExportPayload, FormatKind } from '@ashfox/contracts/types/internal';
 import type { ProjectSession } from '../session';
 import type { BlockbenchFormats } from '../adapters/blockbench/BlockbenchFormats';
 import type { ExportPolicy } from '../usecases/policies';

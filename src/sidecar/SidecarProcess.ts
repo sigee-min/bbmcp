@@ -1,4 +1,4 @@
-import { Dispatcher } from '../types/internal';
+import { Dispatcher } from '@ashfox/contracts/types/internal';
 import { errorMessage, Logger } from '../logging';
 import { SidecarHost } from './transport/SidecarHost';
 import { SidecarLaunchConfig } from './types';

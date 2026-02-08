@@ -1,4 +1,4 @@
-import type { Capabilities, PreflightTextureResult, ToolError } from '../../types/internal';
+import type { Capabilities, PreflightTextureResult, ToolError } from '@ashfox/contracts/types/internal';
 import type { EditorPort } from '../../ports/editor';
 import { computeTextureUsageId } from '../../domain/textureUsage';
 import {

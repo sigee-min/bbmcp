@@ -1,4 +1,4 @@
-import type { ToolPayloadMap } from '../../types/internal';
+import type { ToolPayloadMap } from '@ashfox/contracts/types/internal';
 import type { HostPort } from '../../ports/host';
 import { ok, fail, type UsecaseResult } from '../result';
 import {

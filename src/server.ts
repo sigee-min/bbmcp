@@ -1,4 +1,4 @@
-import { Dispatcher } from './types/internal';
+import { Dispatcher } from '@ashfox/contracts/types/internal';
 import { errorMessage, Logger } from './logging';
 import { PLUGIN_ID, PLUGIN_VERSION } from './config';
 import { SERVER_TOOL_INSTRUCTIONS } from './shared/tooling/toolInstructions';

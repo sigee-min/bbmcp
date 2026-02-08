@@ -1,4 +1,4 @@
-import type { FormatKind, ToolError, ToolResponse } from '../types/internal';
+import type { FormatKind, ToolError, ToolResponse } from '@ashfox/contracts/types/internal';
 import { err } from '../shared/tooling/toolResponse';
 import { PROJECT_NO_ACTIVE } from '../shared/messages';
 import type { SessionState } from './types';

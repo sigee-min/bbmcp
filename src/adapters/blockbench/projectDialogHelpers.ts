@@ -1,4 +1,4 @@
-import type { FormatKind, ToolError } from '../../types/internal';
+import type { FormatKind, ToolError } from '@ashfox/contracts/types/internal';
 import { ADAPTER_PROJECT_DIALOG_INPUT_REQUIRED } from '../../shared/messages';
 import { readGlobals } from './blockbenchUtils';
 

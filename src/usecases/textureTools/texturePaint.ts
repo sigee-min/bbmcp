@@ -1,4 +1,4 @@
-import type { PaintTexturePayload, PaintTextureResult } from '../../types/internal';
+import type { PaintTexturePayload, PaintTextureResult } from '@ashfox/contracts/types/internal';
 import { MAX_TEXTURE_OPS, isTextureOp } from '../../domain/textureOps';
 import { applyTextureOps, fillPixels, parseHexColor } from '../../domain/texturePaint';
 import { resolveUvPaintRects } from '../../domain/uv/paint';

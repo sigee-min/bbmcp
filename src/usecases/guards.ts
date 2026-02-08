@@ -1,4 +1,4 @@
-import type { ToolError } from '../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import { fail, type UsecaseResult } from './result';
 
 type EnsureActive = () => ToolError | null;

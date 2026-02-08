@@ -1,4 +1,4 @@
-import type { Capabilities, ToolError } from '../types/internal';
+import type { Capabilities, ToolError } from '@ashfox/contracts/types/internal';
 import { ProjectSession, SessionState } from '../session';
 import { EditorPort, TriggerChannel } from '../ports/editor';
 import { UsecaseResult } from './result';

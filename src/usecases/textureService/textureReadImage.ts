@@ -1,4 +1,4 @@
-import type { ReadTextureResult } from '../../types/internal';
+import type { ReadTextureResult } from '@ashfox/contracts/types/internal';
 import type { TextureSource } from '../../ports/editor';
 import {
   estimateDataUriByteLength,

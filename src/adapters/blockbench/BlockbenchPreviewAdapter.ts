@@ -1,5 +1,5 @@
 import { errorMessage, Logger } from '../../logging';
-import { RenderPreviewOutputKind, RenderPreviewPayload, RenderPreviewResult, ToolError } from '../../types/internal';
+import { RenderPreviewOutputKind, RenderPreviewPayload, RenderPreviewResult, ToolError } from '@ashfox/contracts/types/internal';
 import { toolError } from '../../shared/tooling/toolResponse';
 import { readGlobals } from './blockbenchUtils';
 import {

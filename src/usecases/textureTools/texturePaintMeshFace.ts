@@ -1,8 +1,8 @@
 import type {
   PaintMeshFacePayload,
   PaintMeshFaceResult
-} from '../../types/internal';
-import type { ToolError } from '../../types/internal';
+} from '@ashfox/contracts/types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import { checkDimensions, mapDimensionError } from '../../domain/dimensions';
 import { isTextureOp, type TextureOpLike } from '../../domain/textureOps';
 import { applyTextureOps, parseHexColor } from '../../domain/texturePaint';

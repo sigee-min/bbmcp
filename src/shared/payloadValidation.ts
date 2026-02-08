@@ -1,4 +1,4 @@
-import type { ToolError } from '../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import { ensureNonBlankString as ensureNonBlankStringBase } from '../domain/payloadValidation';
 import { NON_EMPTY_STRING_MESSAGE } from './messages';
 

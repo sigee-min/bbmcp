@@ -1,4 +1,4 @@
-import type { ProjectDiff, ProjectState, ProjectStateDetail, ToolError } from '../../types/internal';
+import type { ProjectDiff, ProjectState, ProjectStateDetail, ToolError } from '@ashfox/contracts/types/internal';
 
 type ResultLike<T> = { ok: true; value: T } | { ok: false; error: ToolError };
 

@@ -4,7 +4,7 @@ import type {
   ToolResultMap,
   ToolResponse,
   WithState
-} from '../types/internal';
+} from '@ashfox/contracts/types/internal';
 import type { UsecaseResult } from '../usecases/result';
 import { ToolService } from '../usecases/ToolService';
 import { toToolResponse } from '../shared/tooling/toolResponse';

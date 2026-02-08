@@ -1,4 +1,4 @@
-import { ToolError } from '../types/internal';
+import { ToolError } from '@ashfox/contracts/types/internal';
 
 export type ExportNativeParams = {
   formatId: string;

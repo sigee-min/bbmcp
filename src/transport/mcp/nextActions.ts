@@ -1,4 +1,4 @@
-import type { NextAction, NextActionArgs, NextActionValueRef } from '../../types/internal';
+import type { NextAction, NextActionArgs, NextActionValueRef } from '@ashfox/contracts/types/internal';
 
 export const refTool = (tool: string, pointer: string, note?: string): NextActionValueRef => ({
   $ref: {

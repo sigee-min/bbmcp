@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "exports": {
+    "./types": "./src/types/index.ts",
+    "./types/*": "./src/types/*.ts",
+    "./types/tools/*": "./src/types/tools/*.ts",
     "./mcpSchemas/*": "./src/mcpSchemas/*.ts",
     "./mcpSchemas/schemas/*": "./src/mcpSchemas/schemas/*.ts",
     "./mcpSchemas/toolSchemas/*": "./src/mcpSchemas/toolSchemas/*.ts"

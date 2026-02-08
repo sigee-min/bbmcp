@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../../types/internal';
+import type { ToolResponse } from '@ashfox/contracts/types/internal';
 import type { JsonRpcMessage, JsonRpcResponse } from './types';
 export { isRecord } from '../../domain/guards';
 import { toolError } from '../../shared/tooling/toolResponse';

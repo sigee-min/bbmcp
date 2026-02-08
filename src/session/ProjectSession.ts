@@ -1,4 +1,4 @@
-import type { FormatKind, ToolError, ToolResponse } from '../types/internal';
+import type { FormatKind, ToolError, ToolResponse } from '@ashfox/contracts/types/internal';
 import type {
   AnimationUpdate,
   BoneUpdate,

@@ -1,4 +1,4 @@
-import type { ToolError } from '../../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import type { SessionState } from '../../session';
 import type { CubeFaceDirection, EditorPort, FaceUvMap } from '../../ports/editor';
 import { withActiveAndRevision } from '../guards';

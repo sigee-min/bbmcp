@@ -1,5 +1,5 @@
 import { errorMessage, type Logger } from '../logging';
-import type { ToolName, ToolPayloadMap, ToolResponse } from '../types/internal';
+import type { ToolName, ToolPayloadMap, ToolResponse } from '@ashfox/contracts/types/internal';
 import type { ToolService } from '../usecases/ToolService';
 import { appendMissingRevisionNextActions } from '../shared/tooling/revisionNextActions';
 import { recordTrace } from './trace';

@@ -1,5 +1,5 @@
 import { TexturePixelData, TextureRenderResult, TextureRendererPort } from '../../ports/textureRenderer';
-import { ToolError } from '../../types/internal';
+import { ToolError } from '@ashfox/contracts/types/internal';
 import { readBlockbenchGlobals } from '../../types/blockbench';
 import {
   ADAPTER_TEXTURE_RENDERER_DOCUMENT_UNAVAILABLE,

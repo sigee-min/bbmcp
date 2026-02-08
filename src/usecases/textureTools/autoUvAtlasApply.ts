@@ -1,7 +1,7 @@
 import { reprojectTexturePixels } from '../../domain/textureReproject';
 import type { TextureUsage, CubeFaceDirection } from '../../domain/model';
 import type { AtlasPlan } from '../../domain/uv/atlas';
-import type { AutoUvAtlasPayload, ToolError } from '../../types/internal';
+import type { AutoUvAtlasPayload, ToolError } from '@ashfox/contracts/types/internal';
 import {
   TEXTURE_AUTO_UV_SOURCE_MISSING,
   TEXTURE_AUTO_UV_SOURCE_SIZE_MISSING

@@ -1,4 +1,4 @@
-import type { ProjectDiff, ProjectState, ProjectStateDetail, ToolError, ToolResponse, WithState } from '../../types/internal';
+import type { ProjectDiff, ProjectState, ProjectStateDetail, ToolError, ToolResponse, WithState } from '@ashfox/contracts/types/internal';
 import { buildResponseMeta } from './responseMeta';
 
 type ResultLike<T> = { ok: true; value: T } | { ok: false; error: ToolError };

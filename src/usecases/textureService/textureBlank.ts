@@ -1,4 +1,4 @@
-import type { Capabilities, ToolError } from '../../types/internal';
+import type { Capabilities, ToolError } from '@ashfox/contracts/types/internal';
 import type { EditorPort } from '../../ports/editor';
 import type { TextureRendererPort } from '../../ports/textureRenderer';
 import { checkDimensions, mapDimensionError } from '../../domain/dimensions';

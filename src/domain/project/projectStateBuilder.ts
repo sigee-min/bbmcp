@@ -1,4 +1,4 @@
-import { FormatKind, FORMAT_KINDS, ProjectInfo, ProjectState, ProjectStateDetail } from '../../types/internal';
+import { FormatKind, FORMAT_KINDS, ProjectInfo, ProjectState, ProjectStateDetail } from '@ashfox/contracts/types/internal';
 import { FormatPort } from '../../ports/formats';
 import { FormatOverrides, matchesFormatKind } from '../formats';
 import { SessionState } from '../../session';

@@ -1,4 +1,4 @@
-import type { NextAction, ToolResponse } from '../../types/internal';
+import type { NextAction, ToolResponse } from '@ashfox/contracts/types/internal';
 import { isRecord } from '../../domain/guards';
 import { callTool, refTool } from '../../transport/mcp/nextActions';
 import { REVISION_REFRESH_REASON, REVISION_RETRY_REASON } from '../messages/workflow';

@@ -1,4 +1,4 @@
-import type { PaintFacesPayload } from '../../types/internal';
+import type { PaintFacesPayload } from '@ashfox/contracts/types/internal';
 import { checkDimensions, mapDimensionError } from '../../domain/dimensions';
 import { buildIdNameMismatchMessage } from '../../shared/targetMessages';
 import { normalizeCubeFaces } from '../textureService/textureUsageUtils';

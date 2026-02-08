@@ -1,4 +1,4 @@
-import type { ToolErrorCode, ToolName, ToolPayloadMap, ToolResponse, ToolResultMap } from '../types/internal';
+import type { ToolErrorCode, ToolName, ToolPayloadMap, ToolResponse, ToolResultMap } from '@ashfox/contracts/types/internal';
 import { err } from '../shared/tooling/toolResponse';
 
 export const respondOk = <T>(data: T): ToolResponse<T> => ({ ok: true, data });

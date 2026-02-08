@@ -9,7 +9,7 @@ import type {
   TextureStat,
   UpdateTextureCommand
 } from '../../../ports/editor';
-import type { ToolError } from '../../../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import type { PreviewItem, TextureConstructor, TextureInstance } from '../../../types/blockbench';
 import { readGlobals, readTextureId, readTextureSize, removeEntity, renameEntity, withUndo } from '../blockbenchUtils';
 import { getTextureApi } from '../blockbenchAdapterUtils';

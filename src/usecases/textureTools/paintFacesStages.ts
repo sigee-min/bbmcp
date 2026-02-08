@@ -1,6 +1,6 @@
 import type { CubeFaceDirection } from '../../ports/editor';
-import type { PaintFacesPayload, PaintFacesResult } from '../../types/internal';
-import type { TextureUsageResult } from '../../types/textureUsage';
+import type { PaintFacesPayload, PaintFacesResult } from '@ashfox/contracts/types/internal';
+import type { TextureUsageResult } from '@ashfox/contracts/types/textureUsage';
 import { isTextureOp, type TextureOpLike } from '../../domain/textureOps';
 import { resolveUvPaintRects } from '../../domain/uv/paint';
 import { validateUvPaintSpec } from '../../domain/uv/paintValidation';

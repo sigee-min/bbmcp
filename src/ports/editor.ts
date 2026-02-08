@@ -1,4 +1,4 @@
-import { FormatKind, RenderPreviewPayload, RenderPreviewResult, ToolError } from '../types/internal';
+import { FormatKind, RenderPreviewPayload, RenderPreviewResult, ToolError } from '@ashfox/contracts/types/internal';
 import type { AnimationTimePolicy } from '../domain/animation/timePolicy';
 import type { CubeFaceDirection, FaceUvMap } from '../domain/model';
 import type {
@@ -7,7 +7,7 @@ import type {
   TextureUsageEntry,
   TextureUsageCube,
   TextureUsageUnresolved
-} from '../types/textureUsage';
+} from '@ashfox/contracts/types/textureUsage';
 
 export type { CubeFaceDirection, FaceUvMap } from '../domain/model';
 import {
@@ -15,7 +15,7 @@ import {
   TexturePbrChannel,
   TextureRenderMode,
   TextureRenderSides
-} from '../types/texture';
+} from '@ashfox/contracts/types/texture';
 
 export type Vec2 = [number, number];
 export type Vec3 = [number, number, number];

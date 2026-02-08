@@ -1,4 +1,4 @@
-import type { Capabilities, Dispatcher, ExportTargetCapability } from '../types/internal';
+import type { Capabilities, Dispatcher, ExportTargetCapability } from '@ashfox/contracts/types/internal';
 import type { Logger } from '../logging';
 import type { ToolPolicies } from '../usecases/policies';
 import { computeCapabilities } from '../config';

@@ -1,4 +1,4 @@
-import type { Capabilities, FormatKind } from '../types/internal';
+import type { Capabilities, FormatKind } from '@ashfox/contracts/types/internal';
 import { type UsecaseResult } from './result';
 import { ProjectLifecycleService } from './project/ProjectLifecycleService';
 import { ProjectStateService } from './project/ProjectStateService';

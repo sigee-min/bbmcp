@@ -1,4 +1,4 @@
-import type { McpContentBlock, NextAction, ToolError, ToolResponse } from '../../types/internal';
+import type { McpContentBlock, NextAction, ToolError, ToolResponse } from '@ashfox/contracts/types/internal';
 import { errFromDomain, normalizeToolError, toolError } from './toolResponse';
 import { isRecord } from '../../domain/guards';
 import { TOOL_ERROR_GENERIC, TOOL_RESPONSE_MALFORMED } from '../../shared/messages';

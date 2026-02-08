@@ -1,5 +1,5 @@
 import type { ProjectDiffCounts, ProjectDiffCountsByKind } from '../types/project';
-import type { TraceLogEntry, TraceLogRecord, TraceLogReport } from '../types/traceLog';
+import type { TraceLogEntry, TraceLogRecord, TraceLogReport } from '@ashfox/contracts/types/traceLog';
 import { parseTraceLogText } from './traceLogReplay';
 
 const emptyCounts = (): ProjectDiffCounts => ({ added: 0, removed: 0, changed: 0 });

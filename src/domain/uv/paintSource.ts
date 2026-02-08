@@ -1,4 +1,4 @@
-import type { Limits } from '../../types/internal';
+import type { Limits } from '@ashfox/contracts/types/internal';
 import { checkDimensions, formatDimensionAxis, mapDimensionError } from '../dimensions';
 import { fail, ok, type DomainResult } from '../result';
 

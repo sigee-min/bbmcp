@@ -1,4 +1,4 @@
-import { ToolError } from '../types/internal';
+import { ToolError } from '@ashfox/contracts/types/internal';
 import { applyToolErrorPolicy } from '../shared/tooling/toolError';
 
 export type UsecaseResult<T> = { ok: true; value: T } | { ok: false; error: ToolError };

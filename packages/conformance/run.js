@@ -11,6 +11,8 @@ register({
   }
 });
 
+globalThis.__ashfox_test_promises = [];
+
 const testsDir = path.join(__dirname, 'tests');
 
 const discoverTests = () =>
@@ -30,6 +32,10 @@ const selectedTests = testFilter ? tests.filter((test) => test.includes(testFilt
   }
   for (const test of selectedTests) {
     require(path.join(testsDir, test));
+  }
+  const pending = Array.isArray(globalThis.__ashfox_test_promises) ? globalThis.__ashfox_test_promises : [];
+  if (pending.length > 0) {
+    await Promise.all(pending);
   }
   console.log('conformance tests ok');
 })().catch((err) => {

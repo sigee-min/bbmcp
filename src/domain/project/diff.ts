@@ -1,5 +1,5 @@
 import { SessionState, TrackedAnimation, TrackedBone, TrackedCube, TrackedMesh, TrackedTexture } from '../../session';
-import { ProjectDiffCounts, ProjectDiffCountsByKind, ProjectDiffSet } from '../../types/internal';
+import { ProjectDiffCounts, ProjectDiffCountsByKind, ProjectDiffSet } from '@ashfox/contracts/types/internal';
 
 type DiffOutput<T> = {
   counts: ProjectDiffCounts;

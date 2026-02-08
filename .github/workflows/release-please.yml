@@ -38,6 +38,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Release safety validation
+        run: npm run release:validate
+
       - name: Resolve auth mode
         id: auth
         shell: bash
@@ -144,6 +147,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Release safety validation
+        run: npm run release:validate
 
       - name: Detect release condition
         id: version

@@ -25,7 +25,7 @@ import {
   UpdateTextureCommand,
   TriggerKeyframeCommand
 } from '../../ports/editor';
-import { RenderPreviewPayload, RenderPreviewResult, ToolError, FormatKind } from '../../types/internal';
+import { RenderPreviewPayload, RenderPreviewResult, ToolError, FormatKind } from '@ashfox/contracts/types/internal';
 import { Logger } from '../../logging';
 import { BlockbenchProjectAdapter } from './BlockbenchProjectAdapter';
 import { BlockbenchTextureAdapter } from './BlockbenchTextureAdapter';

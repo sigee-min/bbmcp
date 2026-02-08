@@ -1,5 +1,5 @@
-import type { PaintFacesPayload, PaintFacesResult, ToolError } from '../../types/internal';
-import type { TextureUsageResult } from '../../types/textureUsage';
+import type { PaintFacesPayload, PaintFacesResult, ToolError } from '@ashfox/contracts/types/internal';
+import type { TextureUsageResult } from '@ashfox/contracts/types/textureUsage';
 import type { CubeFaceDirection } from '../../ports/editor';
 import {
   TEXTURE_FACES_OP_REQUIRED,

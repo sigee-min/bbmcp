@@ -20,14 +20,18 @@ if (run.status !== 0) {
 }
 
 const output = run.stdout || '';
-const ignoredDeadcodePaths = ['src/types.ts:', 'src/types/internal.ts:'];
+const ignoredDeadcodePaths = [
+  '/src/types.ts:',
+  '/src/types/',
+  '/packages/contracts/src/types/'
+];
 const lines = output
   .split(/\r?\n/)
   .map((line) => line.trim())
   .filter(Boolean)
   .filter((line) => !line.includes('(used in module)'))
   .filter((line) => {
-    const normalized = line.replace(/\\/g, '/');
+    const normalized = `/${line.replace(/\\/g, '/').replace(/^\//, '')}`;
     return !ignoredDeadcodePaths.some((path) => normalized.includes(path));
   });
 

@@ -1,4 +1,4 @@
-import type { ToolName } from '../toolConstants';
+import type { ToolName } from '@ashfox/contracts/types/internal';
 
 export const VIEWPORT_EFFECTS = ['none', 'geometry', 'texture', 'animation', 'project'] as const;
 

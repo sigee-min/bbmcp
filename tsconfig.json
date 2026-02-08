@@ -3,6 +3,13 @@
     "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "Node",
+    "baseUrl": ".",
+    "paths": {
+      "@ashfox/contracts/types": ["packages/contracts/src/types/index.ts"],
+      "@ashfox/contracts/types/*": ["packages/contracts/src/types/*"],
+      "@ashfox/contracts/mcpSchemas/*": ["packages/contracts/src/mcpSchemas/*"],
+      "@ashfox/contracts/*": ["packages/contracts/src/*"]
+    },
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,

@@ -1,5 +1,5 @@
-import type { ToolError } from '../../types/internal';
-import type { TextureMeta } from '../../types/texture';
+import type { ToolError } from '@ashfox/contracts/types/internal';
+import type { TextureMeta } from '@ashfox/contracts/types/texture';
 import type { EditorPort } from '../../ports/editor';
 import type { ProjectSession, SessionState } from '../../session';
 import { ok, fail, type UsecaseResult } from '../result';

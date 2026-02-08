@@ -1,10 +1,3 @@
-// Internal barrel for ashfox source modules.
-export * from './shared';
-export * from './capabilities';
-export * from './project';
-export * from './preview';
-export * from './texture';
-export * from './textureUsage';
-export * from './tools';
-export * from './traceLog';
+// Internal compatibility barrel. Source of truth lives in packages/contracts.
+export * from '../../packages/contracts/src/types/internal';
 

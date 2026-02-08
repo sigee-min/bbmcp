@@ -17,10 +17,10 @@ import {
   ToolName,
   ToolError,
   ToolPayloadMap
-} from '../types/internal';
+} from '@ashfox/contracts/types/internal';
 import { CubeFaceDirection, TextureSource, TriggerChannel } from '../ports/editor';
 import { NOOP_VIEWPORT_REFRESHER, type ViewportRefresherPort } from '../ports/viewportRefresher';
-import { TextureMeta } from '../types/texture';
+import { TextureMeta } from '@ashfox/contracts/types/texture';
 import { UsecaseResult } from './result';
 import { UvPolicyConfig } from '../domain/uv/policy';
 import type { HostPort } from '../ports/host';

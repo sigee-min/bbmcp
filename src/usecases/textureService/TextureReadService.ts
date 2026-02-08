@@ -1,4 +1,4 @@
-import type { ToolError, ReadTexturePayload, ReadTextureResult } from '../../types/internal';
+import type { ToolError, ReadTexturePayload, ReadTextureResult } from '@ashfox/contracts/types/internal';
 import type { EditorPort, TextureSource } from '../../ports/editor';
 import type { TmpStorePort } from '../../ports/tmpStore';
 import { ok, fail, type UsecaseResult } from '../result';

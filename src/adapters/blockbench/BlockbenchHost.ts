@@ -1,5 +1,5 @@
 import { readBlockbenchGlobals } from '../../types/blockbench';
-import { ToolError } from '../../types/internal';
+import { ToolError } from '@ashfox/contracts/types/internal';
 import { HostPort } from '../../ports/host';
 import { ADAPTER_PLUGINS_DEVRELOAD_UNAVAILABLE } from '../../shared/messages';
 

@@ -1,4 +1,4 @@
-import type { ToolError } from '../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 
 export const resolveIfRevision = (payload: unknown): string | undefined => {
   if (!payload || typeof payload !== 'object') return undefined;

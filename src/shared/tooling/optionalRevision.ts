@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../../types/internal';
+import type { ToolResponse } from '@ashfox/contracts/types/internal';
 import { errFromDomain } from './toolResponse';
 import type { ToolService } from '../../usecases/ToolService';
 

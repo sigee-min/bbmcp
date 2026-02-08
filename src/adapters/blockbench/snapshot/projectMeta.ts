@@ -1,5 +1,5 @@
 import type { BlockbenchGlobals } from '../../../types/blockbench';
-import { FormatKind, FORMAT_KINDS } from '../../../types/internal';
+import { FormatKind, FORMAT_KINDS } from '@ashfox/contracts/types/internal';
 import { matchesFormatKind } from '../../../domain/formats';
 
 export const getProjectName = (globals: BlockbenchGlobals): string | null => {

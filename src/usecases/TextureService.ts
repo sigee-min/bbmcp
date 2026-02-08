@@ -12,10 +12,10 @@ import {
   ReadTexturePayload,
   ReadTextureResult,
   ToolError
-} from '../types/internal';
+} from '@ashfox/contracts/types/internal';
 import { ProjectSession, SessionState } from '../session';
 import { CubeFaceDirection, EditorPort, FaceUvMap, TextureSource } from '../ports/editor';
-import { TextureMeta } from '../types/texture';
+import { TextureMeta } from '@ashfox/contracts/types/texture';
 import { runAutoUvAtlas, runPaintFaces, runPaintMeshFace, runPaintTexture, TextureToolContext } from './textureTools';
 import { ok, fail, UsecaseResult } from './result';
 import { TextureWriteService } from './textureService/TextureWriteService';

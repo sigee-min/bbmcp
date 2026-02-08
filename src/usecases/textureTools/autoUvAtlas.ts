@@ -1,4 +1,4 @@
-import type { AutoUvAtlasPayload, AutoUvAtlasResult } from '../../types/internal';
+import type { AutoUvAtlasPayload, AutoUvAtlasResult } from '@ashfox/contracts/types/internal';
 import { toDomainSnapshot, toDomainTextureUsage } from '../domainMappers';
 import { withActiveOnly } from '../guards';
 import { fail, ok, type UsecaseResult } from '../result';

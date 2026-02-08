@@ -5,9 +5,9 @@ import {
   ToolPayloadMap,
   ToolResultMap,
   ToolResponse
-} from './types/internal';
+} from '@ashfox/contracts/types/internal';
 import { ProjectSession } from './session';
-import { Capabilities } from './types/internal';
+import { Capabilities } from '@ashfox/contracts/types/internal';
 import { ConsoleLogger, errorMessage, Logger } from './logging';
 import { ToolService } from './usecases/ToolService';
 import { UsecaseResult } from './usecases/result';

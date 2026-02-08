@@ -1,4 +1,4 @@
-import type { Capabilities, FormatKind } from '../../types/internal';
+import type { Capabilities, FormatKind } from '@ashfox/contracts/types/internal';
 import { resolveFormatId } from '../../domain/formats';
 import { withFormatOverrideHint } from '../formatHints';
 import { buildProjectDialogDefaults } from '../../domain/project/projectDialogDefaults';

@@ -1,4 +1,4 @@
-import { ToolError } from '../../types/internal';
+import { ToolError } from '@ashfox/contracts/types/internal';
 import {
   AssignTextureCommand,
   BoneCommand,

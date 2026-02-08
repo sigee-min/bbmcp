@@ -1,5 +1,5 @@
 import type { Logger } from '../logging';
-import type { ToolPayloadMap, ToolResponse, ToolResultMap } from '../types/internal';
+import type { ToolPayloadMap, ToolResponse, ToolResultMap } from '@ashfox/contracts/types/internal';
 import type { ToolService } from '../usecases/ToolService';
 import type { UsecaseResult } from '../usecases/result';
 import { toToolResponse } from '../shared/tooling/toolResponse';

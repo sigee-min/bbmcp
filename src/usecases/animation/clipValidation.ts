@@ -1,4 +1,4 @@
-import type { ToolError } from '../../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import {
   ANIMATION_FPS_POSITIVE,
   ANIMATION_LENGTH_EXCEEDS_MAX,

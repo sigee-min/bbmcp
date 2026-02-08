@@ -1,4 +1,4 @@
-import type { Capabilities } from '../types/internal';
+import type { Capabilities } from '@ashfox/contracts/types/internal';
 import type { ProjectSession } from '../session';
 import type { Logger } from '../logging';
 import { BlockbenchEditor } from '../adapters/blockbench/BlockbenchEditor';

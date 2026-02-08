@@ -1,5 +1,5 @@
 import type { Logger } from '../logging';
-import type { ToolName } from '../types/internal';
+import type { ToolName } from '@ashfox/contracts/types/internal';
 import type { ToolService } from '../usecases/ToolService';
 import type { UsecaseResult } from '../usecases/result';
 import { decideRevision } from '../usecases/revision/revisionGuard';

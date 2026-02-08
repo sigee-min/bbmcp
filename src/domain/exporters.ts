@@ -1,4 +1,4 @@
-import { ExportPayload } from '../types/internal';
+import { ExportPayload } from '@ashfox/contracts/types/internal';
 import { SessionState, TrackedAnimationChannel, TrackedAnimationTrigger } from '../session';
 
 export type ExportKind = ExportPayload['format'];

@@ -1,4 +1,4 @@
-import type { NextAction, NextActionArgs, NextActionValueRef, ToolPayloadMap, ToolResponse, ToolResultMap } from '../types/internal';
+import type { NextAction, NextActionArgs, NextActionValueRef, ToolPayloadMap, ToolResponse, ToolResultMap } from '@ashfox/contracts/types/internal';
 import { ADAPTER_PROJECT_DIALOG_INPUT_REQUIRED } from './messages';
 
 export type NextActionFactories = {

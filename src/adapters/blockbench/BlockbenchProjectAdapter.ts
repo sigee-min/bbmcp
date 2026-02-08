@@ -1,4 +1,4 @@
-import type { FormatKind, ToolError } from '../../types/internal';
+import type { FormatKind, ToolError } from '@ashfox/contracts/types/internal';
 import type { Logger } from '../../logging';
 import { runCloseProject } from './project/projectClose';
 import { runCreateProject } from './project/projectCreate';

@@ -1,6 +1,6 @@
 import type { ResourceStore } from '../ports/resources';
 import type { TraceLogWriter } from '../ports/traceLog';
-import type { ToolError } from '../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import { buildTraceLogReport } from './traceLogReport';
 
 const DEFAULT_URI = 'ashfox://logs/trace.ndjson';

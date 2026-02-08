@@ -5,7 +5,7 @@ import {
   SidecarRequestMessage,
   SidecarResponseMessage
 } from '../../transport/protocol';
-import { ToolError, ToolResponse, ToolName } from '../../types/internal';
+import { ToolError, ToolResponse, ToolName } from '@ashfox/contracts/types/internal';
 import { toolError } from '../../shared/tooling/toolResponse';
 import { normalizeToolResponse } from '../../shared/tooling/toolResponseGuard';
 import { SIDECAR_INFLIGHT_LIMIT_REACHED, SIDECAR_TOOL_ERROR } from '../../shared/messages';

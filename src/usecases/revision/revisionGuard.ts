@@ -1,4 +1,4 @@
-import type { ProjectState, ToolError } from '../../types/internal';
+import type { ProjectState, ToolError } from '@ashfox/contracts/types/internal';
 import { decideRevisionMatch } from './revisionCompare';
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: ToolError };

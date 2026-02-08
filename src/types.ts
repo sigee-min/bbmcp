@@ -1,5 +1,5 @@
 // Public barrel kept for external consumers.
-export * from './types/internal';
+export * from '@ashfox/contracts/types/internal';
 
 
 

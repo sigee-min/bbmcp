@@ -1,5 +1,5 @@
-import type { ProjectDiff, ProjectState, ProjectStateDetail, ToolError, ToolResponse } from '../types/internal';
-import type { TraceLogEntry, TraceLogHeader } from '../types/traceLog';
+import type { ProjectDiff, ProjectState, ProjectStateDetail, ToolError, ToolResponse } from '@ashfox/contracts/types/internal';
+import type { TraceLogEntry, TraceLogHeader } from '@ashfox/contracts/types/traceLog';
 import type { UsecaseResult } from '../usecases/result';
 import { summarizeProjectDiff, summarizeProjectState, sanitizeTraceValue, sanitizeToolResponse } from './traceLogFormat';
 import { TraceLogStore } from './traceLogStore';

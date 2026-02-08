@@ -1,4 +1,4 @@
-import type { FormatKind, ToolError } from '../../../types/internal';
+import type { FormatKind, ToolError } from '@ashfox/contracts/types/internal';
 import type { Logger } from '../../../logging';
 import { errorMessage } from '../../../logging';
 import { hasUnsavedChanges, markProjectSaved, readGlobals } from '../blockbenchUtils';

@@ -1,10 +1,10 @@
-import type { ProjectDiff, ProjectState, ToolError, ToolResponse } from '../types/internal';
+import type { ProjectDiff, ProjectState, ToolError, ToolResponse } from '@ashfox/contracts/types/internal';
 import type {
   TraceLogDiffSummary,
   TraceLogRecord,
   TraceLogResponse,
   TraceLogStateSummary
-} from '../types/traceLog';
+} from '@ashfox/contracts/types/traceLog';
 
 const REDACT_KEYS = new Set(['dataUri', 'image', 'canvas', 'ctx', 'img']);
 const MAX_DEPTH = 6;

@@ -1,6 +1,6 @@
 import type { ProjectSession, SessionState } from '../../session';
 import type { EditorPort, TriggerChannel } from '../../ports/editor';
-import type { ToolError } from '../../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import { fail, ok, type UsecaseResult } from '../result';
 import { isValidTriggerPayloadValue } from './triggerPayload';
 import { ensureClipSelector, resolveClipTarget } from './clipSelectors';

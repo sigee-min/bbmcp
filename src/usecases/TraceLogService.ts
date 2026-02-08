@@ -1,6 +1,6 @@
 import type { TraceLogStore } from '../trace/traceLogStore';
 import type { TraceLogWriterFactory, TraceLogWriteOptions } from '../ports/traceLog';
-import type { ExportTraceLogPayload, ExportTraceLogResult } from '../types/internal';
+import type { ExportTraceLogPayload, ExportTraceLogResult } from '@ashfox/contracts/types/internal';
 import { ok, fail, UsecaseResult } from './result';
 
 const DEFAULT_RESOURCE_URI = 'ashfox://logs/trace.ndjson';

@@ -1,4 +1,4 @@
-import type { ToolError } from '../../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import type { TextureUsageQuery, TextureUsageResult, TextureUsageUnresolved } from '../../ports/editor';
 import type { CubeFaceDirection, CubeInstance, TextureInstance } from '../../types/blockbench';
 import { CUBE_FACE_DIRECTIONS } from '../../shared/toolConstants';

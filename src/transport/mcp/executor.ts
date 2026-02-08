@@ -1,4 +1,4 @@
-import { Dispatcher, ToolName, ToolPayloadMap, ToolResponse } from '../../types/internal';
+import { Dispatcher, ToolName, ToolPayloadMap, ToolResponse } from '@ashfox/contracts/types/internal';
 import { normalizeToolResponse } from '../../shared/tooling/toolResponseGuard';
 import { decorateToolResponse } from './responseDecorators';
 

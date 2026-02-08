@@ -1,6 +1,6 @@
-import type { ToolError, ToolName, ToolPayloadMap } from '../types/internal';
+import type { ToolError, ToolName, ToolPayloadMap } from '@ashfox/contracts/types/internal';
 import { isRecord } from '../domain/guards';
-import type { McpContentBlock, NextAction } from '../types/shared';
+import type { McpContentBlock, NextAction } from '@ashfox/contracts/types/shared';
 
 export const PROTOCOL_VERSION = 1 as const;
 

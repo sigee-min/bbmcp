@@ -1,4 +1,4 @@
-import type { ToolError } from '../../../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import type { Logger } from '../../../logging';
 import type { AssignTextureCommand } from '../../../ports/editor';
 import { withToolErrorAdapterError } from '../adapterErrors';

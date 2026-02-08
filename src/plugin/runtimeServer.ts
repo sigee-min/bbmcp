@@ -1,4 +1,4 @@
-import type { Dispatcher } from '../types/internal';
+import type { Dispatcher } from '@ashfox/contracts/types/internal';
 import type { LogLevel } from '../logging';
 import { ConsoleLogger } from '../logging';
 import type { ResourceStore } from '../ports/resources';

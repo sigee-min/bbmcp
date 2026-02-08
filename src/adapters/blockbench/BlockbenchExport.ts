@@ -5,7 +5,7 @@ import {
   ExportNativeParams,
   NativeCodecTarget
 } from '../../ports/exporter';
-import { ToolError } from '../../types/internal';
+import { ToolError } from '@ashfox/contracts/types/internal';
 import { errorMessage, Logger } from '../../logging';
 import { BlockbenchCodec, FormatEntry, readBlockbenchGlobals } from '../../types/blockbench';
 import { loadNativeModule } from '../../shared/nativeModules';

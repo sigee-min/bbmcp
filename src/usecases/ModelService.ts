@@ -1,4 +1,4 @@
-import type { AutoUvAtlasPayload, AutoUvAtlasResult, Capabilities, ToolError } from '../types/internal';
+import type { AutoUvAtlasPayload, AutoUvAtlasResult, Capabilities, ToolError } from '@ashfox/contracts/types/internal';
 import { ProjectSession, SessionState } from '../session';
 import { EditorPort } from '../ports/editor';
 import { BoneService } from './model/BoneService';

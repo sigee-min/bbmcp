@@ -1,4 +1,4 @@
-import type { Capabilities, EnsureProjectAction, FormatKind, ToolError } from '../../types/internal';
+import type { Capabilities, EnsureProjectAction, FormatKind, ToolError } from '@ashfox/contracts/types/internal';
 import { ok, fail, type UsecaseResult } from '../result';
 import { ensureNonBlankString } from '../../shared/payloadValidation';
 import {

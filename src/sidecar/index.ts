@@ -9,7 +9,7 @@ import { DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT, DEFAULT_SERVER_PATH, PLUGIN_I
 import { GUIDE_RESOURCE_TEMPLATES, GUIDE_RESOURCES } from '../shared/resources/guides';
 import { InMemoryResourceStore } from '../adapters/resources/resourceStore';
 import { SIDECAR_TOOL_INSTRUCTIONS } from '../shared/tooling/toolInstructions';
-import { ToolResponse } from '../types/internal';
+import { ToolResponse } from '@ashfox/contracts/types/internal';
 
 const getArg = (args: string[], name: string, fallback?: string): string | undefined => {
   const index = args.indexOf(name);

@@ -1,4 +1,4 @@
-import type { ToolError } from '../../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import type { SessionState } from '../../session';
 import { resolveAnimationTarget } from '../targetResolvers';
 import { ensureNonBlankString } from '../../shared/payloadValidation';

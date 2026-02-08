@@ -1,4 +1,4 @@
-import type { ToolName, ToolPayloadMap } from '../types/internal';
+import type { ToolName, ToolPayloadMap } from '@ashfox/contracts/types/internal';
 import type { UsecaseResult } from '../usecases/result';
 import {
   BaseResult,

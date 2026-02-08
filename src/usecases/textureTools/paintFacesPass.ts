@@ -1,4 +1,4 @@
-import type { PaintFacesResult } from '../../types/internal';
+import type { PaintFacesResult } from '@ashfox/contracts/types/internal';
 import { applyTextureOps, parseHexColor } from '../../domain/texturePaint';
 import { applyUvPaintPixels } from '../../domain/uv/paintPixels';
 import { validateUvPaintSpec } from '../../domain/uv/paintValidation';

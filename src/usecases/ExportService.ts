@@ -1,4 +1,4 @@
-import type { Capabilities, ExportPayload, FormatKind, ToolError } from '../types/internal';
+import type { Capabilities, ExportPayload, FormatKind, ToolError } from '@ashfox/contracts/types/internal';
 import type { ExportPort } from '../ports/exporter';
 import type { EditorPort } from '../ports/editor';
 import type { FormatPort } from '../ports/formats';

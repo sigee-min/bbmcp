@@ -1,5 +1,5 @@
 import { buildIdNameMismatchMessage } from '../shared/targetMessages';
-import type { ToolError } from '../types/internal';
+import type { ToolError } from '@ashfox/contracts/types/internal';
 import {
   ANIMATION_CLIP_ID_OR_NAME_REQUIRED,
   ANIMATION_CLIP_NOT_FOUND,

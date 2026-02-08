@@ -1,4 +1,4 @@
-import type { ProjectDiff, ProjectState, ProjectStateDetail, ToolPayloadMap, ToolResponse, ToolResultMap } from '../types/internal';
+import type { ProjectDiff, ProjectState, ProjectStateDetail, ToolPayloadMap, ToolResponse, ToolResultMap } from '@ashfox/contracts/types/internal';
 import type { UsecaseResult } from '../usecases/result';
 import { attachStateToResponse } from '../shared/tooling/attachState';
 import type { BaseResult, StatefulToolName } from './handlerMaps';

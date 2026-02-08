@@ -56,11 +56,12 @@ function resolveCompiler(format: FormatEntry | null): (() => unknown) | null {
   if (!format) return null;
   const compile = format.compile;
   if (typeof compile === 'function') {
-    return () => compile();
+    return () => compile.call(format);
   }
-  const codecCompile = format.codec?.compile;
+  const codec = format.codec;
+  const codecCompile = codec?.compile;
   if (typeof codecCompile === 'function') {
-    return () => codecCompile();
+    return () => codecCompile.call(codec);
   }
   return null;
 }

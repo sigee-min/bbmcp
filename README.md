@@ -2,6 +2,16 @@
 
 Blockbench MCP bridge plugin. bbmcp exposes a low-level, deterministic tool surface for modeling, texturing, and animation over MCP.
 
+## Install from URL (Quick)
+In Blockbench Desktop:
+1) Open `File > Plugins > Load Plugin from URL`
+2) Paste the URL below
+3) Click install/load
+
+```text
+https://github.com/sigee-min/bbmcp/releases/latest/download/bbmcp.js
+```
+
 ## Showcase
 Real output from bbmcp, created from natural language in under 5 minutes.
 No manual setup.

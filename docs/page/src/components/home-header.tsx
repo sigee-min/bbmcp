@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 import { BookText, Github } from 'lucide-react';
 import { buttonVariants } from 'fumadocs-ui/components/ui/button';
 import { LanguageSelect } from '@/components/language-select';
@@ -6,10 +9,51 @@ import { ThemeSelect } from '@/components/theme-select';
 import type { Locale } from '@/lib/i18n';
 
 export function HomeHeader({ locale }: { locale: Locale }) {
+  const [isHidden, setIsHidden] = useState(false);
+  const lastScrollYRef = useRef(0);
+  const tickingRef = useRef(false);
   const docsLabel = locale === 'ko' ? '문서' : 'Docs';
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    lastScrollYRef.current = window.scrollY;
+
+    const onScroll = () => {
+      if (tickingRef.current) return;
+      tickingRef.current = true;
+
+      window.requestAnimationFrame(() => {
+        const currentY = window.scrollY;
+        const deltaY = currentY - lastScrollYRef.current;
+        const minDelta = 10;
+        const hideStartY = 72;
+        lastScrollYRef.current = currentY;
+
+        if (currentY <= 0) {
+          setIsHidden(false);
+        } else if (Math.abs(deltaY) >= minDelta) {
+          if (deltaY > 0 && currentY > hideStartY) {
+            setIsHidden(true);
+          } else if (deltaY < 0) {
+            setIsHidden(false);
+          }
+        }
+
+        tickingRef.current = false;
+      });
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-40 border-b bg-fd-background/80 backdrop-blur-lg">
+    <header
+      className={`sticky top-0 z-40 border-b bg-fd-background/80 backdrop-blur-lg transition-transform duration-500 ease-out will-change-transform ${
+        isHidden ? '-translate-y-full' : 'translate-y-0'
+      }`}
+    >
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4 sm:px-6">
         <Link href={`/${locale}`} className="inline-flex items-center text-base font-semibold">
           bbmcp

@@ -41,6 +41,46 @@ export const TEXTURE_FACES_OP_OUTSIDE_SOURCE = (
 export const TEXTURE_FACES_OP_OUTSIDE_TARGET =
   'paint_faces op does not overlap the target face UV bounds in texture coordinate space.';
 
+export const TEXTURE_MESH_FACE_TARGET_REQUIRED = 'paint_mesh_face requires a target object.';
+export const TEXTURE_MESH_FACE_TARGET_SELECTOR_REQUIRED =
+  'paint_mesh_face target must include meshId or meshName.';
+export const TEXTURE_MESH_FACE_SCOPE_INVALID =
+  'paint_mesh_face scope must be "single_face" or "all_faces".';
+export const TEXTURE_MESH_FACE_SCOPE_SINGLE_REQUIRES_FACE_ID =
+  'paint_mesh_face scope="single_face" requires target.faceId.';
+export const TEXTURE_MESH_FACE_SCOPE_ALL_FORBIDS_FACE_ID =
+  'paint_mesh_face scope="all_faces" does not allow target.faceId.';
+export const TEXTURE_MESH_FACE_TEXTURE_REQUIRED =
+  'paint_mesh_face requires textureName or textureId when project name is unavailable.';
+export const TEXTURE_MESH_FACE_OP_REQUIRED = 'paint_mesh_face requires a single op object.';
+export const TEXTURE_MESH_FACE_COORD_SPACE_INVALID =
+  'paint_mesh_face coordSpace must be "face" or "texture".';
+export const TEXTURE_MESH_FACE_SIZE_REQUIRED =
+  'paint_mesh_face requires width/height when texture size is unavailable.';
+export const TEXTURE_MESH_FACE_TEXTURE_COORDS_SIZE_REQUIRED =
+  'paint_mesh_face with coordSpace="texture" requires width and height.';
+export const TEXTURE_MESH_FACE_TEXTURE_COORDS_SIZE_MISMATCH = (
+  expectedWidth: number,
+  expectedHeight: number,
+  width: number,
+  height: number
+) =>
+  `paint_mesh_face coordSpace="texture" requires width/height to match texture size (${expectedWidth}x${expectedHeight}); got ${width}x${height}.`;
+export const TEXTURE_MESH_FACE_OP_OUTSIDE_SOURCE = (
+  coordSpace: 'face' | 'texture',
+  width: number,
+  height: number
+) =>
+  `paint_mesh_face op is outside the ${coordSpace} source bounds (${width}x${height}); adjust op coordinates or source size.`;
+export const TEXTURE_MESH_FACE_OP_OUTSIDE_TARGET =
+  'paint_mesh_face op does not overlap selected mesh face UV bounds in texture coordinate space.';
+export const TEXTURE_MESH_FACE_NOT_FOUND = (faceId: string) =>
+  `paint_mesh_face face not found on target mesh: ${faceId}`;
+export const TEXTURE_MESH_FACE_UV_REQUIRED = (faceId: string) =>
+  `paint_mesh_face target face has missing or invalid uv: ${faceId}`;
+export const TEXTURE_MESH_FACE_NO_PAINTABLE_FACES =
+  'paint_mesh_face could not find any paintable faces with valid uv.';
+
 export const UV_PAINT_USAGE_MISSING = (label: string) =>
   `No UV usage found for texture "${label}". Assign the texture and retry after UV refresh.`;
 export const UV_PAINT_TARGET_CUBES_NOT_FOUND = (label: string) =>

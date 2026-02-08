@@ -1,0 +1,15 @@
+---
+title: Connectivity
+description: Diagnose endpoint connection failures between client and bbmcp.
+---
+
+## Endpoint Not Reachable
+
+1. Confirm Blockbench is running with bbmcp loaded.
+2. Verify endpoint URL is correct (`http://127.0.0.1:8787/mcp` by default).
+3. Check custom settings: `BBMCP_HOST`, `BBMCP_PORT`, `BBMCP_PATH`.
+
+## Quick Check
+
+- Call `list_capabilities`.
+- If it fails, connectivity is still broken before tool-level execution.

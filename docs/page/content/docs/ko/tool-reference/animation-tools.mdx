@@ -1,0 +1,23 @@
+---
+title: 애니메이션 도구
+description: 클립/키프레임 기반의 결정적 애니메이션 작업 도구.
+---
+
+## 클립 관리
+
+- `create_animation_clip`
+- `update_animation_clip`
+- `delete_animation_clip`
+
+클립 이름, fps, loop, 길이 등 경계를 먼저 정의합니다.
+
+## 포즈와 트리거
+
+- `set_frame_pose`: 프레임 시점의 bone 포즈 기록
+- `set_trigger_keyframes`: 사운드/파티클/타임라인 트리거 키 추가
+
+## 운영 팁
+
+- 프레임 단위로 명시적 갱신을 반복해 애니메이션을 구성합니다.
+- 관련 트랙의 보간 전략은 일관되게 유지합니다.
+- 애니메이션이 구조에 영향이 있으면 `validate` 후 export 합니다.

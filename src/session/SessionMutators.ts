@@ -2,6 +2,7 @@ import type {
   AnimationUpdate,
   BoneUpdate,
   CubeUpdate,
+  MeshUpdate,
   SessionState,
   TextureUpdate,
   TrackedAnimation,
@@ -9,6 +10,7 @@ import type {
   TrackedAnimationTrigger,
   TrackedBone,
   TrackedCube,
+  TrackedMesh,
   TrackedTexture
 } from './types';
 import { applySessionMutation } from './stateReducer';
@@ -42,6 +44,18 @@ export class SessionMutators {
 
   removeCubes(names: string[] | Set<string>): number {
     return applySessionMutation(this.getState(), { type: 'remove_cubes', names });
+  }
+
+  addMesh(mesh: TrackedMesh) {
+    applySessionMutation(this.getState(), { type: 'add_mesh', mesh });
+  }
+
+  updateMesh(name: string, updates: MeshUpdate): boolean {
+    return applySessionMutation(this.getState(), { type: 'update_mesh', name, updates });
+  }
+
+  removeMeshes(names: string[] | Set<string>): number {
+    return applySessionMutation(this.getState(), { type: 'remove_meshes', names });
   }
 
   addTexture(tex: TrackedTexture) {

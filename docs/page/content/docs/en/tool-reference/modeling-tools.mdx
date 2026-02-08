@@ -1,0 +1,34 @@
+---
+title: Modeling Tools
+description: Bone, cube, and mesh tools for deterministic model edits.
+---
+
+## Bone Tools
+
+- `add_bone`
+- `update_bone`
+- `delete_bone`
+
+Use these to manage hierarchy, pivot, rotation, scale, and visibility.
+
+## Cube Tools
+
+- `add_cube`
+- `update_cube`
+- `delete_cube`
+
+Use cube tools for box-based geometry, with explicit transforms and optional reassignment to other bones.
+
+## Mesh Tools
+
+- `add_mesh`
+- `update_mesh`
+- `delete_mesh`
+
+Use mesh tools for non-cube geometry and controlled uv policies.
+
+## Modeling Practices
+
+- Apply one clear geometry change per call.
+- Re-read revision after each successful mutation.
+- Validate frequently during complex edits.

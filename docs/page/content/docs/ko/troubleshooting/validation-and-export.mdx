@@ -1,0 +1,16 @@
+---
+title: 검증 및 내보내기
+description: validate 실패와 export 결과 이상을 해결합니다.
+---
+
+## validate 실패
+
+1. `validate` 결과에서 오류 유형을 확인합니다.
+2. 오류 유형에 맞는 `update_*`/텍스처/애니메이션 도구로 수정합니다.
+3. `validate`를 다시 실행해 통과 여부를 확인합니다.
+
+## export 결과가 기대와 다름
+
+1. `render_preview`로 내보내기 전 상태를 먼저 확인합니다.
+2. 텍스처 문제가 의심되면 `read_texture`를 확인합니다.
+3. `validate` 통과 후 `export`를 다시 실행합니다.

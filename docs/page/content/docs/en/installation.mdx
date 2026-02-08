@@ -1,0 +1,68 @@
+---
+title: Installation
+description: Install bbmcp and verify MCP endpoint connectivity.
+---
+
+## Requirements
+
+- Blockbench Desktop (latest)
+- Node.js 22+ (for source builds)
+- npm 10+ (for source builds)
+
+## Fast Install (Plugin URL)
+
+In Blockbench Desktop:
+
+1. Open `File > Plugins > Load Plugin from URL`.
+2. Paste the URL below.
+3. Install / Load the plugin.
+
+```text
+https://github.com/sigee-min/bbmcp/releases/latest/download/bbmcp.js
+```
+
+## Build from Source (Optional)
+
+Clone and build:
+
+```bash
+git clone https://github.com/sigee-min/bbmcp.git
+cd bbmcp
+npm install
+npm run build
+```
+
+Or if you already have the repository:
+
+```bash
+npm install
+npm run build
+```
+
+Then load `dist/bbmcp.js` in Blockbench Plugin Manager.
+
+## Verify MCP Endpoint
+
+Default endpoint:
+
+```text
+http://127.0.0.1:8787/mcp
+```
+
+Expected result:
+- Your MCP client can call `list_capabilities`.
+- Response includes tool schemas and `toolRegistry.hash`.
+
+## URL and Runtime Configuration
+
+- Official guide URL: `https://bbmcp.sigee.xyz`
+- Default MCP endpoint: `http://127.0.0.1:8787/mcp`
+- `BBMCP_HOST`, `BBMCP_PORT`, `BBMCP_PATH`: override MCP host/port/path.
+
+Example:
+
+```bash
+BBMCP_HOST=127.0.0.1
+BBMCP_PORT=8787
+BBMCP_PATH=/mcp
+```

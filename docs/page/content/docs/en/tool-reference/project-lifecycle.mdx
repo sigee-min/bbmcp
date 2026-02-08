@@ -1,0 +1,28 @@
+---
+title: Project Lifecycle
+description: Tools for project setup, state checks, validation, preview, and export.
+---
+
+## Setup and State
+
+- `ensure_project`: create/select/delete active project.
+- `get_project_state`: read current revision, structure, and summary/full state.
+
+## Quality Gates
+
+- `validate`: run structural, capability, and texture checks.
+- `render_preview`: generate visual snapshots before release.
+
+## Output and Logs
+
+- `export`: output production artifact (for example, `.bbmodel` JSON).
+- `export_trace_log`: capture operation history for debugging and QA reports.
+
+## Typical Sequence
+
+1. `ensure_project`
+2. `get_project_state`
+3. mutation calls with `ifRevision`
+4. `validate`
+5. `render_preview`
+6. `export`

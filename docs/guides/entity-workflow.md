@@ -7,7 +7,7 @@ Recommended steps:
 1) ensure_project with format=geckolib (optionally set uvPixelsPerBlock)
 2) build bones/cubes with add_bone/add_cube
 3) assign textures (assign_texture)
-4) paint textures (paint_faces)
+4) paint textures (paint_faces for cubes, paint_mesh_face for meshes)
 5) create animations (create_animation_clip + set_frame_pose)
 6) add triggers (set_trigger_keyframes) if needed
 7) optionally run preview/validate

@@ -46,6 +46,47 @@ export const textureToolSchemas: Record<string, JsonSchema> = {
       ...metaProps
     }
   },
+  paint_mesh_face: {
+    type: 'object',
+    required: ['target', 'op'],
+    additionalProperties: false,
+    anyOf: [
+      {
+        type: 'object',
+        properties: {
+          coordSpace: { type: 'string', enum: ['face'] }
+        }
+      },
+      {
+        type: 'object',
+        required: ['coordSpace', 'width', 'height'],
+        properties: {
+          coordSpace: { type: 'string', enum: ['texture'] }
+        }
+      }
+    ],
+    properties: {
+      textureId: { type: 'string' },
+      textureName: { type: 'string' },
+      scope: { type: 'string', enum: ['single_face', 'all_faces'] },
+      target: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          meshId: { type: 'string' },
+          meshName: { type: 'string' },
+          faceId: { type: 'string' }
+        }
+      },
+      coordSpace: { type: 'string', enum: ['face', 'texture'] },
+      width: { type: 'number' },
+      height: { type: 'number' },
+      op: textureOpSchema,
+      mapping: { type: 'string', enum: ['stretch', 'tile'] },
+      ifRevision: revisionProp,
+      ...metaProps
+    }
+  },
   delete_texture: {
     type: 'object',
     additionalProperties: false,

@@ -1,0 +1,14 @@
+---
+title: 연결 문제
+description: 클라이언트와 bbmcp 사이의 엔드포인트 연결 실패를 점검합니다.
+---
+
+## 엔드포인트에 연결되지 않음
+
+1. Blockbench 실행과 bbmcp 플러그인 로드 상태를 확인합니다.
+2. 클라이언트 URL이 기본값(`http://127.0.0.1:8787/mcp`)과 일치하는지 확인합니다.
+3. 커스텀 설정 사용 시 `BBMCP_HOST`, `BBMCP_PORT`, `BBMCP_PATH`를 점검합니다.
+
+## 빠른 확인
+
+- `list_capabilities` 호출이 성공해야 도구 실행 단계로 진행할 수 있습니다.

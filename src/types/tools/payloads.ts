@@ -6,6 +6,7 @@ import {
   ProjectStateDetail
 } from '../shared';
 import type { UvPaintSpec } from '../../domain/uv/paintSpec';
+import type { MeshUvPolicy } from '../../domain/mesh/autoUv';
 import type { CubeFaceDirection, FaceUvMap } from '../../domain/model';
 import type { TextureOpLike } from '../../domain/textureOps';
 import type {
@@ -52,6 +53,26 @@ export interface PaintFacesPayload extends IncludeStateOption, IncludeDiffOption
   textureId?: string;
   textureName?: string;
   target: PaintFaceTarget;
+  coordSpace?: 'face' | 'texture';
+  width?: number;
+  height?: number;
+  op: TextureOpLike;
+  mapping?: 'stretch' | 'tile';
+}
+
+export type PaintMeshFaceScope = 'single_face' | 'all_faces';
+
+export interface PaintMeshFaceTarget {
+  meshId?: string;
+  meshName?: string;
+  faceId?: string;
+}
+
+export interface PaintMeshFacePayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
+  textureId?: string;
+  textureName?: string;
+  target: PaintMeshFaceTarget;
+  scope?: PaintMeshFaceScope;
   coordSpace?: 'face' | 'texture';
   width?: number;
   height?: number;
@@ -187,6 +208,52 @@ export interface UpdateCubePayload extends IncludeStateOption, IncludeDiffOption
 }
 
 export interface DeleteCubePayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
+  id?: string;
+  name?: string;
+  ids?: string[];
+  names?: string[];
+}
+
+export interface MeshVertexPayload {
+  id: string;
+  pos: [number, number, number];
+}
+
+export interface MeshFacePayload {
+  id?: string;
+  vertices: string[];
+  texture?: string | false;
+}
+
+export interface AddMeshPayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
+  id?: string;
+  name: string;
+  bone?: string;
+  boneId?: string;
+  origin?: [number, number, number];
+  rotation?: [number, number, number];
+  visibility?: boolean;
+  uvPolicy?: MeshUvPolicy;
+  vertices: MeshVertexPayload[];
+  faces: MeshFacePayload[];
+}
+
+export interface UpdateMeshPayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
+  id?: string;
+  name?: string;
+  newName?: string;
+  bone?: string;
+  boneId?: string;
+  boneRoot?: boolean;
+  origin?: [number, number, number];
+  rotation?: [number, number, number];
+  visibility?: boolean;
+  uvPolicy?: MeshUvPolicy;
+  vertices?: MeshVertexPayload[];
+  faces?: MeshFacePayload[];
+}
+
+export interface DeleteMeshPayload extends IncludeStateOption, IncludeDiffOption, IfRevisionOption {
   id?: string;
   name?: string;
   ids?: string[];

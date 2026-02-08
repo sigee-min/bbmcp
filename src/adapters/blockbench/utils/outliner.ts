@@ -17,7 +17,7 @@ export const moveOutlinerNode = (
   parent: OutlinerNode | null,
   outliner: OutlinerApi | undefined,
   log: Logger,
-  kind: 'bone' | 'cube'
+  kind: 'bone' | 'cube' | 'mesh'
 ): boolean => {
   if (!node) return false;
   if (parent === node) return false;
@@ -68,7 +68,7 @@ export const attachToOutliner = (
   outliner: OutlinerApi | undefined,
   node: OutlinerNode,
   log: Logger,
-  kind: 'bone' | 'cube'
+  kind: 'bone' | 'cube' | 'mesh'
 ): boolean => {
   if (!parent && isNodeInOutlinerRoot(outliner, node)) return true;
 

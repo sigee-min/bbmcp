@@ -1,6 +1,7 @@
 import type { FormatKind } from '../types/internal';
 import type { TextureFrameOrderType, TextureMeta, TexturePbrChannel, TextureRenderMode, TextureRenderSides } from '../types/texture';
 import type { AnimationTimePolicy } from '../domain/animation/timePolicy';
+import type { MeshUvPolicy } from '../domain/mesh/autoUv';
 
 export interface TrackedBone {
   id?: string;
@@ -26,6 +27,35 @@ export interface TrackedCube {
   mirror?: boolean;
   visibility?: boolean;
   boxUv?: boolean;
+}
+
+export interface TrackedMeshVertex {
+  id: string;
+  pos: [number, number, number];
+}
+
+export interface TrackedMeshFaceUv {
+  vertexId: string;
+  uv: [number, number];
+}
+
+export interface TrackedMeshFace {
+  id?: string;
+  vertices: string[];
+  uv?: TrackedMeshFaceUv[];
+  texture?: string | false;
+}
+
+export interface TrackedMesh {
+  id?: string;
+  name: string;
+  bone?: string;
+  origin?: [number, number, number];
+  rotation?: [number, number, number];
+  visibility?: boolean;
+  uvPolicy?: MeshUvPolicy;
+  vertices: TrackedMeshVertex[];
+  faces: TrackedMeshFace[];
 }
 
 export interface TrackedTexture {
@@ -98,6 +128,18 @@ export type CubeUpdate = {
   boxUv?: boolean;
 };
 
+export type MeshUpdate = {
+  id?: string;
+  newName?: string;
+  bone?: string | null;
+  origin?: [number, number, number];
+  rotation?: [number, number, number];
+  visibility?: boolean;
+  uvPolicy?: MeshUvPolicy;
+  vertices?: TrackedMeshVertex[];
+  faces?: TrackedMeshFace[];
+};
+
 export type TextureUpdate = {
   id?: string;
   newName?: string;
@@ -138,6 +180,7 @@ export interface SessionState {
   uvPixelsPerBlock?: number;
   bones: TrackedBone[];
   cubes: TrackedCube[];
+  meshes?: TrackedMesh[];
   textures: TrackedTexture[];
   animations: TrackedAnimation[];
   animationsStatus?: 'available' | 'unavailable';

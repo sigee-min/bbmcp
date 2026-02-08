@@ -1,5 +1,5 @@
 import type { SessionState } from '../../../session';
-import type { BlockbenchGlobals, CubeInstance, GroupInstance, OutlinerNode } from '../../../types/blockbench';
+import type { BlockbenchGlobals, CubeInstance, GroupInstance, MeshInstance, OutlinerNode } from '../../../types/blockbench';
 import { isRecord } from '../../../domain/guards';
 import { readVisibility } from '../blockbenchUtils';
 import { readNodeId } from './snapshotIds';
@@ -11,6 +11,7 @@ export const walkNodes = (
   parent: string | undefined,
   bones: SessionState['bones'],
   cubes: SessionState['cubes'],
+  meshes: SessionState['meshes'],
   globals: BlockbenchGlobals
 ) => {
   (nodes ?? []).forEach((node) => {
@@ -25,7 +26,7 @@ export const walkNodes = (
         scale: toOptionalVec3(node.scale),
         visibility: readVisibility(node)
       });
-      walkNodes(node.children ?? [], boneName, bones, cubes, globals);
+      walkNodes(node.children ?? [], boneName, bones, cubes, meshes, globals);
       return;
     }
     if (isCube(node, globals)) {
@@ -43,6 +44,19 @@ export const walkNodes = (
         mirror: node.mirror_uv ?? node.mirror,
         visibility: readVisibility(node),
         boxUv: node.box_uv
+      });
+      return;
+    }
+    if (isMesh(node, globals)) {
+      meshes?.push({
+        id: readNodeId(node),
+        name: String(node.name ?? 'mesh'),
+        bone: parent ?? (node.parent?.name ?? undefined),
+        origin: toOptionalVec3(node.origin),
+        rotation: toOptionalVec3(node.rotation),
+        visibility: readVisibility(node),
+        vertices: toMeshVertices(node.vertices),
+        faces: toMeshFaces(node.faces)
       });
     }
   });
@@ -64,6 +78,15 @@ const isCube = (node: OutlinerNode | null | undefined, globals: BlockbenchGlobal
   if (cubeCtor && node instanceof cubeCtor) return true;
   if (!isRecord(node)) return false;
   return isVec3Like(node.from) && isVec3Like(node.to);
+};
+
+const isMesh = (node: OutlinerNode | null | undefined, globals: BlockbenchGlobals): node is MeshInstance => {
+  if (!node) return false;
+  const meshCtor = globals.Mesh;
+  if (meshCtor && node instanceof meshCtor) return true;
+  if (!isRecord(node)) return false;
+  if (isVec3Like(node.from) && isVec3Like(node.to)) return false;
+  return isRecord(node.vertices) && isRecord(node.faces);
 };
 
 const isVec3Like = (value: unknown): value is Vec3Like => {
@@ -90,6 +113,47 @@ const toOptionalVec2 = (value: unknown): [number, number] | undefined => {
   if (Array.isArray(value)) return [value[0] ?? 0, value[1] ?? 0];
   if (isRecord(value) && typeof value.x === 'number' && typeof value.y === 'number') return [value.x, value.y];
   return undefined;
+};
+
+const toMeshVertices = (value: unknown): Array<{ id: string; pos: [number, number, number] }> => {
+  if (!isRecord(value)) return [];
+  const result: Array<{ id: string; pos: [number, number, number] }> = [];
+  for (const [id, pos] of Object.entries(value)) {
+    if (!Array.isArray(pos)) continue;
+    result.push({ id, pos: [Number(pos[0] ?? 0), Number(pos[1] ?? 0), Number(pos[2] ?? 0)] });
+  }
+  return result;
+};
+
+const toMeshFaces = (
+  value: unknown
+): Array<{ id?: string; vertices: string[]; uv?: Array<{ vertexId: string; uv: [number, number] }>; texture?: string | false }> => {
+  if (!isRecord(value)) return [];
+  const result: Array<{
+    id?: string;
+    vertices: string[];
+    uv?: Array<{ vertexId: string; uv: [number, number] }>;
+    texture?: string | false;
+  }> = [];
+  for (const [id, face] of Object.entries(value)) {
+    if (!isRecord(face) || !Array.isArray(face.vertices)) continue;
+    const uvRecord = isRecord(face.uv) ? face.uv : undefined;
+    const uv = uvRecord
+      ? Object.entries(uvRecord)
+          .filter((entry): entry is [string, [unknown, unknown]] => Array.isArray(entry[1]))
+          .map(([vertexId, pair]) => ({
+            vertexId,
+            uv: [Number(pair[0] ?? 0), Number(pair[1] ?? 0)] as [number, number]
+          }))
+      : undefined;
+    result.push({
+      id,
+      vertices: face.vertices.map((vertexId) => String(vertexId)),
+      ...(uv && uv.length > 0 ? { uv } : {}),
+      ...(typeof face.texture === 'string' || face.texture === false ? { texture: face.texture } : {})
+    });
+  }
+  return result;
 };
 
 export const ensureRootBone = (bones: SessionState['bones'], cubes: SessionState['cubes']) => {

@@ -36,6 +36,7 @@ export class ProjectStateBuilder {
       snapshot.name ||
       snapshot.bones.length > 0 ||
       snapshot.cubes.length > 0 ||
+      (snapshot.meshes?.length ?? 0) > 0 ||
       snapshot.textures.length > 0 ||
       snapshot.animations.length > 0;
     if (!hasData) return null;
@@ -76,6 +77,7 @@ export class ProjectStateBuilder {
     if (detail === 'full') {
       project.bones = snapshot.bones;
       project.cubes = snapshot.cubes;
+      project.meshes = snapshot.meshes;
       project.animations = snapshot.animations;
     }
     return project;

@@ -3,13 +3,16 @@ import {
   AssignTextureCommand,
   BoneCommand,
   CubeCommand,
+  DeleteMeshCommand,
   DeleteBoneCommand,
   DeleteCubeCommand,
+  MeshCommand,
   SetFaceUvCommand,
   TextureUsageQuery,
   TextureUsageResult,
   UpdateBoneCommand,
-  UpdateCubeCommand
+  UpdateCubeCommand,
+  UpdateMeshCommand
 } from '../../ports/editor';
 import { errorMessage, Logger } from '../../logging';
 import type { PreviewItem } from '../../types/blockbench';
@@ -20,6 +23,7 @@ import { readGlobals } from './blockbenchUtils';
 import { collectCubes } from './outlinerLookup';
 import { BlockbenchBoneAdapter } from './geometry/BoneAdapter';
 import { BlockbenchCubeAdapter } from './geometry/CubeAdapter';
+import { BlockbenchMeshAdapter } from './geometry/MeshAdapter';
 import { BlockbenchTextureAssignAdapter } from './geometry/TextureAssignAdapter';
 import { BlockbenchUvAdapter } from './geometry/UvAdapter';
 import { ADAPTER_CUBE_TEXTURE_API_UNAVAILABLE } from '../../shared/messages';
@@ -28,6 +32,7 @@ export class BlockbenchGeometryAdapter {
   private readonly log: Logger;
   private readonly bones: BlockbenchBoneAdapter;
   private readonly cubes: BlockbenchCubeAdapter;
+  private readonly meshes: BlockbenchMeshAdapter;
   private readonly textures: BlockbenchTextureAssignAdapter;
   private readonly uvs: BlockbenchUvAdapter;
 
@@ -35,6 +40,7 @@ export class BlockbenchGeometryAdapter {
     this.log = log;
     this.bones = new BlockbenchBoneAdapter(log);
     this.cubes = new BlockbenchCubeAdapter(log);
+    this.meshes = new BlockbenchMeshAdapter(log);
     this.textures = new BlockbenchTextureAssignAdapter(log);
     this.uvs = new BlockbenchUvAdapter(log);
   }
@@ -61,6 +67,18 @@ export class BlockbenchGeometryAdapter {
 
   deleteCube(params: DeleteCubeCommand): ToolError | null {
     return this.withViewportRefresh(this.cubes.deleteCube(params), 'delete_cube');
+  }
+
+  addMesh(params: MeshCommand): ToolError | null {
+    return this.withViewportRefresh(this.meshes.addMesh(params), 'add_mesh');
+  }
+
+  updateMesh(params: UpdateMeshCommand): ToolError | null {
+    return this.withViewportRefresh(this.meshes.updateMesh(params), 'update_mesh');
+  }
+
+  deleteMesh(params: DeleteMeshCommand): ToolError | null {
+    return this.withViewportRefresh(this.meshes.deleteMesh(params), 'delete_mesh');
   }
 
   assignTexture(params: AssignTextureCommand): ToolError | null {

@@ -7,7 +7,7 @@ assert.equal(TOOL_SCHEMA_VERSION, '2026-02-09');
 assert.equal(DEFAULT_TOOL_REGISTRY.count, DEFAULT_TOOL_REGISTRY.tools.length);
 
 // Contract test: tool registry signature must be stable unless intentionally changed.
-assert.equal(DEFAULT_TOOL_REGISTRY.hash, '2a264170');
+assert.equal(DEFAULT_TOOL_REGISTRY.hash, 'e14c8576');
 
 
 

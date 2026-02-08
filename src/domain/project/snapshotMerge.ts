@@ -6,6 +6,7 @@ export function mergeSnapshots(session: SessionState, live: SessionState | null)
   const useLiveAnimations = live.animationsStatus !== 'unavailable';
   const mergedAnimations = useLiveAnimations ? mergeAnimations(session.animations, live.animations) : session.animations;
   const mergedTextures = mergeTextures(session.textures, live.textures);
+  const mergedMeshes = live.meshes ?? session.meshes;
 
   const merged: SessionState = {
     ...session,
@@ -17,6 +18,7 @@ export function mergeSnapshots(session: SessionState, live: SessionState | null)
     uvPixelsPerBlock: live.uvPixelsPerBlock ?? session.uvPixelsPerBlock,
     bones: live.bones,
     cubes: live.cubes,
+    meshes: mergedMeshes,
     textures: mergedTextures,
     animations: mergedAnimations,
     animationsStatus: live.animationsStatus ?? session.animationsStatus

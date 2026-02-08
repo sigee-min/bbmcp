@@ -9,16 +9,20 @@ import type {
   DeleteAnimationClipPayload,
   DeleteBonePayload,
   DeleteCubePayload,
+  DeleteMeshPayload,
   DeleteTexturePayload,
   EnsureProjectPayload,
   ExportPayload,
   ExportTraceLogPayload,
   GetProjectStatePayload,
   PaintFacesPayload,
+  PaintMeshFacePayload,
   ReadTexturePayload,
   ReloadPluginsPayload,
   SetFramePosePayload,
   SetTriggerKeyframesPayload,
+  AddMeshPayload,
+  UpdateMeshPayload,
   UpdateBonePayload,
   UpdateCubePayload,
   UpdateAnimationClipPayload,
@@ -33,12 +37,14 @@ export type { CubeFaceDirection } from '../domain/model';
 export type {
   AddBonePayload,
   AddCubePayload,
+  AddMeshPayload,
   AssignTexturePayload,
   AutoUvAtlasPayload,
   CreateAnimationClipPayload,
   DeleteAnimationClipPayload,
   DeleteBonePayload,
   DeleteCubePayload,
+  DeleteMeshPayload,
   DeleteTexturePayload,
   EnsureProjectPayload,
   ExportPayload,
@@ -47,6 +53,7 @@ export type {
   GetProjectStatePayload,
   PaintTexturePayload,
   PaintFacesPayload,
+  PaintMeshFacePayload,
   PreflightTexturePayload,
   ReadTexturePayload,
   ReloadPluginsPayload,
@@ -56,6 +63,7 @@ export type {
   SetTriggerKeyframesPayload,
   UpdateBonePayload,
   UpdateCubePayload,
+  UpdateMeshPayload,
   UpdateAnimationClipPayload,
   ValidatePayload
 } from './tools/payloads';
@@ -68,6 +76,7 @@ export type {
   GetProjectStateResult,
   PaintTextureResult,
   PaintFacesResult,
+  PaintMeshFaceResult,
   PreflightUvBounds,
   PreflightUsageSummary,
   PreflightTextureResult,
@@ -86,6 +95,7 @@ export interface ToolPayloadMap {
   export_trace_log: ExportTraceLogPayload;
   reload_plugins: ReloadPluginsPayload;
   paint_faces: PaintFacesPayload;
+  paint_mesh_face: PaintMeshFacePayload;
   ensure_project: EnsureProjectPayload;
   delete_texture: DeleteTexturePayload;
   assign_texture: AssignTexturePayload;
@@ -95,6 +105,9 @@ export interface ToolPayloadMap {
   add_cube: AddCubePayload;
   update_cube: UpdateCubePayload;
   delete_cube: DeleteCubePayload;
+  add_mesh: AddMeshPayload;
+  update_mesh: UpdateMeshPayload;
+  delete_mesh: DeleteMeshPayload;
   create_animation_clip: CreateAnimationClipPayload;
   update_animation_clip: UpdateAnimationClipPayload;
   delete_animation_clip: DeleteAnimationClipPayload;

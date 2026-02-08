@@ -29,6 +29,7 @@ export class BlockbenchSnapshot implements SnapshotPort {
     try {
       const bones: SessionState['bones'] = [];
       const cubes: SessionState['cubes'] = [];
+      const meshes: SessionState['meshes'] = [];
       const textures: SessionState['textures'] = [];
       const animations: SessionState['animations'] = [];
       const globals = readGlobals();
@@ -41,7 +42,7 @@ export class BlockbenchSnapshot implements SnapshotPort {
 
       const root = globals.Outliner?.root;
       const nodes = Array.isArray(root) ? root : root?.children ?? [];
-      walkNodes(nodes, undefined, bones, cubes, globals);
+      walkNodes(nodes, undefined, bones, cubes, meshes, globals);
       ensureRootBone(bones, cubes);
 
       const texList = globals.Texture?.all ?? [];
@@ -89,6 +90,7 @@ export class BlockbenchSnapshot implements SnapshotPort {
         uvPixelsPerBlock: normalizePixelsPerBlock(uvPixelsPerBlock),
         bones,
         cubes,
+        meshes,
         textures,
         animations,
         animationsStatus: animState.status,

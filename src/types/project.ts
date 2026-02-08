@@ -1,4 +1,4 @@
-import type { TrackedAnimation, TrackedBone, TrackedCube, TrackedTexture } from '../session';
+import type { TrackedAnimation, TrackedBone, TrackedCube, TrackedMesh, TrackedTexture } from '../session';
 import type { CubeFaceDirection } from '../shared/toolConstants';
 import { FormatKind, ProjectStateDetail } from './shared';
 
@@ -62,6 +62,7 @@ export interface ProjectState {
   };
   bones?: TrackedBone[];
   cubes?: TrackedCube[];
+  meshes?: TrackedMesh[];
   textures?: TrackedTexture[];
   animations?: TrackedAnimation[];
 }

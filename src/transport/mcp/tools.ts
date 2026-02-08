@@ -81,6 +81,13 @@ export const MCP_LOW_LEVEL_TOOLS: McpToolDefinition[] = [
     inputSchema: toolSchemas.paint_faces
   }),
   defineTool({
+    name: 'paint_mesh_face',
+    title: 'Paint Mesh Face',
+    description:
+      'Paints mesh face UV regions with one drawing op. Use scope=single_face (target.faceId required) or scope=all_faces. Default coordSpace=face; use coordSpace=texture with width/height for texture-space coordinates.',
+    inputSchema: toolSchemas.paint_mesh_face
+  }),
+  defineTool({
     name: 'delete_texture',
     title: 'Delete Texture',
     description: 'Deletes a texture by id or name.',
@@ -127,6 +134,24 @@ export const MCP_LOW_LEVEL_TOOLS: McpToolDefinition[] = [
     title: 'Delete Cube',
     description: 'Deletes a cube by id/name (or ids/names for bulk removal).',
     inputSchema: toolSchemas.delete_cube
+  }),
+  defineTool({
+    name: 'add_mesh',
+    title: 'Add Mesh',
+    description: 'Adds a mesh with explicit vertices/faces (mesh-centered modeling).',
+    inputSchema: toolSchemas.add_mesh
+  }),
+  defineTool({
+    name: 'update_mesh',
+    title: 'Update Mesh',
+    description: 'Updates mesh geometry/transform by id/name.',
+    inputSchema: toolSchemas.update_mesh
+  }),
+  defineTool({
+    name: 'delete_mesh',
+    title: 'Delete Mesh',
+    description: 'Deletes a mesh by id/name (or ids/names for bulk removal).',
+    inputSchema: toolSchemas.delete_mesh
   }),
   defineTool({
     name: 'create_animation_clip',

@@ -1,0 +1,31 @@
+---
+title: Texturing Tools
+description: Texture binding, painting, and texture-state inspection tools.
+---
+
+## Core Texture Operations
+
+- `assign_texture`: bind texture to selected cubes/faces.
+- `paint_faces`: paint cube faces with rectangle/line/fill operations.
+- `paint_mesh_face`: paint mesh UV faces with rectangle/line/fill operations.
+- `read_texture`: inspect current texture image and metadata.
+- `delete_texture`: remove texture from project.
+
+## `paint_mesh_face` Scope
+
+- `scope: "single_face"`: paint exactly one mesh face (`target.faceId` required).
+- `scope: "all_faces"`: paint all paintable faces on the mesh (`target.faceId` must be omitted).
+- If `scope` is omitted, bbmcp infers it from `target.faceId`:
+  - `faceId` present -> `single_face`
+  - `faceId` absent -> `all_faces`
+
+## Preview and Checks
+
+- Use `render_preview` after texture edits for quick visual QA.
+- Use `validate` before export to catch texture usage issues.
+
+## Texturing Practices
+
+- Keep painting operations atomic and intentional.
+- Prefer incremental paint calls over large opaque updates.
+- Re-run `read_texture` when verifying edge-case face mapping.

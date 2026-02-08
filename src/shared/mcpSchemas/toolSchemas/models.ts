@@ -1,6 +1,37 @@
 import type { JsonSchema } from '../types';
 import { metaProps, numberArray, revisionProp, stateProps } from '../schemas/common';
 
+const meshVertexSchema: JsonSchema = {
+  type: 'object',
+  required: ['id', 'pos'],
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string' },
+    pos: numberArray(3, 3)
+  }
+};
+
+const meshFaceSchema: JsonSchema = {
+  type: 'object',
+  required: ['vertices'],
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string' },
+    vertices: { type: 'array', minItems: 3, items: { type: 'string' } },
+    texture: { anyOf: [{ type: 'string' }, { type: 'boolean', enum: [false] }] }
+  }
+};
+
+const meshUvPolicySchema: JsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    symmetryAxis: { type: 'string', enum: ['none', 'x', 'y', 'z'] },
+    texelDensity: { type: 'number', minimum: 0.25, maximum: 64 },
+    padding: { type: 'number', minimum: 0, maximum: 16 }
+  }
+};
+
 export const modelToolSchemas: Record<string, JsonSchema> = {
   add_bone: {
     type: 'object',
@@ -95,6 +126,57 @@ export const modelToolSchemas: Record<string, JsonSchema> = {
     }
   },
   delete_cube: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      ids: { type: 'array', minItems: 1, items: { type: 'string' } },
+      names: { type: 'array', minItems: 1, items: { type: 'string' } },
+      ifRevision: revisionProp,
+      ...metaProps
+    }
+  },
+  add_mesh: {
+    type: 'object',
+    required: ['name', 'vertices', 'faces'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      bone: { type: 'string' },
+      boneId: { type: 'string' },
+      origin: numberArray(3, 3),
+      rotation: numberArray(3, 3),
+      visibility: { type: 'boolean' },
+      uvPolicy: meshUvPolicySchema,
+      vertices: { type: 'array', minItems: 3, items: meshVertexSchema },
+      faces: { type: 'array', minItems: 1, items: meshFaceSchema },
+      ifRevision: revisionProp,
+      ...metaProps
+    }
+  },
+  update_mesh: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      newName: { type: 'string' },
+      bone: { type: 'string' },
+      boneId: { type: 'string' },
+      boneRoot: { type: 'boolean' },
+      origin: numberArray(3, 3),
+      rotation: numberArray(3, 3),
+      visibility: { type: 'boolean' },
+      uvPolicy: meshUvPolicySchema,
+      vertices: { type: 'array', minItems: 3, items: meshVertexSchema },
+      faces: { type: 'array', minItems: 1, items: meshFaceSchema },
+      ifRevision: revisionProp,
+      ...metaProps
+    }
+  },
+  delete_mesh: {
     type: 'object',
     additionalProperties: false,
     properties: {

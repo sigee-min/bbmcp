@@ -1,0 +1,68 @@
+---
+title: 설치
+description: bbmcp 설치와 MCP 엔드포인트 연결 확인 방법.
+---
+
+## 요구사항
+
+- Blockbench Desktop (최신 버전)
+- Node.js 22 이상 (소스 빌드 시)
+- npm 10 이상 (소스 빌드 시)
+
+## 빠른 설치 (플러그인 URL)
+
+Blockbench Desktop에서:
+
+1. `File > Plugins > Load Plugin from URL` 메뉴를 엽니다.
+2. 아래 URL을 붙여넣습니다.
+3. 플러그인을 설치/로드합니다.
+
+```text
+https://github.com/sigee-min/bbmcp/releases/latest/download/bbmcp.js
+```
+
+## 소스 빌드 (선택)
+
+clone 후 빌드:
+
+```bash
+git clone https://github.com/sigee-min/bbmcp.git
+cd bbmcp
+npm install
+npm run build
+```
+
+이미 저장소가 있는 경우:
+
+```bash
+npm install
+npm run build
+```
+
+그 다음 Blockbench Plugin Manager에서 `dist/bbmcp.js`를 로드합니다.
+
+## MCP 엔드포인트 확인
+
+기본 엔드포인트:
+
+```text
+http://127.0.0.1:8787/mcp
+```
+
+정상 결과:
+- MCP 클라이언트에서 `list_capabilities` 호출이 성공합니다.
+- 응답에 도구 스키마와 `toolRegistry.hash`가 포함됩니다.
+
+## URL 및 런타임 설정
+
+- 공식 가이드 URL: `https://bbmcp.sigee.xyz`
+- 기본 MCP 엔드포인트: `http://127.0.0.1:8787/mcp`
+- `BBMCP_HOST`, `BBMCP_PORT`, `BBMCP_PATH`: MCP 서버 호스트/포트/경로 재정의
+
+예시:
+
+```bash
+BBMCP_HOST=127.0.0.1
+BBMCP_PORT=8787
+BBMCP_PATH=/mcp
+```

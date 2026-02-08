@@ -29,9 +29,10 @@ No manual setup.
 | ![Greyfox Model](assets/images/greyfox.png) | ![Greyfox Texture](assets/images/greyfox-texture.png) |
 
 ## Features
-- Low-level modeling only: add_bone/add_cube (one item per call).
+- Low-level modeling only: add_bone/add_cube/add_mesh (one item per call).
+- Mesh UV and face layout are managed through add_mesh/update_mesh with uvPolicy.
 - Low-level animation only: create_animation_clip + set_frame_pose.
-- UVs are managed internally with assign_texture and paint_faces (no manual UV tools).
+- UVs are managed internally with assign_texture, paint_faces (cubes), and paint_mesh_face (meshes) (no manual UV tools).
 - Auto UV atlas runs on cube add and geometry-changing cube updates; pixels are reprojected to follow the new layout.
 - Auto density reduction when atlas overflows (uvPixelsPerBlock is lowered to fit).
 - Revision guard (ifRevision) for safe concurrent edits.
@@ -86,11 +87,14 @@ Project setup:
 Modeling:
 - add_bone (optional)
 - add_cube (one cube per call)
+- add_mesh (one mesh per call)
+- update_mesh (geometry/uvPolicy updates)
 - update_bone / update_cube for edits
 
 Texturing:
 - assign_texture
-- paint_faces
+- paint_faces (cubes)
+- paint_mesh_face (meshes)
 - render_preview
 
 Animation:
@@ -102,6 +106,7 @@ Notes:
 - ensure_project auto-creates a texture named after the project when none exists.
 - UVs are managed internally; clients never send UV data.
 - Cube add/scale triggers auto UV atlas; repaint if needed.
+- `paint_mesh_face` scope is inferred by default (`faceId` -> `single_face`, no `faceId` -> `all_faces`) unless explicitly set.
 
 ## Supported Formats
 | Format | Status | Notes |
@@ -139,6 +144,15 @@ Quality checks:
 ```bash
 npm run quality:check
 ```
+
+## Release Automation
+- `release-please` manages release PRs from conventional commits on `main`.
+- Merging the release PR updates `package.json`/`CHANGELOG.md` via bot.
+- GitHub Release publication is automated by `.github/workflows/release-major.yml`.
+- Publish policy:
+  - first release: auto-create
+  - after bootstrap: only `major`/`minor` version bumps publish releases
+  - `patch` bumps are intentionally skipped
 
 ## Community and Security
 - Contributing guide: `CONTRIBUTING.md`

@@ -6,11 +6,12 @@ import { ensureRootBone, walkNodes } from '../../src/adapters/blockbench/snapsho
 const createStateBuffers = () => {
   const bones: SessionState['bones'] = [];
   const cubes: SessionState['cubes'] = [];
-  return { bones, cubes };
+  const meshes: SessionState['meshes'] = [];
+  return { bones, cubes, meshes };
 };
 
 {
-  const { bones, cubes } = createStateBuffers();
+  const { bones, cubes, meshes } = createStateBuffers();
   walkNodes(
     [
       {
@@ -23,7 +24,8 @@ const createStateBuffers = () => {
     undefined,
     bones,
     cubes,
-    {} as Parameters<typeof walkNodes>[4]
+    meshes,
+    {} as Parameters<typeof walkNodes>[5]
   );
   assert.equal(bones.length, 0);
   assert.equal(cubes.length, 1);
@@ -31,7 +33,7 @@ const createStateBuffers = () => {
 }
 
 {
-  const { bones, cubes } = createStateBuffers();
+  const { bones, cubes, meshes } = createStateBuffers();
   walkNodes(
     [
       {
@@ -42,7 +44,8 @@ const createStateBuffers = () => {
     undefined,
     bones,
     cubes,
-    {} as Parameters<typeof walkNodes>[4]
+    meshes,
+    {} as Parameters<typeof walkNodes>[5]
   );
   assert.equal(bones.length, 1);
   assert.equal(cubes.length, 1);
@@ -51,7 +54,7 @@ const createStateBuffers = () => {
 }
 
 {
-  const { bones, cubes } = createStateBuffers();
+  const { bones, cubes, meshes } = createStateBuffers();
   walkNodes(
     [
       {
@@ -69,7 +72,8 @@ const createStateBuffers = () => {
     undefined,
     bones,
     cubes,
-    {} as Parameters<typeof walkNodes>[4]
+    meshes,
+    {} as Parameters<typeof walkNodes>[5]
   );
   assert.equal(cubes[0]?.from?.[0], -1);
   assert.equal(cubes[0]?.uvOffset?.[0], 3);

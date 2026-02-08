@@ -1,0 +1,20 @@
+---
+title: Revision and Concurrency
+description: Resolve stale-write and concurrent mutation issues safely.
+---
+
+## Symptoms
+
+- Mutation tools reject request with revision/state mismatch.
+- Concurrent clients overwrite each other.
+
+## Recovery Flow
+
+1. Call `get_project_state` and read latest `revision`.
+2. Re-run mutation with `ifRevision` set to that revision.
+3. After success, fetch new revision before next mutation.
+
+## Prevention
+
+- Never batch many mutable operations without revision refresh points.
+- Keep mutation operations small and explicit.

@@ -6,10 +6,12 @@ import {
   DeleteAnimationCommand,
   DeleteBoneCommand,
   DeleteCubeCommand,
+  DeleteMeshCommand,
   DeleteTextureCommand,
   EditorPort,
   ImportTextureCommand,
   KeyframeCommand,
+  MeshCommand,
   ReadTextureCommand,
   SetFaceUvCommand,
   TextureSource,
@@ -19,6 +21,7 @@ import {
   UpdateAnimationCommand,
   UpdateBoneCommand,
   UpdateCubeCommand,
+  UpdateMeshCommand,
   UpdateTextureCommand,
   TriggerKeyframeCommand
 } from '../../ports/editor';
@@ -108,6 +111,18 @@ export class BlockbenchEditor implements EditorPort {
 
   deleteCube(params: DeleteCubeCommand): ToolError | null {
     return this.geometry.deleteCube(params);
+  }
+
+  addMesh(params: MeshCommand): ToolError | null {
+    return this.geometry.addMesh(params);
+  }
+
+  updateMesh(params: UpdateMeshCommand): ToolError | null {
+    return this.geometry.updateMesh(params);
+  }
+
+  deleteMesh(params: DeleteMeshCommand): ToolError | null {
+    return this.geometry.deleteMesh(params);
   }
 
   createAnimation(params: AnimationCommand): ToolError | null {

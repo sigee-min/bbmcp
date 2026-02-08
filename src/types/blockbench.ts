@@ -186,6 +186,29 @@ export interface CubeConstructor {
   new (options: UnknownRecord): CubeInstance;
 }
 
+export interface MeshFaceInput {
+  vertices: string[];
+  uv?: Record<string, [number, number]>;
+  texture?: string | false;
+}
+
+export interface MeshInstance extends OutlinerNode {
+  origin?: [number, number, number] | { x: number; y: number; z: number };
+  rotation?: [number, number, number] | { x: number; y: number; z: number };
+  visibility?: boolean;
+  visible?: boolean;
+  vertices?: Record<string, [number, number, number]>;
+  faces?: Record<string, MeshFaceInput>;
+  addVertices?: (...vectors: [number, number, number][]) => string[];
+  addFaces?: (...faces: UnknownRecord[]) => string[];
+  init?: () => MeshInstance | void;
+  extend?: (data: UnknownRecord) => void;
+}
+
+export interface MeshConstructor {
+  new (options: UnknownRecord): MeshInstance;
+}
+
 export interface OutlinerApi {
   root?: OutlinerNode[] | { children?: OutlinerNode[] };
 }
@@ -322,6 +345,7 @@ export interface BlockbenchGlobals {
   Texture?: TextureConstructor;
   Group?: GroupConstructor;
   Cube?: CubeConstructor;
+  Mesh?: MeshConstructor;
   Animator?: AnimatorApi;
   EffectAnimator?: new (clip: AnimationClip) => AnimatorInstance;
   Animation?: AnimationApi;

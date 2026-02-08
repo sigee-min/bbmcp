@@ -4,6 +4,8 @@ import {
   Capabilities,
   PaintFacesPayload,
   PaintFacesResult,
+  PaintMeshFacePayload,
+  PaintMeshFaceResult,
   PaintTexturePayload,
   PaintTextureResult,
   PreflightTextureResult,
@@ -14,7 +16,7 @@ import {
 import { ProjectSession, SessionState } from '../session';
 import { CubeFaceDirection, EditorPort, FaceUvMap, TextureSource } from '../ports/editor';
 import { TextureMeta } from '../types/texture';
-import { runAutoUvAtlas, runPaintFaces, runPaintTexture, TextureToolContext } from './textureTools';
+import { runAutoUvAtlas, runPaintFaces, runPaintMeshFace, runPaintTexture, TextureToolContext } from './textureTools';
 import { ok, fail, UsecaseResult } from './result';
 import { TextureWriteService } from './textureService/TextureWriteService';
 import { TextureReadService } from './textureService/TextureReadService';
@@ -157,6 +159,10 @@ export class TextureService {
 
   paintFaces(payload: PaintFacesPayload): UsecaseResult<PaintFacesResult> {
     return runPaintFaces(this.getTextureToolContext(), payload);
+  }
+
+  paintMeshFace(payload: PaintMeshFacePayload): UsecaseResult<PaintMeshFaceResult> {
+    return runPaintMeshFace(this.getTextureToolContext(), payload);
   }
 
   autoUvAtlas(payload: AutoUvAtlasPayload): UsecaseResult<AutoUvAtlasResult> {

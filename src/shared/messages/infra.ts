@@ -28,6 +28,7 @@ export const ADAPTER_ANIMATION_API_UNAVAILABLE = 'Animation API not available';
 export const ADAPTER_ANIMATOR_API_UNAVAILABLE = 'Animator API not available';
 export const ADAPTER_GROUP_API_UNAVAILABLE = 'Group API not available';
 export const ADAPTER_CUBE_API_UNAVAILABLE = 'Cube API not available';
+export const ADAPTER_MESH_API_UNAVAILABLE = 'Mesh API not available';
 export const ADAPTER_CUBE_TEXTURE_API_UNAVAILABLE = 'Cube/Texture API not available';
 export const ADAPTER_CUBE_APPLY_TEXTURE_UNAVAILABLE = 'Cube.applyTexture is not available';
 export const ADAPTER_TEXTURE_API_UNAVAILABLE = 'Texture API not available';

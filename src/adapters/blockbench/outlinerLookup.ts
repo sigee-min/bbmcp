@@ -1,5 +1,5 @@
 import type { AssignTextureCommand } from '../../ports/editor';
-import type { CubeInstance, GroupInstance, OutlinerNode, TextureInstance } from '../../types/blockbench';
+import type { CubeInstance, GroupInstance, MeshInstance, OutlinerNode, TextureInstance } from '../../types/blockbench';
 import { readGlobals, readNodeId, readTextureId } from './blockbenchUtils';
 
 export const findGroup = (name?: string): GroupInstance | null => {
@@ -27,6 +27,20 @@ export const findCubeRef = (name?: string, id?: string): CubeInstance | null => 
     if (byId) return byId;
   }
   if (name) return findCube(name);
+  return null;
+};
+
+const findMesh = (name?: string): MeshInstance | null => {
+  if (!name) return null;
+  return findOutlinerNode((node) => isMeshNode(node) && node.name === name);
+};
+
+export const findMeshRef = (name?: string, id?: string): MeshInstance | null => {
+  if (id) {
+    const byId = findOutlinerNode((node) => isMeshNode(node) && readNodeId(node) === id);
+    if (byId) return byId;
+  }
+  if (name) return findMesh(name);
   return null;
 };
 
@@ -107,6 +121,13 @@ const isCubeNode = (node: OutlinerNode): node is CubeInstance => {
   const cubeCtor = readGlobals().Cube;
   if (cubeCtor && node instanceof cubeCtor) return true;
   return node.from !== undefined && node.to !== undefined;
+};
+
+const isMeshNode = (node: OutlinerNode): node is MeshInstance => {
+  const meshCtor = readGlobals().Mesh;
+  if (meshCtor && node instanceof meshCtor) return true;
+  if (node.from !== undefined && node.to !== undefined) return false;
+  return node.vertices !== undefined && node.faces !== undefined;
 };
 
 

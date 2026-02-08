@@ -7,6 +7,9 @@ on:
       - package.json
       - package-lock.json
       - .github/workflows/release-major.yml
+      - .github/workflows/release-please.yml
+      - release-please-config.json
+      - .release-please-manifest.json
   workflow_dispatch:
 
 jobs:
@@ -93,6 +96,23 @@ jobs:
               return false;
             }
           })();
+          const hasAnyRelease = (() => {
+            try {
+              const repo = process.env.GH_REPOSITORY;
+              const token = process.env.GH_TOKEN;
+              if (!repo || !token) return false;
+              const cmd =
+                'curl -s ' +
+                `-H "Authorization: Bearer ${token}" ` +
+                '-H "Accept: application/vnd.github+json" ' +
+                `https://api.github.com/repos/${repo}/releases?per_page=1`;
+              const body = execSync(cmd, { encoding: 'utf8' }).trim();
+              const parsed = JSON.parse(body);
+              return Array.isArray(parsed) && parsed.length > 0;
+            } catch (error) {
+              return false;
+            }
+          })();
 
           let releaseBumped = false;
           let bumpKind = '';
@@ -105,7 +125,15 @@ jobs:
               bumpKind = 'minor';
             }
           }
-          const releaseNeeded = releaseBumped || !tagExists || !releaseExists;
+          let releaseNeeded = false;
+          let releaseReason = 'patch_or_no_version_bump';
+          if (!hasAnyRelease) {
+            releaseNeeded = true;
+            releaseReason = 'bootstrap_first_release';
+          } else if (releaseBumped) {
+            releaseNeeded = !tagExists || !releaseExists;
+            releaseReason = bumpKind === 'major' ? 'major_bump' : 'minor_bump';
+          }
 
           const lines = [
             `current_version=${currentVersion}`,
@@ -118,19 +146,21 @@ jobs:
             `release_needed=${releaseNeeded ? 'true' : 'false'}`,
             `tag_exists=${tagExists ? 'true' : 'false'}`,
             `release_exists=${releaseExists ? 'true' : 'false'}`,
+            `has_any_release=${hasAnyRelease ? 'true' : 'false'}`,
+            `release_reason=${releaseReason}`,
             `bump_kind=${bumpKind}`,
             `tag=${tag}`
           ];
           fs.appendFileSync(outputPath, `${lines.join('\n')}\n`);
 
           console.log(
-            `current=${currentVersion} previous=${previousVersion ?? 'unknown'} release_bumped=${releaseBumped} tag_exists=${tagExists} release_exists=${releaseExists} release_needed=${releaseNeeded} kind=${bumpKind || 'none'}`
+            `current=${currentVersion} previous=${previousVersion ?? 'unknown'} release_bumped=${releaseBumped} tag_exists=${tagExists} release_exists=${releaseExists} has_any_release=${hasAnyRelease} release_needed=${releaseNeeded} reason=${releaseReason} kind=${bumpKind || 'none'}`
           );
           NODE
 
       - name: Skip when release is unnecessary
         if: steps.version.outputs.release_needed != 'true'
-        run: echo "No major/minor bump and release already exists. Skipping release."
+        run: echo "Release skipped: ${{ steps.version.outputs.release_reason }}"
 
       - name: Setup Node
         if: steps.version.outputs.release_needed == 'true'

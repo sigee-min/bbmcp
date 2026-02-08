@@ -1,17 +1,29 @@
-import type { SessionState, TrackedAnimation, TrackedAnimationChannel, TrackedAnimationTrigger, TrackedBone, TrackedCube, TrackedTexture } from './types';
-import type { AnimationUpdate, BoneUpdate, CubeUpdate, TextureUpdate } from './types';
+import type {
+  SessionState,
+  TrackedAnimation,
+  TrackedAnimationChannel,
+  TrackedAnimationTrigger,
+  TrackedBone,
+  TrackedCube,
+  TrackedMesh,
+  TrackedTexture
+} from './types';
+import type { AnimationUpdate, BoneUpdate, CubeUpdate, MeshUpdate, TextureUpdate } from './types';
 import {
   addAnimation,
   addBone,
   addCube,
+  addMesh,
   addTexture,
   removeAnimations,
   removeBones,
   removeCubes,
+  removeMeshes,
   removeTextures,
   updateAnimation,
   updateBone,
   updateCube,
+  updateMesh,
   updateTexture,
   upsertAnimationChannel,
   upsertAnimationTrigger
@@ -24,6 +36,9 @@ export type SessionMutation =
   | { type: 'add_cube'; cube: TrackedCube }
   | { type: 'update_cube'; name: string; updates: CubeUpdate }
   | { type: 'remove_cubes'; names: string[] | Set<string> }
+  | { type: 'add_mesh'; mesh: TrackedMesh }
+  | { type: 'update_mesh'; name: string; updates: MeshUpdate }
+  | { type: 'remove_meshes'; names: string[] | Set<string> }
   | { type: 'add_texture'; texture: TrackedTexture }
   | { type: 'update_texture'; name: string; updates: TextureUpdate }
   | { type: 'remove_textures'; names: string[] | Set<string> }
@@ -40,6 +55,9 @@ type SessionMutationResultMap = {
   add_cube: void;
   update_cube: boolean;
   remove_cubes: number;
+  add_mesh: void;
+  update_mesh: boolean;
+  remove_meshes: number;
   add_texture: void;
   update_texture: boolean;
   remove_textures: number;
@@ -71,6 +89,13 @@ export const applySessionMutation = <T extends SessionMutation>(
       return updateCube(state, mutation.name, mutation.updates) as MutationResult<T>;
     case 'remove_cubes':
       return removeCubes(state, mutation.names) as MutationResult<T>;
+    case 'add_mesh':
+      addMesh(state, mutation.mesh);
+      return undefined as MutationResult<T>;
+    case 'update_mesh':
+      return updateMesh(state, mutation.name, mutation.updates) as MutationResult<T>;
+    case 'remove_meshes':
+      return removeMeshes(state, mutation.names) as MutationResult<T>;
     case 'add_texture':
       addTexture(state, mutation.texture);
       return undefined as MutationResult<T>;

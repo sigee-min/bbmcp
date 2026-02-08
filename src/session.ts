@@ -6,5 +6,6 @@ export type {
   TrackedAnimationTrigger,
   TrackedBone,
   TrackedCube,
+  TrackedMesh,
   TrackedTexture
 } from './session/types';

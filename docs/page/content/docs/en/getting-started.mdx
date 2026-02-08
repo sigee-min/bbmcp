@@ -1,0 +1,31 @@
+---
+title: Getting Started
+description: First-run flow for bbmcp MCP tools, from connection to validated export.
+---
+
+## TL;DR
+
+1. Run Blockbench with the bbmcp plugin enabled.
+2. Connect your MCP client to `http://127.0.0.1:8787/mcp`.
+3. Run `list_capabilities` to load current schemas and limits.
+4. Execute: `ensure_project` -> `add_bone`/`add_cube` -> `validate` -> `export`.
+
+## First Session Checklist
+
+- Blockbench desktop is running and bbmcp is loaded.
+- MCP endpoint is reachable (`/mcp`).
+- `list_capabilities` returns tool schemas and `toolRegistry.hash`.
+- `get_project_state` returns an initial project revision.
+
+## Minimal Operational Flow
+
+1. Start with `ensure_project` to attach or create a project.
+2. Read revision via `get_project_state`.
+3. Run mutation tools with `ifRevision` to prevent stale writes.
+4. Execute `validate` to catch structure/capability issues.
+5. Review output with `render_preview`.
+6. Finalize with `export`.
+
+## Recommended Next Step
+
+- Read `Tool Reference` for tool categories and sequencing strategy.

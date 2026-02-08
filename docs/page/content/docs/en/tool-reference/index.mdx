@@ -1,0 +1,21 @@
+---
+title: Tool Reference
+description: Expandable reference hub for bbmcp MCP tools.
+---
+
+Use this section as the entry point for tool families and operating rules.
+
+<Cards>
+  <Card title="Project Lifecycle" href="./project-lifecycle" />
+  <Card title="Modeling Tools" href="./modeling-tools" />
+  <Card title="Texturing Tools" href="./texturing-tools" />
+  <Card title="Animation Tools" href="./animation-tools" />
+  <Card title="System and Safety" href="./system-and-safety" />
+</Cards>
+
+## Core Rules
+
+- Use `ifRevision` for every mutation call.
+- Keep edits explicit and low-level.
+- Run `validate` before `export`.
+- Refresh schemas with `list_capabilities` when `toolRegistry.hash` changes.

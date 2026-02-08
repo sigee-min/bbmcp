@@ -1,0 +1,22 @@
+---
+title: 시스템 및 안전성
+description: 기능 조회, 런타임 제어, 안전한 운영 패턴.
+---
+
+## 기능 조회와 런타임 제어
+
+- `list_capabilities`: 지원 도구, 스키마, 제한값 조회
+- `reload_plugins`: 런타임 상태 초기화가 필요할 때 플러그인 재로드
+
+## 안전 운영 패턴
+
+1. `get_project_state`로 revision 확인
+2. `ifRevision` 포함 변경 요청
+3. 성공 후 revision 재조회
+4. `validate` 통과 후 `export`
+
+## 클라이언트 안정성 가이드
+
+- `toolRegistry.hash` 기준으로 스키마 캐시를 관리합니다.
+- hash가 변경되면 즉시 스키마를 갱신합니다.
+- 지원되지 않는 payload 필드는 클라이언트에서 제거합니다.

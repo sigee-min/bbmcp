@@ -1,0 +1,23 @@
+---
+title: Animation Tools
+description: Clip and keyframe tools for deterministic animation workflows.
+---
+
+## Clip Management
+
+- `create_animation_clip`
+- `update_animation_clip`
+- `delete_animation_clip`
+
+Use clip tools to define animation boundaries (name, fps, loop, length).
+
+## Pose and Triggers
+
+- `set_frame_pose`: write pose values at a frame for one or more bones.
+- `set_trigger_keyframes`: add timeline trigger keys (sound/particle/timeline channels).
+
+## Animation Practices
+
+- Build animations frame-by-frame with explicit updates.
+- Keep interpolation choices consistent across related tracks.
+- Validate and preview before export when animation affects structure.

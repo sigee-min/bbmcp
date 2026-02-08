@@ -1,0 +1,34 @@
+---
+title: 모델링 도구
+description: 뼈대, 큐브, 메시를 결정적으로 편집하는 모델링 도구.
+---
+
+## Bone 도구
+
+- `add_bone`
+- `update_bone`
+- `delete_bone`
+
+계층, pivot, 회전, 스케일, 가시성 제어에 사용합니다.
+
+## Cube 도구
+
+- `add_cube`
+- `update_cube`
+- `delete_cube`
+
+박스 기반 지오메트리 수정과 bone 재할당에 사용합니다.
+
+## Mesh 도구
+
+- `add_mesh`
+- `update_mesh`
+- `delete_mesh`
+
+비큐브 지오메트리와 uv 정책 제어가 필요할 때 사용합니다.
+
+## 모델링 운영 팁
+
+- 한 번에 하나의 명확한 지오메트리 변경을 적용합니다.
+- 변경 성공 후 최신 revision을 다시 읽습니다.
+- 복잡한 수정 중간에도 `validate`를 자주 실행합니다.

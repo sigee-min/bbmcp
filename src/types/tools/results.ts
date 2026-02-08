@@ -79,6 +79,36 @@ export interface PaintFacesResult {
   };
 }
 
+export interface PaintMeshFaceResult {
+  textureName: string;
+  meshId?: string;
+  meshName: string;
+  scope: 'single_face' | 'all_faces';
+  width: number;
+  height: number;
+  targets: number;
+  facesApplied: number;
+  opsApplied: number;
+  changedPixels?: number;
+  skippedFaces?: Array<{ faceId: string; reason: string }>;
+  resolvedSource?: {
+    coordSpace: 'face' | 'texture';
+    width: number;
+    height: number;
+    faceUv?: [number, number, number, number];
+  };
+  recovery?: {
+    applied: boolean;
+    rollbackApplied?: boolean;
+    attempts: Array<{
+      reason: string;
+      steps: number;
+      before?: { width: number; height: number };
+      after?: { width: number; height: number };
+    }>;
+  };
+}
+
 export interface AutoUvAtlasResult {
   applied: boolean;
   steps: number;
@@ -178,6 +208,7 @@ export interface ToolResultMap {
   export_trace_log: ExportTraceLogResult;
   reload_plugins: ReloadPluginsResult;
   paint_faces: WithState<PaintFacesResult>;
+  paint_mesh_face: WithState<PaintMeshFaceResult>;
   ensure_project: WithState<EnsureProjectResult>;
   delete_texture: WithState<{ id: string; name: string }>;
   assign_texture: WithState<{ textureId?: string; textureName: string; cubeCount: number; faces?: CubeFaceDirection[] }>;
@@ -187,6 +218,9 @@ export interface ToolResultMap {
   add_cube: WithState<{ id: string; name: string }>;
   update_cube: WithState<{ id: string; name: string }>;
   delete_cube: WithState<{ id: string; name: string; deleted: DeletedTarget[] }>;
+  add_mesh: WithState<{ id: string; name: string }>;
+  update_mesh: WithState<{ id: string; name: string }>;
+  delete_mesh: WithState<{ id: string; name: string; deleted: DeletedTarget[] }>;
   create_animation_clip: WithState<AnimationClipResult>;
   update_animation_clip: WithState<AnimationClipResult>;
   delete_animation_clip: WithState<AnimationClipResult & { deleted: DeletedTarget[] }>;

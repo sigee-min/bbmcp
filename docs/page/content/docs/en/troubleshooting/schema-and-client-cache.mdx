@@ -1,0 +1,19 @@
+---
+title: Schema and Client Cache
+description: Handle tool-schema drift and client payload incompatibility.
+---
+
+## Common Symptoms
+
+- Client sends fields rejected by server schema.
+- Tool payloads break after server/plugin update.
+
+## Recovery Steps
+
+1. Call `list_capabilities` and check `toolRegistry.hash`.
+2. Refresh client tool schema cache when hash changes.
+3. Remove unsupported extra fields from payloads.
+
+## Best Practice
+
+- Treat `list_capabilities` as source of truth, not static hardcoded schemas.

@@ -5,7 +5,7 @@ Goal: paint textures without managing UVs manually.
 Steps:
 1) ensure_project / get_project_state (capture revision)
 2) assign_texture (bind texture to cubes)
-3) paint_faces (direct ops)
+3) paint_faces (cubes) or paint_mesh_face (meshes)
 4) render_preview to validate
 
 Notes:
@@ -19,6 +19,11 @@ Notes:
 - paint_faces is strict single-write: exactly one `target` (`cubeId`/`cubeName`, optional `face`) and one `op`.
 - paint_faces schema is strict; `targets`, `ops`, and `background` are invalid payload fields.
 - Omit `target.face` to paint all mapped faces of the target cube.
+- paint_mesh_face is strict single-op with one mesh target (`meshId`/`meshName`) and one `op`.
+- paint_mesh_face `scope` can be `single_face` or `all_faces`. If omitted, scope is inferred:
+  - `target.faceId` present -> `single_face`
+  - `target.faceId` absent -> `all_faces`
+- In `single_face`, `target.faceId` is required. In `all_faces`, `target.faceId` must be omitted.
 - `fill_rect` shading is on by default for deterministic tonal variation; use `shade: false` to keep flat color.
 - Advanced shading uses `shade` object fields: `enabled`, `intensity`, `edge`, `noise`, `seed`, `lightDir`.
 - Default `coordSpace` is `face`; if `width/height` is omitted, source size follows the target face UV size.
@@ -33,6 +38,15 @@ Example (paint_faces):
   "textureName": "pot_tex",
   "target": { "cubeName": "body", "face": "north" },
   "op": { "op": "fill_rect", "x": 0, "y": 0, "width": 16, "height": 16, "color": "#c96f3b" }
+}
+```
+
+Example (paint_mesh_face, inferred `all_faces`):
+```json
+{
+  "textureName": "pot_tex",
+  "target": { "meshName": "leaf_cluster" },
+  "op": { "op": "fill_rect", "x": 0, "y": 0, "width": 8, "height": 8, "color": "#4d7c3f" }
 }
 ```
 

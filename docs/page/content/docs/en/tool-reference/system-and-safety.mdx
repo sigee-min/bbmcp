@@ -1,0 +1,22 @@
+---
+title: System and Safety
+description: Capability discovery, runtime control, and safe-operation rules.
+---
+
+## Capability and Runtime
+
+- `list_capabilities`: read supported tools, payload schemas, and limits.
+- `reload_plugins`: reload Blockbench plugins when runtime state needs reset.
+
+## Safety Pattern
+
+1. Read revision via `get_project_state`.
+2. Send mutation with `ifRevision`.
+3. Re-read revision after success.
+4. Run `validate` before export.
+
+## Client Robustness
+
+- Cache schemas by `toolRegistry.hash`.
+- Refresh cache immediately when hash changes.
+- Reject or strip unsupported extra payload fields on client side.

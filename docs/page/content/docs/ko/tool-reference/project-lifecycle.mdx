@@ -1,0 +1,28 @@
+---
+title: 프로젝트 라이프사이클
+description: 프로젝트 설정, 상태 확인, 검증, 미리보기, 내보내기 도구.
+---
+
+## 설정 및 상태 확인
+
+- `ensure_project`: 활성 프로젝트 생성/선택/삭제
+- `get_project_state`: 현재 revision, 구조, 요약/상세 상태 조회
+
+## 품질 게이트
+
+- `validate`: 구조, 기능 호환성, 텍스처 관련 검사
+- `render_preview`: 릴리스 전 시각적 결과 확인
+
+## 산출물 및 로그
+
+- `export`: 최종 산출물(JSON 등) 내보내기
+- `export_trace_log`: 운영 이력 로그 추출 (QA/디버깅용)
+
+## 권장 순서
+
+1. `ensure_project`
+2. `get_project_state`
+3. `ifRevision` 포함 변경 도구 호출
+4. `validate`
+5. `render_preview`
+6. `export`

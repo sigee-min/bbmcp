@@ -3,6 +3,7 @@ import type {
   AnimationUpdate,
   BoneUpdate,
   CubeUpdate,
+  MeshUpdate,
   SessionState,
   TextureUpdate,
   TrackedAnimation,
@@ -10,6 +11,7 @@ import type {
   TrackedAnimationTrigger,
   TrackedBone,
   TrackedCube,
+  TrackedMesh,
   TrackedTexture
 } from './types';
 import type { AnimationTimePolicy } from '../domain/animation/timePolicy';
@@ -74,6 +76,18 @@ export class ProjectSession {
 
   removeCubes(names: string[] | Set<string>): number {
     return this.mutators.removeCubes(names);
+  }
+
+  addMesh(mesh: TrackedMesh) {
+    this.mutators.addMesh(mesh);
+  }
+
+  updateMesh(name: string, updates: MeshUpdate): boolean {
+    return this.mutators.updateMesh(name, updates);
+  }
+
+  removeMeshes(names: string[] | Set<string>): number {
+    return this.mutators.removeMeshes(names);
   }
 
   addTexture(tex: TrackedTexture) {

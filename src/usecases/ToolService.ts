@@ -6,6 +6,8 @@ import {
   PaintTexturePayload,
   PaintFacesResult,
   PaintFacesPayload,
+  PaintMeshFaceResult,
+  PaintMeshFacePayload,
   PreflightTextureResult,
   PreflightTexturePayload,
   ReadTextureResult,
@@ -132,6 +134,10 @@ export class ToolService {
     return this.facades.texture.paintFaces(payload);
   }
 
+  paintMeshFace(payload: PaintMeshFacePayload): UsecaseResult<PaintMeshFaceResult> {
+    return this.facades.texture.paintMeshFace(payload);
+  }
+
   autoUvAtlas(payload: AutoUvAtlasPayload): UsecaseResult<AutoUvAtlasResult> {
     return this.facades.texture.autoUvAtlas(payload);
   }
@@ -235,6 +241,20 @@ export class ToolService {
     payload: ToolPayloadMap['delete_cube']
   ): UsecaseResult<{ id: string; name: string; deleted: Array<{ id?: string; name: string }> }> {
     return this.facades.model.deleteCube(payload);
+  }
+
+  addMesh(payload: ToolPayloadMap['add_mesh']): UsecaseResult<{ id: string; name: string }> {
+    return this.facades.model.addMesh(payload);
+  }
+
+  updateMesh(payload: ToolPayloadMap['update_mesh']): UsecaseResult<{ id: string; name: string }> {
+    return this.facades.model.updateMesh(payload);
+  }
+
+  deleteMesh(
+    payload: ToolPayloadMap['delete_mesh']
+  ): UsecaseResult<{ id: string; name: string; deleted: Array<{ id?: string; name: string }> }> {
+    return this.facades.model.deleteMesh(payload);
   }
 
   createAnimationClip(payload: ToolPayloadMap['create_animation_clip']): UsecaseResult<{ id: string; name: string }> {

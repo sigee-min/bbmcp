@@ -1,0 +1,16 @@
+---
+title: Validation and Export
+description: Fix validation failures and incorrect export outcomes.
+---
+
+## Validation Fails
+
+1. Run `validate` and inspect the reported issue type.
+2. Correct with specific tools (`update_*`, texture tools, animation updates).
+3. Re-run `validate` until clean.
+
+## Export Looks Wrong
+
+1. Run `render_preview` to inspect current state before export.
+2. Use `read_texture` when texture issues are suspected.
+3. Export again only after validation passes.

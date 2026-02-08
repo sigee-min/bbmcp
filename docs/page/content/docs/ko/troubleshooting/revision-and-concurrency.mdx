@@ -1,0 +1,20 @@
+---
+title: Revision 및 동시성
+description: stale write 및 동시 수정 충돌을 안전하게 복구합니다.
+---
+
+## 주요 증상
+
+- 변경 도구가 revision/state mismatch를 반환함
+- 여러 클라이언트가 같은 프로젝트를 수정하면서 충돌 발생
+
+## 복구 절차
+
+1. `get_project_state`로 최신 `revision`을 읽습니다.
+2. `ifRevision`에 최신 revision을 넣어 변경 도구를 재호출합니다.
+3. 성공 후 다음 변경 전에 revision을 다시 조회합니다.
+
+## 예방 수칙
+
+- revision 갱신 없이 많은 변경을 연속 실행하지 않습니다.
+- 변경 작업은 작고 명시적인 단위로 유지합니다.

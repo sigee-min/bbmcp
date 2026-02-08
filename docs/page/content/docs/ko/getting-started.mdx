@@ -1,0 +1,31 @@
+---
+title: 빠른 시작
+description: bbmcp MCP 도구를 연결하고 검증된 산출물까지 만드는 첫 실행 흐름.
+---
+
+## TL;DR
+
+1. Blockbench에서 bbmcp 플러그인을 실행합니다.
+2. MCP 클라이언트를 `http://127.0.0.1:8787/mcp`에 연결합니다.
+3. `list_capabilities`로 현재 도구 스키마와 제한을 읽습니다.
+4. `ensure_project` -> `add_bone`/`add_cube` -> `validate` -> `export` 순서로 실행합니다.
+
+## 첫 세션 체크리스트
+
+- Blockbench 데스크톱에서 bbmcp가 정상 로드됩니다.
+- MCP 엔드포인트(`/mcp`)가 클라이언트에서 접근 가능합니다.
+- `list_capabilities` 응답에 `toolRegistry.hash`가 포함됩니다.
+- `get_project_state`로 프로젝트 `revision`을 확인할 수 있습니다.
+
+## 최소 운영 흐름
+
+1. `ensure_project`로 프로젝트를 생성/확인합니다.
+2. `get_project_state`로 최신 `revision`을 읽습니다.
+3. 변경 도구 호출 시 `ifRevision`을 함께 전달합니다.
+4. `validate`로 구조/호환성 문제를 점검합니다.
+5. `render_preview`로 결과를 시각적으로 확인합니다.
+6. `export`로 최종 산출물을 내보냅니다.
+
+## 다음 단계
+
+- `도구 레퍼런스`에서 영역별 도구 조합 전략을 확인하세요.

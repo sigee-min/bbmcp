@@ -2,7 +2,7 @@
 
 Primary flow:
 1) assign_texture
-2) paint_faces
+2) paint_faces (cubes) or paint_mesh_face (meshes)
 3) render_preview
 
 Recovery loop:
@@ -15,6 +15,11 @@ Notes:
 - `paint_faces` is strict single-write and allows one target + one op; `target.face` is optional.
 - `paint_faces` schema is strict; legacy `targets`, `ops`, and `background` fields are rejected.
 - Omit `target.face` when the same op should apply to all mapped faces on that cube.
+- `paint_mesh_face` is strict single-op and allows one mesh target + one op.
+- `paint_mesh_face` scope is inferred unless specified:
+  - include `target.faceId` -> `single_face`
+  - omit `target.faceId` -> `all_faces`
+- Explicit `scope` must match target shape (`single_face` requires `faceId`, `all_faces` forbids it).
 - Default `coordSpace` is `face`; omitting `width/height` auto-fits target face UV size.
 - Use `coordSpace="texture"` only with explicit `width`/`height` that matches texture size.
 - `fill_rect` shading is enabled by default; set `shade: false` for flat fills.

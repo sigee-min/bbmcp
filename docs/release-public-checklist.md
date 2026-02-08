@@ -13,7 +13,7 @@ Use this checklist before publishing a release or major public update.
 - [ ] Validate key MCP flows end-to-end:
   - [ ] project lifecycle (`ensure_project`, `get_project_state`, `validate`)
   - [ ] modeling (`add_bone`, `add_cube`, `update_cube`)
-  - [ ] texturing (`assign_texture`, `paint_faces`)
+  - [ ] texturing (`assign_texture`, `paint_faces`, `paint_mesh_face`)
   - [ ] animation (`create_animation_clip`, `set_frame_pose`)
   - [ ] preview/export (`render_preview`, `export`)
 - [ ] Check revision guard behavior (`ifRevision`) for mutation tools

@@ -3,7 +3,9 @@
   "packages": {
     ".": {
       "release-type": "node",
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md",
+      "component": "greyfox",
+      "package-name": "greyfox"
     }
   }
 }

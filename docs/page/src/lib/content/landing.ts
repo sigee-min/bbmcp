@@ -71,7 +71,7 @@ const contentByLocale: Record<Locale, LandingCopy> = {
   },
   ko: {
     badge: '오픈소스 Blockbench MCP 툴킷',
-    title: '검토하고 확장할 수 있는\nBlockbench 오픈소스 MCP 도구, greyfox',
+    title: '검토하고 확장할 수 있는\nBlockbench 오픈소스 MCP 도구',
     description:
       'greyfox는 모델링, 텍스처링, 애니메이션, 검증 도구를 스키마 기반으로 제공하며, 로컬과 CI에서 실행 가능한 문서와 예제를 함께 제공합니다.',
     primaryCta: '문서 보기',

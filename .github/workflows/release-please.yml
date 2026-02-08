@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: release-please-main
+  cancel-in-progress: true
+
 permissions:
   contents: write
   pull-requests: write

@@ -1,6 +1,6 @@
 ---
 title: 설치
-description: greyfox 설치와 MCP 엔드포인트 연결 확인 방법.
+description: ashfox 설치와 MCP 엔드포인트 연결 확인 방법.
 ---
 
 ## 요구사항
@@ -18,7 +18,7 @@ Blockbench Desktop에서:
 3. 플러그인을 설치/로드합니다.
 
 ```text
-https://github.com/sigee-min/greyfox/releases/latest/download/greyfox.js
+https://github.com/sigee-min/ashfox/releases/latest/download/ashfox.js
 ```
 
 ## 소스 빌드 (선택)
@@ -26,8 +26,8 @@ https://github.com/sigee-min/greyfox/releases/latest/download/greyfox.js
 clone 후 빌드:
 
 ```bash
-git clone https://github.com/sigee-min/greyfox.git
-cd greyfox
+git clone https://github.com/sigee-min/ashfox.git
+cd ashfox
 npm install
 npm run build
 ```
@@ -39,7 +39,7 @@ npm install
 npm run build
 ```
 
-그 다음 Blockbench Plugin Manager에서 `dist/greyfox.js`를 로드합니다.
+그 다음 Blockbench Plugin Manager에서 `dist/ashfox.js`를 로드합니다.
 
 ## MCP 엔드포인트 확인
 
@@ -55,15 +55,15 @@ http://127.0.0.1:8787/mcp
 
 ## URL 및 런타임 설정
 
-- 공식 가이드 URL: `https://greyfox.sigee.xyz`
+- 공식 가이드 URL: `https://ashfox.sigee.xyz`
 - 기본 MCP 엔드포인트: `http://127.0.0.1:8787/mcp`
-- `GREYFOX_HOST`, `GREYFOX_PORT`, `GREYFOX_PATH`: MCP 서버 호스트/포트/경로 재정의
+- `ASHFOX_HOST`, `ASHFOX_PORT`, `ASHFOX_PATH`: MCP 서버 호스트/포트/경로 재정의
 
 예시:
 
 ```bash
-GREYFOX_HOST=127.0.0.1
-GREYFOX_PORT=8787
-GREYFOX_PATH=/mcp
+ASHFOX_HOST=127.0.0.1
+ASHFOX_PORT=8787
+ASHFOX_PATH=/mcp
 ```
 

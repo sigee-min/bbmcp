@@ -35,7 +35,7 @@ class FakeCube {
   static instances: FakeCube[] = [];
 
   name?: string;
-  greyfoxId?: string;
+  ashfoxId?: string;
   from = [0, 0, 0] as [number, number, number];
   to = [1, 1, 1] as [number, number, number];
   box_uv = true;
@@ -75,7 +75,7 @@ class FakeTexture {
   name?: string;
   uuid?: string;
   id?: string;
-  greyfoxId?: string;
+  ashfoxId?: string;
 
   constructor(options: Record<string, unknown>) {
     Object.assign(this, options);
@@ -102,7 +102,7 @@ class FakeTexture {
 {
   FakeCube.instances = [];
   FakeTexture.all = [];
-  const cube = new FakeCube({ name: 'body', greyfoxId: 'cube-1' });
+  const cube = new FakeCube({ name: 'body', ashfoxId: 'cube-1' });
   const outliner = { root: [cube] as unknown[] };
   const adapter = new BlockbenchTextureAssignAdapter(noopLog);
   withGlobals(
@@ -124,7 +124,7 @@ class FakeTexture {
   FakeCube.instances = [];
   FakeTexture.all = [];
   new FakeTexture({ name: 'atlas', uuid: 'tex-uuid' });
-  const cube = new FakeCube({ name: 'body', greyfoxId: 'cube-1' });
+  const cube = new FakeCube({ name: 'body', ashfoxId: 'cube-1' });
   const outliner = { root: [cube] as unknown[] };
   const adapter = new BlockbenchTextureAssignAdapter(noopLog);
   withGlobals(
@@ -148,7 +148,7 @@ class FakeTexture {
   new FakeTexture({ name: 'atlas', uuid: 'tex-uuid' });
   const cube = {
     name: 'body',
-    greyfoxId: 'cube-1',
+    ashfoxId: 'cube-1',
     from: [0, 0, 0] as [number, number, number],
     to: [1, 1, 1] as [number, number, number]
   };
@@ -173,7 +173,7 @@ class FakeTexture {
   FakeCube.instances = [];
   FakeTexture.all = [];
   new FakeTexture({ name: 'atlas', uuid: 'tex-uuid' });
-  const cube = new FakeCube({ name: 'body', greyfoxId: 'cube-1' });
+  const cube = new FakeCube({ name: 'body', ashfoxId: 'cube-1' });
   cube.faces.north = { uv: [1, 2, 3, 4] };
   cube.faces.south = { uv: [5, 6, 7, 8] };
   const outliner = { root: [cube] as unknown[] };
@@ -208,7 +208,7 @@ class FakeTexture {
   FakeCube.instances = [];
   FakeTexture.all = [];
   new FakeTexture({ name: 'atlas', uuid: 'tex-uuid' });
-  const cube = new FakeCube({ name: 'body', greyfoxId: 'cube-1' });
+  const cube = new FakeCube({ name: 'body', ashfoxId: 'cube-1' });
   const outliner = { root: [cube] as unknown[] };
   const adapter = new BlockbenchTextureAssignAdapter(noopLog);
   withGlobals(

@@ -3,7 +3,7 @@ import type { TraceLogWriterFactory, TraceLogWriteOptions } from '../ports/trace
 import type { ExportTraceLogPayload, ExportTraceLogResult } from '../types/internal';
 import { ok, fail, UsecaseResult } from './result';
 
-const DEFAULT_RESOURCE_URI = 'greyfox://logs/trace.ndjson';
+const DEFAULT_RESOURCE_URI = 'ashfox://logs/trace.ndjson';
 
 export class TraceLogService {
   private readonly store: TraceLogStore;

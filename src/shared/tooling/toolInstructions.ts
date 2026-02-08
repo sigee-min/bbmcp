@@ -7,8 +7,8 @@ export const RIGGING_WORKFLOW_INSTRUCTIONS = [
   'Prefer stable ids; renaming ids can break animation channels.',
   'LLM guidance: iterate step-by-step and re-check get_project_state after each add/update.',
   'If you get invalid_state_revision_mismatch, call get_project_state and retry with the latest ifRevision.',
-  'If unsure about hierarchy rules, read greyfox://guide/rigging via resources/read.',
-  'For low-level modeling steps, read greyfox://guide/modeling-workflow via resources/read.'
+  'If unsure about hierarchy rules, read ashfox://guide/rigging via resources/read.',
+  'For low-level modeling steps, read ashfox://guide/modeling-workflow via resources/read.'
 ].join(' ');
 
 export const TEXTURE_WORKFLOW_INSTRUCTIONS = [
@@ -26,12 +26,12 @@ export const TEXTURE_WORKFLOW_INSTRUCTIONS = [
   'Internal UV recovery reprojects existing texture pixels so face colors follow the new UV layout.',
   'Payload sizing: for <=32px textures, small ops are fine; for 64px+ keep ops minimal and reuse tiles.',
   'Texture creation does not bind textures to cubes. Ensure textures are assigned via assign_texture.',
-  'For visual verification, use render_preview. If images cannot be attached, set saveToTmp=true and read greyfox://guide/vision-fallback via resources/read.',
-  'If unsure about the workflow or recovery, read greyfox://guide/llm-texture-strategy via resources/read.'
+  'For visual verification, use render_preview. If images cannot be attached, set saveToTmp=true and read ashfox://guide/vision-fallback via resources/read.',
+  'If unsure about the workflow or recovery, read ashfox://guide/llm-texture-strategy via resources/read.'
 ].join(' ');
 
 export const SERVER_TOOL_INSTRUCTIONS = [
-  'Tool paths can be session-bound (e.g., /greyfox/link_...).',
+  'Tool paths can be session-bound (e.g., /ashfox/link_...).',
   'toolRegistry.hash is the authoritative schema change signal; toolSchemaVersion is coarse.',
   'Tool schemas are strict (extra fields are rejected).',
   'Use get_project_state (or includeState/includeDiff) before and after edits.',

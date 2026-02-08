@@ -131,7 +131,7 @@ export class BlockbenchGeometryAdapter {
         }
       }
       if (rendered.size === 0) {
-        globals.Blockbench?.dispatchEvent?.('greyfox:viewport_changed', { source });
+        globals.Blockbench?.dispatchEvent?.('ashfox:viewport_changed', { source });
       }
     } catch (err) {
       this.log.warn('geometry viewport refresh failed', {

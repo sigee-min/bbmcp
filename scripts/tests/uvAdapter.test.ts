@@ -28,7 +28,7 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
 
 class FakeCube {
   name?: string;
-  greyfoxId?: string;
+  ashfoxId?: string;
   from = [0, 0, 0] as [number, number, number];
   to = [1, 1, 1] as [number, number, number];
   box_uv = true;
@@ -89,7 +89,7 @@ class FakeCube {
 
 {
   const adapter = new BlockbenchUvAdapter(noopLog);
-  const cube = new FakeCube({ name: 'body', greyfoxId: 'cube-1' });
+  const cube = new FakeCube({ name: 'body', ashfoxId: 'cube-1' });
   withGlobals(
     {
       Cube: FakeCube,
@@ -109,7 +109,7 @@ class FakeCube {
 
 {
   const adapter = new BlockbenchUvAdapter(noopLog);
-  const cube = new FakeCube({ name: 'body', greyfoxId: 'cube-1' });
+  const cube = new FakeCube({ name: 'body', ashfoxId: 'cube-1' });
   cube.faces.north = { uv: [0, 0, 1, 1] };
   withGlobals(
     {

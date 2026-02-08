@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Provider } from '@/components/provider';
 import { docsI18nUI, isLocale, type Locale } from '@/lib/i18n';
 
-const LOCALE_STORAGE_KEY = 'greyfox.docs.locale';
+const LOCALE_STORAGE_KEY = 'ashfox.docs.locale';
 
 type LocalizedProviderProps = {
   locale: Locale;

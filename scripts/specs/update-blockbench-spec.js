@@ -17,7 +17,7 @@ const writeSnapshot = (snapshot) => {
 const fetchLatestRelease = async () => {
   const res = await fetch(RELEASES_URL, {
     headers: {
-      'User-Agent': 'greyfox-spec-sync',
+      'User-Agent': 'ashfox-spec-sync',
       Accept: 'application/vnd.github+json'
     }
   });

@@ -1,18 +1,18 @@
 ---
 title: Getting Started
-description: First-run flow for greyfox MCP tools, from connection to validated export.
+description: First-run flow for ashfox MCP tools, from connection to validated export.
 ---
 
 ## TL;DR
 
-1. Run Blockbench with the greyfox plugin enabled.
+1. Run Blockbench with the ashfox plugin enabled.
 2. Connect your MCP client to `http://127.0.0.1:8787/mcp`.
 3. Run `list_capabilities` to load current schemas and limits.
 4. Execute: `ensure_project` -> `add_bone`/`add_cube` -> `validate` -> `export`.
 
 ## First Session Checklist
 
-- Blockbench desktop is running and greyfox is loaded.
+- Blockbench desktop is running and ashfox is loaded.
 - MCP endpoint is reachable (`/mcp`).
 - `list_capabilities` returns tool schemas and `toolRegistry.hash`.
 - `get_project_state` returns an initial project revision.

@@ -1,8 +1,8 @@
-# <img src="docs/page/public/favicon-32x32.png" alt="greyfox icon badge" width="32" height="32" /> greyfox
+# <img src="docs/page/public/favicon-32x32.png" alt="ashfox icon badge" width="32" height="32" /> ashfox
 
-Blockbench MCP bridge plugin. greyfox exposes a low-level, deterministic tool surface for modeling, texturing, and animation over MCP.
+Blockbench MCP bridge plugin. ashfox exposes a low-level, deterministic tool surface for modeling, texturing, and animation over MCP.
 
-Docs: [greyfox.sigee.xyz](https://greyfox.sigee.xyz)
+Docs: [ashfox.sigee.xyz](https://ashfox.sigee.xyz)
 
 ## Contents
 - Installation
@@ -29,22 +29,22 @@ In Blockbench Desktop:
 3) Click install/load
 
 ```text
-https://github.com/sigee-min/greyfox/releases/latest/download/greyfox.js
+https://github.com/sigee-min/ashfox/releases/latest/download/ashfox.js
 ```
 
 ### Option B: Clone and build from source
 ```bash
-git clone https://github.com/sigee-min/greyfox.git
-cd greyfox
+git clone https://github.com/sigee-min/ashfox.git
+cd ashfox
 npm install
 npm run build
 ```
 
 Then load the plugin in Blockbench:
-- Use the plugin manager, or load `dist/greyfox.js` manually.
+- Use the plugin manager, or load `dist/ashfox.js` manually.
 
 ## Quickstart (first successful request)
-1) Start Blockbench with greyfox enabled.
+1) Start Blockbench with ashfox enabled.
 2) Connect your MCP client to:
 
 ```text
@@ -102,21 +102,21 @@ Expected response shape (trimmed):
 ```
 
 Quick checks if it fails:
-- Confirm greyfox plugin is loaded in Blockbench Desktop.
+- Confirm ashfox plugin is loaded in Blockbench Desktop.
 - Confirm URL/path is exactly `http://127.0.0.1:8787/mcp`.
 - If custom host/port/path is used, verify settings and env vars match.
 
 ## Endpoint Configuration
 Config precedence (highest to lowest):
-1) Blockbench Settings (`greyfox: Server`)
-2) Environment variables: `GREYFOX_HOST`, `GREYFOX_PORT`, `GREYFOX_PATH`
+1) Blockbench Settings (`ashfox: Server`)
+2) Environment variables: `ASHFOX_HOST`, `ASHFOX_PORT`, `ASHFOX_PATH`
 3) Defaults
 
 Environment example:
 ```bash
-GREYFOX_HOST=127.0.0.1
-GREYFOX_PORT=8787
-GREYFOX_PATH=/mcp
+ASHFOX_HOST=127.0.0.1
+ASHFOX_PORT=8787
+ASHFOX_PATH=/mcp
 ```
 
 Address notes:
@@ -198,17 +198,17 @@ If toolRegistry.hash changes, re-run list_capabilities (or tools/list) to refres
 ## Guides and Specs
 - docs/guides/texture-spec.md
 - docs/guides/llm-texture-strategy.md
-- MCP resources: greyfox://guide/* (see resources/templates/list)
+- MCP resources: ashfox://guide/* (see resources/templates/list)
 
 ## Showcase
-Sample output generated with greyfox tool calls (modeling/texturing/animation).  
+Sample output generated with ashfox tool calls (modeling/texturing/animation).  
 Generation time and final quality vary by prompt, model, and runtime environment.
 
-![Greyfox Animation](docs/page/public/assets/images/greyfox-animation.gif)
+![Ashfox Animation](docs/page/public/assets/images/ashfox-animation.gif)
 
 | Final Model (Hero) | Texture Atlas |
 | --- | --- |
-| ![Greyfox Model](docs/page/public/assets/images/greyfox.png) | ![Greyfox Texture](docs/page/public/assets/images/greyfox-texture.png) |
+| ![Ashfox Model](docs/page/public/assets/images/ashfox.png) | ![Ashfox Texture](docs/page/public/assets/images/ashfox-texture.png) |
 
 ## Development
 Build:

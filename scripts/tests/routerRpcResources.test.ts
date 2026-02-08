@@ -51,7 +51,7 @@ const createContext = (resources?: RpcContext['resources']): RpcContext => {
       read: () => null,
       listTemplates: () => []
     }),
-    { jsonrpc: '2.0', method: 'resources/read', params: { uri: 'greyfox://missing' } },
+    { jsonrpc: '2.0', method: 'resources/read', params: { uri: 'ashfox://missing' } },
     1
   );
   assert.equal(outcome.type, 'response');
@@ -67,7 +67,7 @@ const createContext = (resources?: RpcContext['resources']): RpcContext => {
       read: (uri) => ({ uri, mimeType: 'application/json', text: '{"ok":true}' }),
       listTemplates: () => []
     }),
-    { jsonrpc: '2.0', method: 'resources/read', params: { uri: 'greyfox://logs/trace-report.json' } },
+    { jsonrpc: '2.0', method: 'resources/read', params: { uri: 'ashfox://logs/trace-report.json' } },
     5
   );
   assert.equal(outcome.type, 'response');
@@ -76,7 +76,7 @@ const createContext = (resources?: RpcContext['resources']): RpcContext => {
   assert.deepEqual(outcome.response.result, {
     contents: [
       {
-        uri: 'greyfox://logs/trace-report.json',
+        uri: 'ashfox://logs/trace-report.json',
         mimeType: 'application/json',
         text: '{"ok":true}'
       }
@@ -89,7 +89,7 @@ const createContext = (resources?: RpcContext['resources']): RpcContext => {
     createContext({
       list: () => [],
       read: () => null,
-      listTemplates: () => [{ uriTemplate: 'greyfox://textures/{name}', name: 'Texture by name' }]
+      listTemplates: () => [{ uriTemplate: 'ashfox://textures/{name}', name: 'Texture by name' }]
     }),
     9
   );
@@ -97,7 +97,7 @@ const createContext = (resources?: RpcContext['resources']): RpcContext => {
   if (outcome.type !== 'response') return;
   assert.equal(outcome.status, 200);
   assert.deepEqual(outcome.response.result, {
-    resourceTemplates: [{ uriTemplate: 'greyfox://textures/{name}', name: 'Texture by name' }],
+    resourceTemplates: [{ uriTemplate: 'ashfox://textures/{name}', name: 'Texture by name' }],
     nextCursor: null
   });
 }

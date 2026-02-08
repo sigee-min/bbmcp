@@ -1,5 +1,0 @@
-interface:
-  display_name: "greyfox Operator"
-  short_description: "Run safe greyfox edits, then improve craft quality with rubric scoring."
-  default_prompt: "Use $greyfox-operator to execute a safe greyfox mutation, enforce constraint profiles, run quality gates, and perform one craft pass with rubric scoring."
-

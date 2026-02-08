@@ -33,7 +33,7 @@ class FakeMesh {
   faces?: Record<string, Record<string, unknown>>;
   visibility?: boolean = true;
   visible?: boolean = true;
-  greyfoxId?: string;
+  ashfoxId?: string;
   children?: unknown[];
 
   constructor(options: Record<string, unknown>) {
@@ -109,7 +109,7 @@ class FakeMesh {
   assert.equal(outliner.root.length, 1);
   const mesh = outliner.root[0] as FakeMesh;
   assert.equal(mesh.name, 'body_mesh');
-  assert.equal(mesh.greyfoxId, 'mesh-1');
+  assert.equal(mesh.ashfoxId, 'mesh-1');
   assert.deepEqual(mesh.vertices?.v1, [1, 0, 0]);
   assert.deepEqual(mesh.faces?.f0?.vertices, ['v0', 'v1', 'v2']);
   assert.equal(mesh.visibility, false);

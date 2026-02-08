@@ -34,7 +34,7 @@ class FakeGroup {
   visibility = true;
   children?: unknown[];
   parent?: FakeGroup | null;
-  greyfoxId?: string;
+  ashfoxId?: string;
 
   constructor(options: Record<string, unknown>) {
     Object.assign(this, options);
@@ -87,7 +87,7 @@ class FakeGroup {
   assert.equal(outliner.root.length, 1);
   const created = outliner.root[0] as FakeGroup;
   assert.equal(created.name, 'body');
-  assert.equal(created.greyfoxId, 'bone-1');
+  assert.equal(created.ashfoxId, 'bone-1');
   assert.deepEqual(created.origin, [0, 5, 0]);
   assert.deepEqual(created.rotation, [0, 45, 0]);
   assert.equal(created.visibility, false);
@@ -165,7 +165,7 @@ class FakeGroup {
       assert.equal(err, null);
     }
   );
-  assert.equal(child.greyfoxId, 'new-id');
+  assert.equal(child.ashfoxId, 'new-id');
   assert.equal(child.name, 'child_renamed');
   assert.deepEqual(child.origin, [3, 4, 5]);
   assert.deepEqual(child.rotation, [6, 7, 8]);

@@ -38,7 +38,7 @@ export const runImportTexture = (log: Logger, params: ImportTextureCommand): Too
     let imageMissing = false;
     withUndo({ textures: true }, 'Import texture', () => {
       const tex = new TextureCtor({ name: params.name, width: params.width, height: params.height });
-      if (params.id) tex.greyfoxId = params.id;
+      if (params.id) tex.ashfoxId = params.id;
       if (typeof tex.add === 'function') {
         tex.add();
       }
@@ -70,7 +70,7 @@ export const runUpdateTexture = (log: Logger, params: UpdateTextureCommand): Too
       const label = params.id ?? params.name ?? 'unknown';
       return { code: 'invalid_payload', message: TEXTURE_NOT_FOUND(label) };
     }
-    if (params.id) target.greyfoxId = params.id;
+    if (params.id) target.ashfoxId = params.id;
     let imageMissing = false;
     withUndo({ textures: true }, 'Update texture', () => {
       if (params.newName && params.newName !== target.name) {
@@ -191,7 +191,7 @@ const refreshTextureViewport = (log: Logger): void => {
       }
     }
     if (rendered.size === 0) {
-      globals.Blockbench?.dispatchEvent?.('greyfox:texture_changed', {
+      globals.Blockbench?.dispatchEvent?.('ashfox:texture_changed', {
         source: 'texture_commands'
       });
     }

@@ -29,7 +29,7 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
 
 // Directory destPath should resolve to `<destPath>/<fileName>`.
 {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'greyfox-trace-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ashfox-trace-'));
   let writtenPath = '';
   const writer = new BlockbenchTraceLogWriter({
     mode: 'writeFile',
@@ -118,7 +118,7 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
 {
   const writer = new BlockbenchTraceLogWriter({
     mode: 'auto',
-    destPath: path.join(os.tmpdir(), 'greyfox-trace-auto-error.ndjson')
+    destPath: path.join(os.tmpdir(), 'ashfox-trace-auto-error.ndjson')
   });
   withGlobals(
     {
@@ -202,7 +202,7 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
 
 // File destPath should be used as-is.
 {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'greyfox-trace-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ashfox-trace-'));
   const targetFile = path.join(dir, 'custom-output.log');
   let writtenPath = '';
   const writer = new BlockbenchTraceLogWriter({
@@ -233,7 +233,7 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
 
 // EISDIR from writeFile should retry once with appended file name.
 {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'greyfox-trace-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ashfox-trace-'));
   const attempted: string[] = [];
   const basePath = path.join(dir, 'logs');
   const writer = new BlockbenchTraceLogWriter({

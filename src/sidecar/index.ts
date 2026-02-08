@@ -27,7 +27,7 @@ const config = {
   token: getArg(args, '--token')
 };
 
-const log = new StderrLogger('greyfox-sidecar', 'info');
+const log = new StderrLogger('ashfox-sidecar', 'info');
 const client = new SidecarClient(process.stdin, process.stdout, log);
 const resourceStore = new InMemoryResourceStore([...GUIDE_RESOURCE_TEMPLATES]);
 GUIDE_RESOURCES.forEach((resource) => resourceStore.put(resource));

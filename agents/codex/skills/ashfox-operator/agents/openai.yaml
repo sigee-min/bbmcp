@@ -1,0 +1,5 @@
+interface:
+  display_name: "ashfox Operator"
+  short_description: "Run safe ashfox edits, then improve craft quality with rubric scoring."
+  default_prompt: "Use $ashfox-operator to execute a safe ashfox mutation, enforce constraint profiles, run quality gates, and perform one craft pass with rubric scoring."
+

@@ -1,4 +1,4 @@
-# greyfox Shading Ownership
+# ashfox Shading Ownership
 
 ## Principle
 Shading algorithm ownership is in MCP server logic.

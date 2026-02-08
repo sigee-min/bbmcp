@@ -8,7 +8,7 @@ const ensureDir = (dir) => {
 const buildPlugin = () =>
   esbuild.build({
     entryPoints: ['src/plugin.ts'],
-    outfile: 'dist/greyfox.js',
+    outfile: 'dist/ashfox.js',
     bundle: true,
     sourcemap: true,
     platform: 'browser',
@@ -20,7 +20,7 @@ const buildPlugin = () =>
 const buildSidecar = () =>
   esbuild.build({
     entryPoints: ['src/sidecar/index.ts'],
-    outfile: 'dist/greyfox-sidecar.js',
+    outfile: 'dist/ashfox-sidecar.js',
     bundle: true,
     sourcemap: true,
     platform: 'node',

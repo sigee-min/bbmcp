@@ -2,7 +2,7 @@ import { deleteGlobalValue, readGlobalValue, writeGlobalValue } from '../shared/
 
 export type RuntimeInstance = { cleanup: () => void; version: string };
 
-const INSTANCE_KEY = '__greyfox_instance__';
+const INSTANCE_KEY = '__ashfox_instance__';
 
 export const claimSingleton = (args: {
   cleanup: () => void;
@@ -26,12 +26,12 @@ export const releaseSingleton = () => {
 };
 
 export const exposeBridge = (bridge: unknown, version: string) => {
-  writeGlobalValue('greyfox', bridge);
-  writeGlobalValue('greyfoxVersion', version);
+  writeGlobalValue('ashfox', bridge);
+  writeGlobalValue('ashfoxVersion', version);
 };
 
 export const cleanupBridge = () => {
-  deleteGlobalValue('greyfox');
-  deleteGlobalValue('greyfoxVersion');
+  deleteGlobalValue('ashfox');
+  deleteGlobalValue('ashfoxVersion');
 };
 

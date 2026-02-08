@@ -35,7 +35,7 @@ class FakeCube {
   box_uv?: boolean;
   visibility?: boolean;
   visible?: boolean;
-  greyfoxId?: string;
+  ashfoxId?: string;
 
   constructor(options: Record<string, unknown>) {
     Object.assign(this, options);
@@ -83,7 +83,7 @@ class FakeUvCube extends FakeCube {
   assert.equal(cube.name, 'body_main');
   assert.deepEqual(cube.from, [-4, 6, -7]);
   assert.deepEqual(cube.to, [4, 14, 7]);
-  assert.equal(cube.greyfoxId, 'cube-1');
+  assert.equal(cube.ashfoxId, 'cube-1');
 }
 
 // addCube should apply explicit box UV mode through Blockbench setters when provided.

@@ -28,7 +28,7 @@ import { sanitizeTraceValue } from '../../src/trace/traceLogFormat';
   }
   const sanitized = sanitizeTraceValue(large) as Record<string, unknown>;
   assert.equal(Object.keys(sanitized).length, 101);
-  assert.equal(sanitized.__greyfoxTruncatedKeys__, '[truncated:5]');
+  assert.equal(sanitized.__ashfoxTruncatedKeys__, '[truncated:5]');
   assert.equal(sanitized.k0, 0);
   assert.equal(sanitized.k99, 99);
   assert.equal('k100' in sanitized, false);

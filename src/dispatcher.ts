@@ -64,7 +64,7 @@ export class ToolDispatcherImpl implements Dispatcher {
       traceLogService?: TraceLogService;
     }
   ) {
-    this.log = options?.logger ?? new ConsoleLogger('greyfox-dispatcher', 'info');
+    this.log = options?.logger ?? new ConsoleLogger('ashfox-dispatcher', 'info');
     this.logGuardFailure = createGuardLogger(this.log);
     if (service) {
       this.service = service;

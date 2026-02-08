@@ -6,7 +6,7 @@ export const ALL_FACES: CubeFaceDirection[] = [...CUBE_FACE_DIRECTIONS];
 
 export const resolveFaceTextureRef = (texture: TextureInstance | null | undefined): string | null => {
   if (!texture) return null;
-  const raw = texture.uuid ?? texture.id ?? texture.greyfoxId ?? texture.name ?? null;
+  const raw = texture.uuid ?? texture.id ?? texture.ashfoxId ?? texture.name ?? null;
   return raw ? String(raw) : null;
 };
 

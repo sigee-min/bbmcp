@@ -66,15 +66,15 @@ export const runSetProjectUvPixelsPerBlock = (log: Logger, pixelsPerBlock: numbe
       return { code: 'invalid_state', message: PROJECT_NO_ACTIVE };
     }
     const projectRecord = project as Record<string, unknown>;
-    projectRecord.greyfoxUvPixelsPerBlock = pixelsPerBlock;
-    const greyfoxRaw = projectRecord.greyfox;
-    const greyfox =
-      greyfoxRaw && typeof greyfoxRaw === 'object'
-        ? (greyfoxRaw as Record<string, unknown>)
+    projectRecord.ashfoxUvPixelsPerBlock = pixelsPerBlock;
+    const ashfoxRaw = projectRecord.ashfox;
+    const ashfox =
+      ashfoxRaw && typeof ashfoxRaw === 'object'
+        ? (ashfoxRaw as Record<string, unknown>)
         : ({}) as Record<string, unknown>;
-    greyfox.uvPixelsPerBlock = pixelsPerBlock;
-    greyfox.uv_pixels_per_block = pixelsPerBlock;
-    projectRecord.greyfox = greyfox;
+    ashfox.uvPixelsPerBlock = pixelsPerBlock;
+    ashfox.uv_pixels_per_block = pixelsPerBlock;
+    projectRecord.ashfox = ashfox;
     log.info('project uv pixels per block set', { pixelsPerBlock });
     return null;
   } catch (err) {

@@ -31,7 +31,7 @@ class FakeTexture {
   name?: string;
   width?: number;
   height?: number;
-  greyfoxId?: string;
+  ashfoxId?: string;
   internal?: boolean;
   keep_size?: boolean;
   canvas: { width: number; height: number; getContext: (type: string) => unknown };

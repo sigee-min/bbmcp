@@ -78,7 +78,7 @@ import { withGlobals } from './support/withGlobals';
     }
   );
   assert.equal(dispatched.length, 1);
-  assert.equal(dispatched[0]?.name, 'greyfox:viewport_changed');
+  assert.equal(dispatched[0]?.name, 'ashfox:viewport_changed');
 }
 
 {

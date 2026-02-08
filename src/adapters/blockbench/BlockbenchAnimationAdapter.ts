@@ -66,7 +66,7 @@ export class BlockbenchAnimationAdapter {
         }
       }
       if (rendered.size === 0) {
-        globals.Blockbench?.dispatchEvent?.('greyfox:viewport_changed', { source });
+        globals.Blockbench?.dispatchEvent?.('ashfox:viewport_changed', { source });
       }
     } catch (err) {
       this.log.warn('animation viewport refresh failed', {

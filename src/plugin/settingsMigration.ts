@@ -4,13 +4,13 @@ export const cleanupLegacySettings = (deps: { readGlobals: ReadGlobals }) => {
   const globals = deps.readGlobals();
   const settings = globals.settings;
   if (!settings || typeof settings !== 'object') return;
-  const versionKey = 'greyfox_settings_version';
+  const versionKey = 'ashfox_settings_version';
   const versionEntry = settings[versionKey];
   const currentVersion = typeof versionEntry?.value === 'number' ? Number(versionEntry.value) : 0;
   if (currentVersion >= 1) return;
-  const keep = new Set(['greyfox_host', 'greyfox_port', 'greyfox_path']);
+  const keep = new Set(['ashfox_host', 'ashfox_port', 'ashfox_path']);
   for (const key of Object.keys(settings)) {
-    if (key.startsWith('greyfox_') && !keep.has(key)) {
+    if (key.startsWith('ashfox_') && !keep.has(key)) {
       try {
         delete settings[key];
       } catch (_err) {

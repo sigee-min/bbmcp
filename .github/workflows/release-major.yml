@@ -187,9 +187,9 @@ jobs:
           generate_release_notes: true
           make_latest: true
           files: |
-            dist/greyfox.js
-            dist/greyfox.js.map
-            dist/greyfox-sidecar.js
-            dist/greyfox-sidecar.js.map
+            dist/ashfox.js
+            dist/ashfox.js.map
+            dist/ashfox-sidecar.js
+            dist/ashfox-sidecar.js.map
           overwrite_files: true
 

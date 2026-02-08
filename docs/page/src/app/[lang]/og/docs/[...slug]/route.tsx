@@ -21,7 +21,7 @@ export async function GET(_req: Request, { params }: RouteProps) {
   if (!page) notFound();
 
   return new ImageResponse(
-    <DefaultImage title={page.data.title} description={page.data.description} site="greyfox" />,
+    <DefaultImage title={page.data.title} description={page.data.description} site="ashfox" />,
     {
       width: 1200,
       height: 630,

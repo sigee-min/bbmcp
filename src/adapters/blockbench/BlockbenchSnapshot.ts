@@ -74,12 +74,12 @@ export class BlockbenchSnapshot implements SnapshotPort {
       });
 
       const projectRecord = project as Record<string, unknown> | null | undefined;
-      const greyfoxRaw = projectRecord?.greyfox;
-      const greyfox = greyfoxRaw && typeof greyfoxRaw === 'object' ? (greyfoxRaw as Record<string, unknown>) : undefined;
+      const ashfoxRaw = projectRecord?.ashfox;
+      const ashfox = ashfoxRaw && typeof ashfoxRaw === 'object' ? (ashfoxRaw as Record<string, unknown>) : undefined;
       const uvPixelsPerBlock =
-        projectRecord?.greyfoxUvPixelsPerBlock ??
-        (greyfox?.uvPixelsPerBlock as number | undefined) ??
-        (greyfox?.uv_pixels_per_block as number | undefined);
+        projectRecord?.ashfoxUvPixelsPerBlock ??
+        (ashfox?.uvPixelsPerBlock as number | undefined) ??
+        (ashfox?.uv_pixels_per_block as number | undefined);
 
       return {
         id,

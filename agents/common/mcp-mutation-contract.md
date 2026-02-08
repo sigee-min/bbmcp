@@ -1,6 +1,6 @@
-# greyfox MCP Mutation Contract
+# ashfox MCP Mutation Contract
 
-Use this contract for all mutating greyfox tool calls.
+Use this contract for all mutating ashfox tool calls.
 
 ## Required sequence
 1. Call `get_project_state` and capture `project.revision`.

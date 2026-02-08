@@ -38,7 +38,7 @@ export class BlockbenchBoneAdapter {
         }).init?.();
         if (group) {
           setVisibility(group, params.visibility);
-          if (params.id) group.greyfoxId = params.id;
+          if (params.id) group.ashfoxId = params.id;
           const attached = attachToOutliner(parent, outliner, group, this.log, 'bone');
           if (!attached && Array.isArray(outliner?.root)) {
             outliner.root.push(group);
@@ -61,7 +61,7 @@ export class BlockbenchBoneAdapter {
         return { code: 'invalid_payload', message: MODEL_BONE_NOT_FOUND(label) };
       }
       if (params.id) {
-        target.greyfoxId = params.id;
+        target.ashfoxId = params.id;
       }
       const parent = params.parentRoot ? null : params.parent ? findGroup(params.parent) : undefined;
       if (params.parent && !parent) {

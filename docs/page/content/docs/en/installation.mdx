@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install greyfox and verify MCP endpoint connectivity.
+description: Install ashfox and verify MCP endpoint connectivity.
 ---
 
 ## Requirements
@@ -18,7 +18,7 @@ In Blockbench Desktop:
 3. Install / Load the plugin.
 
 ```text
-https://github.com/sigee-min/greyfox/releases/latest/download/greyfox.js
+https://github.com/sigee-min/ashfox/releases/latest/download/ashfox.js
 ```
 
 ## Build from Source (Optional)
@@ -26,8 +26,8 @@ https://github.com/sigee-min/greyfox/releases/latest/download/greyfox.js
 Clone and build:
 
 ```bash
-git clone https://github.com/sigee-min/greyfox.git
-cd greyfox
+git clone https://github.com/sigee-min/ashfox.git
+cd ashfox
 npm install
 npm run build
 ```
@@ -39,7 +39,7 @@ npm install
 npm run build
 ```
 
-Then load `dist/greyfox.js` in Blockbench Plugin Manager.
+Then load `dist/ashfox.js` in Blockbench Plugin Manager.
 
 ## Verify MCP Endpoint
 
@@ -55,15 +55,15 @@ Expected result:
 
 ## URL and Runtime Configuration
 
-- Official guide URL: `https://greyfox.sigee.xyz`
+- Official guide URL: `https://ashfox.sigee.xyz`
 - Default MCP endpoint: `http://127.0.0.1:8787/mcp`
-- `GREYFOX_HOST`, `GREYFOX_PORT`, `GREYFOX_PATH`: override MCP host/port/path.
+- `ASHFOX_HOST`, `ASHFOX_PORT`, `ASHFOX_PATH`: override MCP host/port/path.
 
 Example:
 
 ```bash
-GREYFOX_HOST=127.0.0.1
-GREYFOX_PORT=8787
-GREYFOX_PATH=/mcp
+ASHFOX_HOST=127.0.0.1
+ASHFOX_PORT=8787
+ASHFOX_PATH=/mcp
 ```
 

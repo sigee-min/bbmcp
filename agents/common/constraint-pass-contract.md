@@ -1,4 +1,4 @@
-# greyfox Constraint Pass Contract
+# ashfox Constraint Pass Contract
 
 Use this contract when structural correctness matters (symmetry, facial layout, foot/toe direction).
 

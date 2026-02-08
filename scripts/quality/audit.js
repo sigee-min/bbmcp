@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-// greyfox release gate: dependency vulnerability gate.
+// ashfox release gate: dependency vulnerability gate.
 // We keep this separate from static checks so teams can run/triage it independently.
 
 const { spawnSync } = require('child_process');
@@ -18,6 +18,6 @@ const result = spawnSync(cmd, args, { stdio: 'inherit' });
 if (result.status !== 0) {
   process.exitCode = result.status ?? 1;
 } else {
-  console.log('greyfox audit gate ok');
+  console.log('ashfox audit gate ok');
 }
 

@@ -1,4 +1,4 @@
-# greyfox Quality Rubric
+# ashfox Quality Rubric
 
 Score each category from 0 to 5.
 - 0: unusable

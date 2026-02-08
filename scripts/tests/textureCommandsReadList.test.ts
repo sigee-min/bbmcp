@@ -23,7 +23,7 @@ class FakeTexture {
   source?: string;
   width?: number;
   height?: number;
-  greyfoxId?: string;
+  ashfoxId?: string;
   canvas?: { width: number; height: number; getContext?: (type: string) => unknown; toDataURL?: () => string };
   ctx?: { clearRect: (...args: unknown[]) => void; drawImage: (...args: unknown[]) => void };
   img?: { naturalWidth?: number; naturalHeight?: number; width?: number; height?: number };

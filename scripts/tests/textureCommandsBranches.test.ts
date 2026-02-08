@@ -31,7 +31,7 @@ class FakeTexture {
   name?: string;
   width?: number;
   height?: number;
-  greyfoxId?: string;
+  ashfoxId?: string;
   internal?: boolean;
   keep_size?: boolean;
   ctx: { clearRect: (...args: unknown[]) => void; drawImage: (...args: unknown[]) => void };
@@ -114,7 +114,7 @@ class NoCanvasTexture {
     }
   );
   assert.equal(dispatched.length, 1);
-  assert.equal(dispatched[0]?.name, 'greyfox:texture_changed');
+  assert.equal(dispatched[0]?.name, 'ashfox:texture_changed');
   assert.equal((dispatched[0]?.payload as { source?: string })?.source, 'texture_commands');
 }
 

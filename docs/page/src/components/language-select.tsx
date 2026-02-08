@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { isLocale, localeLabels, locales, type Locale } from '@/lib/i18n';
 
-const LOCALE_STORAGE_KEY = 'greyfox.docs.locale';
+const LOCALE_STORAGE_KEY = 'ashfox.docs.locale';
 
 export function LanguageSelect({ locale }: { locale: Locale }) {
   const [open, setOpen] = useState(false);

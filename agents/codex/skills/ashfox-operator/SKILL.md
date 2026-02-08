@@ -1,12 +1,12 @@
 ---
-name: greyfox-operator
-description: Operate greyfox MCP tools with high reliability for modeling, texturing, animation, validation, and QA reporting. Use when creating or editing Blockbench projects through greyfox, when diagnosing failed mutations, or when generating developer-ready defect reports with full request/response history.
+name: ashfox-operator
+description: Operate ashfox MCP tools with high reliability for modeling, texturing, animation, validation, and QA reporting. Use when creating or editing Blockbench projects through ashfox, when diagnosing failed mutations, or when generating developer-ready defect reports with full request/response history.
 ---
 
-# greyfox Operator
+# ashfox Operator
 
 ## Mission
-Run greyfox edits safely, then optimize for visual and behavioral quality with a short, deterministic improvement loop.
+Run ashfox edits safely, then optimize for visual and behavioral quality with a short, deterministic improvement loop.
 
 ## Safe Pass
 Use strict mutation discipline before any quality tuning.

@@ -43,7 +43,7 @@ export const MCP_HIGH_LEVEL_TOOLS: McpToolDefinition[] = [
     name: 'render_preview',
     title: 'Render Preview',
     description:
-      'Renders a preview image. fixed -> single (optional angle). turntable -> sequence. Returns MCP image content blocks (base64 PNG) plus structured metadata without dataUri. Set saveToTmp=true to write snapshots into .greyfox/tmp for manual upload fallback. See greyfox://guide/vision-fallback via resources/read. Single returns result.image; sequence returns result.frames[]. Example(single): {"mode":"fixed","output":"single","angle":[30,45,0]} Example(sequence): {"mode":"turntable","output":"sequence","durationSeconds":2,"fps":12}',
+      'Renders a preview image. fixed -> single (optional angle). turntable -> sequence. Returns MCP image content blocks (base64 PNG) plus structured metadata without dataUri. Set saveToTmp=true to write snapshots into .ashfox/tmp for manual upload fallback. See ashfox://guide/vision-fallback via resources/read. Single returns result.image; sequence returns result.frames[]. Example(single): {"mode":"fixed","output":"single","angle":[30,45,0]} Example(sequence): {"mode":"turntable","output":"sequence","durationSeconds":2,"fps":12}',
     inputSchema: toolSchemas.render_preview
   }),
   defineTool({
@@ -64,7 +64,7 @@ export const MCP_LOW_LEVEL_TOOLS: McpToolDefinition[] = [
   defineTool({
     name: 'read_texture',
     title: 'Read Texture',
-    description: 'Reads a texture image (dataUri + metadata) or saves a snapshot to .greyfox/tmp.',
+    description: 'Reads a texture image (dataUri + metadata) or saves a snapshot to .ashfox/tmp.',
     inputSchema: toolSchemas.read_texture
   }),
   defineTool({

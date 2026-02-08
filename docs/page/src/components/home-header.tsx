@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { BookText, Github } from 'lucide-react';
@@ -55,8 +56,9 @@ export function HomeHeader({ locale }: { locale: Locale }) {
       }`}
     >
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4 sm:px-6">
-        <Link href={`/${locale}`} className="inline-flex items-center text-base font-semibold">
-          greyfox
+        <Link href={`/${locale}`} className="inline-flex items-center gap-2 text-base font-semibold">
+          <Image src="/favicon-32x32.png" alt="" width={32} height={32} className="rounded-[5px]" />
+          <span>ashfox</span>
         </Link>
         <div className="flex items-center gap-1.5">
           <Link href={`/${locale}/docs`} className={buttonVariants({ color: 'ghost', className: 'gap-1.5 px-2.5 text-sm' })}>
@@ -66,7 +68,7 @@ export function HomeHeader({ locale }: { locale: Locale }) {
           <ThemeSelect locale={locale} />
           <LanguageSelect locale={locale} />
           <a
-            href="https://github.com/sigee-min/greyfox"
+            href="https://github.com/sigee-min/ashfox"
             target="_blank"
             rel="noreferrer"
             aria-label="GitHub"

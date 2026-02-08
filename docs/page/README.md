@@ -1,4 +1,4 @@
-# greyfox page
+# ashfox page
 
 Static docs site built with Next.js + Fumadocs.
 

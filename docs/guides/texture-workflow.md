@@ -11,7 +11,7 @@ Steps:
 Notes:
 - UVs are managed internally; UV tools are not exposed to clients.
 - `ensure_project.uvPixelsPerBlock` sets the per-face UV density (default 16).
-- When reusing an existing project, greyfox infers UV density from existing UVs using the median face density.
+- When reusing an existing project, ashfox infers UV density from existing UVs using the median face density.
 - ensure_project auto-creates a texture named after the project when none exists.
 - Cube add and geometry-changing cube updates trigger internal UV atlas when textures exist.
 - Existing pixels are reprojected to the new UV layout automatically.
@@ -32,7 +32,7 @@ Notes:
 - For >=64px textures, keep ops minimal and use tiling patterns.
 - When specifying both cubeId and cubeName in target, both must match. Use only one to avoid overly narrow matches.
 - Support limit: models that still exceed atlas capacity after auto density reduction are not supported.
-- paint_mesh_face applies a commit guard: if the committed texture becomes unsafe (for example fully transparent collapse or no committed delta after expected change), greyfox automatically rolls back and returns an error.
+- paint_mesh_face applies a commit guard: if the committed texture becomes unsafe (for example fully transparent collapse or no committed delta after expected change), ashfox automatically rolls back and returns an error.
 
 Example (paint_faces):
 ```json

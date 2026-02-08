@@ -22,9 +22,9 @@ const withEnv = (changes: Record<string, string | undefined>, run: () => void) =
 
 withEnv(
   {
-    GREYFOX_HOST: undefined,
-    GREYFOX_PORT: undefined,
-    GREYFOX_PATH: undefined
+    ASHFOX_HOST: undefined,
+    ASHFOX_PORT: undefined,
+    ASHFOX_PATH: undefined
   },
   () => {
     const config = resolveEndpointConfig();
@@ -36,9 +36,9 @@ withEnv(
 
 withEnv(
   {
-    GREYFOX_HOST: '127.0.0.1',
-    GREYFOX_PORT: '9999',
-    GREYFOX_PATH: 'mcp-api'
+    ASHFOX_HOST: '127.0.0.1',
+    ASHFOX_PORT: '9999',
+    ASHFOX_PATH: 'mcp-api'
   },
   () => {
     const config = resolveEndpointConfig();
@@ -50,9 +50,9 @@ withEnv(
 
 withEnv(
   {
-    GREYFOX_HOST: ' ',
-    GREYFOX_PORT: '70000',
-    GREYFOX_PATH: ' '
+    ASHFOX_HOST: ' ',
+    ASHFOX_PORT: '70000',
+    ASHFOX_PATH: ' '
   },
   () => {
     const config = resolveEndpointConfig();

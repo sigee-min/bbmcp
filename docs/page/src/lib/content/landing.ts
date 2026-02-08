@@ -25,10 +25,10 @@ const contentByLocale: Record<Locale, LandingCopy> = {
     badge: 'Open Source Blockbench MCP Toolkit',
     title: 'Open source MCP tools for Blockbench\nthat teams can inspect and extend.',
     description:
-      'greyfox provides schema-based tools for modeling, texturing, animation, and validation, with docs and examples you can run locally or in CI.',
+      'ashfox provides schema-based tools for modeling, texturing, animation, and validation, with docs and examples you can run locally or in CI.',
     primaryCta: 'Read the Docs',
     secondaryCta: 'Installation',
-    featureTitle: 'Why teams use greyfox',
+    featureTitle: 'Why teams use ashfox',
     features: [
       {
         title: 'Schema-Based Tools',
@@ -73,10 +73,10 @@ const contentByLocale: Record<Locale, LandingCopy> = {
     badge: '오픈소스 Blockbench MCP 툴킷',
     title: '검토하고 확장할 수 있는\nBlockbench 오픈소스 MCP 도구',
     description:
-      'greyfox는 모델링, 텍스처링, 애니메이션, 검증 도구를 스키마 기반으로 제공하며, 로컬과 CI에서 실행 가능한 문서와 예제를 함께 제공합니다.',
+      'ashfox는 모델링, 텍스처링, 애니메이션, 검증 도구를 스키마 기반으로 제공하며, 로컬과 CI에서 실행 가능한 문서와 예제를 함께 제공합니다.',
     primaryCta: '문서 보기',
     secondaryCta: '설치하기',
-    featureTitle: 'greyfox를 사용하는 이유',
+    featureTitle: 'ashfox를 사용하는 이유',
     features: [
       {
         title: '스키마 기반 도구',

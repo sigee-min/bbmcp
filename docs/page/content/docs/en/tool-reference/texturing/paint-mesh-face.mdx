@@ -317,7 +317,7 @@ Paints mesh face UV regions with one drawing op. Use scope=single_face (target.f
 
 ## Operational Notes
 - `paint_mesh_face` is available only on mesh-enabled formats (for example `Generic Model` / `free`).
-- The tool includes a commit guard: if the committed texture is unsafe, greyfox rolls back and returns an error.
+- The tool includes a commit guard: if the committed texture is unsafe, ashfox rolls back and returns an error.
 - Use `ifRevision` for mutation calls when available.
 - Do not send fields outside the declared schema.
 - Run `validate` before `export` for release safety.

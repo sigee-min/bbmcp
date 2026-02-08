@@ -5,9 +5,9 @@ import { normalizeHost, normalizePath, normalizePort } from '../shared/endpoint'
 const readEnvConfig = (): Partial<EndpointConfig> => {
   const env = typeof process !== 'undefined' ? process.env ?? {} : {};
   return {
-    host: normalizeHost(env.GREYFOX_HOST) ?? undefined,
-    port: normalizePort(env.GREYFOX_PORT) ?? undefined,
-    path: env.GREYFOX_PATH ? normalizePath(env.GREYFOX_PATH) : undefined
+    host: normalizeHost(env.ASHFOX_HOST) ?? undefined,
+    port: normalizePort(env.ASHFOX_PORT) ?? undefined,
+    path: env.ASHFOX_PATH ? normalizePath(env.ASHFOX_PATH) : undefined
   };
 };
 

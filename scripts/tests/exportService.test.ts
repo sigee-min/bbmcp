@@ -234,7 +234,7 @@ registerAsync(
       assert.equal(writes.length, 1);
       assert.equal(writes[0].path, 'generic.json');
       const payload = JSON.parse(writes[0].contents) as { format: string; meshes: unknown[] };
-      assert.equal(payload.format, 'greyfox_generic_model');
+      assert.equal(payload.format, 'ashfox_generic_model');
       assert.equal(payload.meshes.length, 1);
     }
 

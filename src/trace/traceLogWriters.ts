@@ -3,8 +3,8 @@ import type { TraceLogWriter } from '../ports/traceLog';
 import type { ToolError } from '../types/internal';
 import { buildTraceLogReport } from './traceLogReport';
 
-const DEFAULT_URI = 'greyfox://logs/trace.ndjson';
-const DEFAULT_REPORT_URI = 'greyfox://logs/trace-report.json';
+const DEFAULT_URI = 'ashfox://logs/trace.ndjson';
+const DEFAULT_REPORT_URI = 'ashfox://logs/trace-report.json';
 
 export class ResourceTraceLogWriter implements TraceLogWriter {
   private readonly store: ResourceStore;
@@ -20,7 +20,7 @@ export class ResourceTraceLogWriter implements TraceLogWriter {
   ) {
     this.store = store;
     this.uri = options?.uri ?? DEFAULT_URI;
-    this.name = options?.name ?? 'greyfox trace log';
+    this.name = options?.name ?? 'ashfox trace log';
     this.description = options?.description ?? 'Trace log (ndjson) generated from tool calls.';
     this.includeReport = options?.includeReport !== false;
     this.reportUri = options?.reportUri ?? DEFAULT_REPORT_URI;
@@ -38,7 +38,7 @@ export class ResourceTraceLogWriter implements TraceLogWriter {
       const report = buildTraceLogReport(text);
       this.store.put({
         uri: this.reportUri,
-        name: 'greyfox trace report',
+        name: 'ashfox trace report',
         description: 'Aggregated trace log summary (auto-generated).',
         mimeType: 'application/json',
         text: JSON.stringify(report, null, 2)

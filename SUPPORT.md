@@ -7,7 +7,7 @@ Use GitHub Issues for:
 - documentation clarifications
 
 When reporting issues, include:
-- greyfox version/commit
+- ashfox version/commit
 - Blockbench version
 - model format (for example `java_block`, `geckolib`, `animated_java`)
 - exact request payload and response (if relevant)

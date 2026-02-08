@@ -31,7 +31,7 @@ $requiredTokens = @(
 )
 
 $requiredRefsBySkill = @{
-  "greyfox-operator" = @(
+  "ashfox-operator" = @(
     "../../../common/mcp-mutation-contract.md",
     "../../../common/texture-quality-gates.md",
     "../../../common/error-recovery-playbook.md",

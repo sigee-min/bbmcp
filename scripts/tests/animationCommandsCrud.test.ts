@@ -111,7 +111,7 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
         fps: 12
       });
       assert.equal(err, null);
-      assert.equal(clip.greyfoxId, 'anim_idle');
+      assert.equal(clip.ashfoxId, 'anim_idle');
       assert.equal(clip.name, 'walk');
       assert.equal(clip.length, 2);
       assert.equal(clip.loop, 'loop');

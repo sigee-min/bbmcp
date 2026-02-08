@@ -4,9 +4,9 @@ export const dynamic = 'force-static';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'greyfox',
-    short_name: 'greyfox',
-    description: 'greyfox MCP tools for Blockbench modeling, texturing, animation, and validation workflows.',
+    name: 'ashfox',
+    short_name: 'ashfox',
+    description: 'ashfox MCP tools for Blockbench modeling, texturing, animation, and validation workflows.',
     start_url: '/',
     display: 'standalone',
     background_color: '#0a0f18',

@@ -27,7 +27,7 @@ export const createTraceLogDefaults = () => ({
   enabled: true,
   mode: 'writeFile' as const,
   destPath: '',
-  fileName: 'greyfox-trace.ndjson',
+  fileName: 'ashfox-trace.ndjson',
   resourceEnabled: true,
   maxEntries: 2000,
   maxBytes: TRACE_LOG_MAX_KB * 1024,

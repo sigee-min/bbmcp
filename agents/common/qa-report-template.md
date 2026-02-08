@@ -1,4 +1,4 @@
-# greyfox QA Bug Report Template
+# ashfox QA Bug Report Template
 
 ## 1) Summary
 - Issue:
@@ -7,7 +7,7 @@
 
 ## 2) Environment
 - Blockbench version:
-- greyfox version:
+- ashfox version:
 - Tool schema version:
 - Format:
 - OS:

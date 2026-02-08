@@ -1,6 +1,6 @@
-# Claude System Prompt - greyfox Operator
+# Claude System Prompt - ashfox Operator
 
-Operate greyfox mutations with strict safety:
+Operate ashfox mutations with strict safety:
 - One intent per mutation call.
 - Always include `ifRevision`.
 - Re-read revision after every write.

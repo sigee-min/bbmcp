@@ -219,7 +219,7 @@ const KO_TOOL_TITLES = {
 };
 
 function loadToolData() {
-  const tmpDir = path.join(repoRoot, '.greyfox', 'tmp');
+  const tmpDir = path.join(repoRoot, '.ashfox', 'tmp');
   const outFile = path.join(tmpDir, 'tool-doc-source.cjs');
   fs.mkdirSync(tmpDir, { recursive: true });
 
@@ -696,8 +696,8 @@ function generateToolReferenceIndex(locale) {
   const sectionTitle = locale === 'ko' ? '도구 레퍼런스' : 'Tool Reference';
   const description =
     locale === 'ko'
-      ? '카테고리별 폴더 구조와 툴별 상세 페이지로 구성된 greyfox MCP 도구 참조.'
-      : 'Category-based reference with one dedicated page per greyfox MCP tool.';
+      ? '카테고리별 폴더 구조와 툴별 상세 페이지로 구성된 ashfox MCP 도구 참조.'
+      : 'Category-based reference with one dedicated page per ashfox MCP tool.';
 
   const cards = CATEGORY_ORDER.map((categoryId) => {
     const category = categoryMeta(locale, categoryId);

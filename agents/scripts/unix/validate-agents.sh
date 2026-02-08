@@ -49,7 +49,7 @@ has_valid_frontmatter() {
   ' "$file"
 }
 
-validate_greyfox_operator_refs() {
+validate_ashfox_operator_refs() {
   local skill_file="$1"
   local skill_dir="$2"
   local refs=(
@@ -111,8 +111,8 @@ for skill_dir in "$SKILLS_ROOT"/*; do
     fi
   done
 
-  if [[ "$skill_name" == "greyfox-operator" ]]; then
-    validate_greyfox_operator_refs "$skill_file" "$skill_dir"
+  if [[ "$skill_name" == "ashfox-operator" ]]; then
+    validate_ashfox_operator_refs "$skill_file" "$skill_dir"
   fi
 
   if [[ ! -f "$skill_dir/agents/openai.yaml" ]]; then

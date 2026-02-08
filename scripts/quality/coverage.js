@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-// greyfox release gate: coverage regression gate.
+// ashfox release gate: coverage regression gate.
 // We intentionally use a committed baseline (docs/coverage-baseline.json) and fail on regressions.
 
 const fs = require('fs');
@@ -28,7 +28,7 @@ const pickTotals = (summary) => {
 const format = (n) => `${Number(n).toFixed(2)}%`;
 
 const FLOOR = {
-  // greyfox release bar: absolute minimums (ratchet upward over time).
+  // ashfox release bar: absolute minimums (ratchet upward over time).
   // Keep these slightly below the current baseline when first introduced.
   lines: 65,
   statements: 65,
@@ -90,14 +90,14 @@ const main = () => {
   }
 
   if (floorFails.length > 0) {
-    console.error('greyfox coverage gate failed (below floor):');
+    console.error('ashfox coverage gate failed (below floor):');
     for (const line of floorFails) console.error(`- ${line}`);
     process.exitCode = 1;
     return;
   }
 
   if (regressions.length > 0) {
-    console.error('greyfox coverage gate failed (regression vs baseline):');
+    console.error('ashfox coverage gate failed (regression vs baseline):');
     for (const line of regressions) console.error(`- ${line}`);
     console.error('To update baseline intentionally:');
     console.error('  npm run test:cov && node scripts/quality/coverage.js --update-baseline');
@@ -106,7 +106,7 @@ const main = () => {
   }
 
   console.log(
-    `greyfox coverage gate ok: lines ${format(current.lines)}, statements ${format(current.statements)}, functions ${format(
+    `ashfox coverage gate ok: lines ${format(current.lines)}, statements ${format(current.statements)}, functions ${format(
       current.functions
     )}, branches ${format(current.branches)}`
   );

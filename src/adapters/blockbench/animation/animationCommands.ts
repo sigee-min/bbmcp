@@ -77,7 +77,7 @@ export const runCreateAnimation = (log: Logger, params: AnimationCommand): ToolE
         loop: params.loop ? 'loop' : 'once',
         snapping: params.fps
       });
-      if (params.id) anim.greyfoxId = params.id;
+      if (params.id) anim.ashfoxId = params.id;
       anim.add?.(true);
     });
     log.info('animation created', { name: params.name });
@@ -101,7 +101,7 @@ export const runUpdateAnimation = (log: Logger, params: UpdateAnimationCommand):
       const label = params.id ?? params.name ?? 'unknown';
       return { code: 'invalid_payload', message: ANIMATION_CLIP_NOT_FOUND(label) };
     }
-    if (params.id) target.greyfoxId = params.id;
+    if (params.id) target.ashfoxId = params.id;
     withUndo({ animations: true }, 'Update animation', () => {
       if (params.newName && params.newName !== target.name) {
         renameEntity(target, params.newName);

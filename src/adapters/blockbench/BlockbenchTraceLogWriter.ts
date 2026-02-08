@@ -11,7 +11,7 @@ export type BlockbenchTraceLogWriterOptions = {
   fileName?: string;
 };
 
-const DEFAULT_FILE_NAME = 'greyfox-trace.ndjson';
+const DEFAULT_FILE_NAME = 'ashfox-trace.ndjson';
 
 type FsModule = {
   statSync?: (path: string) => { isDirectory?: () => boolean };

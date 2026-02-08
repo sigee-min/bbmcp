@@ -44,10 +44,10 @@ export function SiteFooter({ locale }: SiteFooterProps) {
               <span className="inline-flex size-[42px] items-center justify-center rounded-lg border border-fd-border bg-fd-card">
                 <Image src="/favicon-32x32.png" alt="" width={29} height={29} className="rounded-[7px]" />
               </span>
-              <span>greyfox</span>
+              <span>ashfox</span>
             </Link>
             <p className="max-w-sm text-sm leading-relaxed text-fd-muted-foreground">{copy.tagline}</p>
-            <p className="text-xs text-fd-muted-foreground">greyfox.sigee.xyz</p>
+            <p className="text-xs text-fd-muted-foreground">ashfox.sigee.xyz</p>
           </div>
 
           <div className="space-y-3">
@@ -87,7 +87,7 @@ export function SiteFooter({ locale }: SiteFooterProps) {
                 {copy.tools}
               </Link>
               <a
-                href="https://github.com/sigee-min/greyfox/issues"
+                href="https://github.com/sigee-min/ashfox/issues"
                 target="_blank"
                 rel="noreferrer"
                 className="text-fd-muted-foreground transition-colors hover:text-fd-foreground"
@@ -95,7 +95,7 @@ export function SiteFooter({ locale }: SiteFooterProps) {
                 {copy.issues}
               </a>
               <a
-                href="https://github.com/sigee-min/greyfox/releases"
+                href="https://github.com/sigee-min/ashfox/releases"
                 target="_blank"
                 rel="noreferrer"
                 className="text-fd-muted-foreground transition-colors hover:text-fd-foreground"
@@ -107,9 +107,9 @@ export function SiteFooter({ locale }: SiteFooterProps) {
         </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-fd-border/70 pt-5 text-xs text-fd-muted-foreground">
-          <p>© {new Date().getFullYear()} greyfox. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} ashfox. All rights reserved.</p>
           <a
-            href="https://github.com/sigee-min/greyfox"
+            href="https://github.com/sigee-min/ashfox"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 transition-colors hover:text-fd-foreground"

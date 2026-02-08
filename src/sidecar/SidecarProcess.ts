@@ -216,7 +216,7 @@ export class SidecarProcess {
   private resolveSidecarPath(pathModule: PathModule): string | null {
     const pluginPath = resolveRegisteredPluginPath(PLUGIN_ID);
     if (!pluginPath || !pathModule?.dirname || !pathModule?.join) return null;
-    return pathModule.join(pathModule.dirname(pluginPath), 'greyfox-sidecar.js');
+    return pathModule.join(pathModule.dirname(pluginPath), 'ashfox-sidecar.js');
   }
 
   private resolveExecPath(childProcess: ChildProcessModule): string | null {

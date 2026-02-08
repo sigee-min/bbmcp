@@ -14,7 +14,7 @@ export function buildInternalExport(format: ExportKind, state: SessionState): Ex
     format,
     data: {
       ...data,
-      greyfox_meta: {
+      ashfox_meta: {
         schema: 'internal',
         format,
         name: state.name ?? null
@@ -62,7 +62,7 @@ function buildJavaBlockItemModel(state: SessionState) {
   });
 
   return {
-    format: 'greyfox_java_block_item',
+    format: 'ashfox_java_block_item',
     name: state.name ?? 'model',
     elements
   };
@@ -119,7 +119,7 @@ function buildGeckoModel(state: SessionState) {
       geometry: [
         {
           description: {
-            identifier: state.name ?? 'greyfox_model'
+            identifier: state.name ?? 'ashfox_model'
           },
           bones
         }
@@ -179,7 +179,7 @@ function buildGeckoTriggerEntries(triggers: TrackedAnimationTrigger[] | undefine
 
 function buildAnimatedJavaModel(state: SessionState) {
   return {
-    format: 'greyfox_animated_java',
+    format: 'ashfox_animated_java',
     name: state.name ?? 'model',
     bones: state.bones,
     cubes: state.cubes,
@@ -196,7 +196,7 @@ function buildAnimatedJavaModel(state: SessionState) {
 
 function buildGenericModel(state: SessionState) {
   return {
-    format: 'greyfox_generic_model',
+    format: 'ashfox_generic_model',
     name: state.name ?? 'model',
     formatId: state.formatId ?? null,
     bones: state.bones,

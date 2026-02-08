@@ -11,7 +11,7 @@ register({
   }
 });
 
-globalThis.__greyfox_test_promises = [];
+globalThis.__ashfox_test_promises = [];
 
 const discoverTests = () =>
   fs
@@ -21,7 +21,7 @@ const discoverTests = () =>
     .sort((a, b) => a.localeCompare(b));
 
 const tests = discoverTests();
-const testFilter = process.env.GREYFOX_TEST_FILTER;
+const testFilter = process.env.ASHFOX_TEST_FILTER;
 const selectedTests = testFilter ? tests.filter((test) => test.includes(testFilter)) : tests;
 
 (async () => {
@@ -31,7 +31,7 @@ const selectedTests = testFilter ? tests.filter((test) => test.includes(testFilt
   for (const test of selectedTests) {
     require(path.join(__dirname, test));
   }
-  const pending = Array.isArray(globalThis.__greyfox_test_promises) ? globalThis.__greyfox_test_promises : [];
+  const pending = Array.isArray(globalThis.__ashfox_test_promises) ? globalThis.__ashfox_test_promises : [];
   if (pending.length > 0) {
     await Promise.all(pending);
   }

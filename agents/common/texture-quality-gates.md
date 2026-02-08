@@ -1,4 +1,4 @@
-# greyfox Texture Quality Gates
+# ashfox Texture Quality Gates
 
 Apply these checks after `paint_faces`.
 

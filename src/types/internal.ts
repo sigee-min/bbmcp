@@ -1,4 +1,4 @@
-// Internal barrel for greyfox source modules.
+// Internal barrel for ashfox source modules.
 export * from './shared';
 export * from './capabilities';
 export * from './project';

@@ -6,7 +6,7 @@ Key points:
 - UV rects must not overlap.
 - The atlas assigns one rect per face (no sharing).
 - When packing overflows, resolution doubles and packing retries.
-- If the atlas still overflows, greyfox lowers `uvPixelsPerBlock` automatically to fit.
+- If the atlas still overflows, ashfox lowers `uvPixelsPerBlock` automatically to fit.
 - Rect sizes are computed from the starting resolution; increasing size adds space instead of scaling UVs.
 
 After apply:

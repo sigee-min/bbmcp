@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to `greyfox`.
+Thanks for contributing to `ashfox`.
 
 ## Development Setup
 ```bash
@@ -38,7 +38,7 @@ Open an issue with:
 - expected behavior
 - actual behavior
 - reproduction steps
-- environment details (Blockbench version, greyfox version, format)
+- environment details (Blockbench version, ashfox version, format)
 
 For security issues, use `SECURITY.md`.
 

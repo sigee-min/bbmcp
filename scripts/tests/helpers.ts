@@ -22,9 +22,9 @@ export const noopLog: Logger = {
 };
 
 export const registerAsync = (promise: Promise<unknown>) => {
-  const g = globalThis as { __greyfox_test_promises?: Promise<unknown>[] };
-  if (!Array.isArray(g.__greyfox_test_promises)) g.__greyfox_test_promises = [];
-  g.__greyfox_test_promises.push(promise);
+  const g = globalThis as { __ashfox_test_promises?: Promise<unknown>[] };
+  if (!Array.isArray(g.__ashfox_test_promises)) g.__ashfox_test_promises = [];
+  g.__ashfox_test_promises.push(promise);
 };
 
 type MockContextOptions = {

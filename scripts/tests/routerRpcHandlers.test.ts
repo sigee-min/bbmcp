@@ -30,7 +30,7 @@ const createContext = (options?: { supportedProtocols?: string[] }): RpcContext 
     toolRegistry,
     sessions: new SessionStore(),
     supportedProtocols: options?.supportedProtocols,
-    config: { path: '/mcp', serverInfo: { name: 'greyfox-test', version: '0.0.0' }, instructions: 'demo' }
+    config: { path: '/mcp', serverInfo: { name: 'ashfox-test', version: '0.0.0' }, instructions: 'demo' }
   };
 };
 

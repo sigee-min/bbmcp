@@ -48,7 +48,7 @@ export class BlockbenchCubeAdapter {
           applyBoxUvMode(cube as Record<string, unknown>, params.boxUv);
           if (params.uvOffset) assignVec2(cube, 'uv_offset', params.uvOffset);
           setVisibility(cube, params.visibility);
-          if (params.id) cube.greyfoxId = params.id;
+          if (params.id) cube.ashfoxId = params.id;
           const attached = attachToOutliner(parent, outliner, cube, this.log, 'cube');
           if (!attached && Array.isArray(outliner?.root)) {
             outliner.root.push(cube);
@@ -71,7 +71,7 @@ export class BlockbenchCubeAdapter {
         return { code: 'invalid_payload', message: MODEL_CUBE_NOT_FOUND(label) };
       }
       if (params.id) {
-        target.greyfoxId = params.id;
+        target.ashfoxId = params.id;
       }
       const parent = params.boneRoot ? null : params.bone ? findGroup(params.bone) : undefined;
       if (params.bone && !parent) {

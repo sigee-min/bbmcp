@@ -25,13 +25,13 @@ const packageName = typeof pkg.name === 'string' ? pkg.name : '';
 assertRule(Boolean(packageVersion), 'package.json version is missing or invalid.');
 assertRule(Boolean(packageName), 'package.json name is missing or invalid.');
 
-const configText = readText('src/config.ts');
+const configText = readText('packages/runtime/src/config.ts');
 const pluginVersion = parsePluginVersion(configText);
-assertRule(Boolean(pluginVersion), 'src/config.ts does not expose PLUGIN_VERSION.');
+assertRule(Boolean(pluginVersion), 'packages/runtime/src/config.ts does not expose PLUGIN_VERSION.');
 if (pluginVersion) {
   assertRule(
     pluginVersion === packageVersion,
-    `Version mismatch: package.json(${packageVersion}) != src/config.ts(${pluginVersion}).`
+    `Version mismatch: package.json(${packageVersion}) != packages/runtime/src/config.ts(${pluginVersion}).`
   );
 }
 
@@ -70,8 +70,8 @@ if (rootPackageConfig) {
     'release-please bump-patch-for-minor-pre-major must be true for pre-1.0 patch-first releases.'
   );
   assertRule(
-    extraFiles.includes('src/config.ts'),
-    'release-please extra-files must include src/config.ts to keep PLUGIN_VERSION synced.'
+    extraFiles.includes('packages/runtime/src/config.ts'),
+    'release-please extra-files must include packages/runtime/src/config.ts to keep PLUGIN_VERSION synced.'
   );
 }
 

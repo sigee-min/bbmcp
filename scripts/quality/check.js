@@ -53,17 +53,17 @@ const scanFile = (filePath, rules) => {
 
 const assertVersionConsistency = () => {
   const pkgPath = path.join(repoRoot, 'package.json');
-  const cfgPath = path.join(repoRoot, 'src', 'config.ts');
+  const cfgPath = path.join(repoRoot, 'packages', 'runtime', 'src', 'config.ts');
   const pkg = JSON.parse(readText(pkgPath));
   const configText = readText(cfgPath);
   const match = configText.match(/export const PLUGIN_VERSION = '([^']+)'/);
   const pluginVersion = match ? match[1] : null;
   if (!pluginVersion) {
-    throw new Error('quality: cannot read PLUGIN_VERSION from src/config.ts');
+    throw new Error('quality: cannot read PLUGIN_VERSION from packages/runtime/src/config.ts');
   }
   if (pkg.version !== pluginVersion) {
     throw new Error(
-      `quality: version mismatch: package.json(${pkg.version}) != src/config.ts PLUGIN_VERSION(${pluginVersion})`
+      `quality: version mismatch: package.json(${pkg.version}) != packages/runtime/src/config.ts PLUGIN_VERSION(${pluginVersion})`
     );
   }
 };
@@ -71,7 +71,7 @@ const assertVersionConsistency = () => {
 const main = () => {
   assertVersionConsistency();
 
-  const srcDir = path.join(repoRoot, 'src');
+  const srcDir = path.join(repoRoot, 'packages', 'runtime', 'src');
   const tsFiles = walk(srcDir, (p) => p.endsWith('.ts'));
 
   const rules = [
@@ -91,7 +91,7 @@ const main = () => {
     {
       id: 'console-in-src',
       pattern: /\bconsole\.(log|warn|error|info|debug)\(/,
-      allow: (filePath) => rel(filePath) === 'src/logging.ts'
+      allow: (filePath) => rel(filePath) === 'packages/runtime/src/logging.ts'
     },
     {
       id: 'bare-document',
@@ -109,40 +109,40 @@ const main = () => {
     {
       id: 'throw-in-proxy',
       pattern: /\bthrow\b/,
-      appliesTo: (filePath) => rel(filePath).startsWith('src/proxy/'),
+      appliesTo: (filePath) => rel(filePath).startsWith('packages/runtime/src/proxy/'),
       // No allowlist: proxy must be throw-free.
     }
     ,
     {
       id: 'proxy-globalThis-document',
       pattern: /\bglobalThis\.document\b/,
-      appliesTo: (filePath) => rel(filePath).startsWith('src/proxy/')
+      appliesTo: (filePath) => rel(filePath).startsWith('packages/runtime/src/proxy/')
     },
     {
       id: 'throw-in-src',
       pattern: /\bthrow\b/,
-      appliesTo: (filePath) => rel(filePath).startsWith('src/'),
+      appliesTo: (filePath) => rel(filePath).startsWith('packages/runtime/src/'),
       // Allow a narrow exception for Blockbench codec compile contract.
       allow: (filePath, line) =>
-        rel(filePath) === 'src/plugin/runtime.ts' && line.includes('throw new Error(')
+        rel(filePath) === 'packages/runtime/src/plugin/runtime.ts' && line.includes('throw new Error(')
     },
     {
       id: 'todo-fixme-comment',
       pattern: /\/\/\s*(TODO|FIXME)\b|\/\*\s*(TODO|FIXME)\b/,
-      appliesTo: (filePath) => rel(filePath).startsWith('src/')
+      appliesTo: (filePath) => rel(filePath).startsWith('packages/runtime/src/')
     },
     {
       id: 'catch-without-binding',
       pattern: /catch\s*\{/,
-      appliesTo: (filePath) => rel(filePath).startsWith('src/')
+      appliesTo: (filePath) => rel(filePath).startsWith('packages/runtime/src/')
     },
     {
       id: 'globalThis-as',
       pattern: /\bglobalThis\s+as\b/,
-      appliesTo: (filePath) => rel(filePath).startsWith('src/'),
+      appliesTo: (filePath) => rel(filePath).startsWith('packages/runtime/src/'),
       allow: (filePath) => {
         const p = rel(filePath);
-        return p === 'src/types/blockbench.ts' || p === 'src/shared/globalState.ts';
+        return p === 'packages/runtime/src/types/blockbench.ts' || p === 'packages/runtime/src/shared/globalState.ts';
       }
     }
   ];

@@ -12,9 +12,11 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      quality: ${{ steps.filter.outputs.quality }}
+      quality_static: ${{ steps.filter.outputs.quality_static }}
+      runtime_unit: ${{ steps.filter.outputs.runtime_unit }}
+      conformance: ${{ steps.filter.outputs.conformance }}
       plugin_desktop: ${{ steps.filter.outputs.plugin_desktop }}
-      mcp_headless: ${{ steps.filter.outputs.mcp_headless }}
+      ashfox: ${{ steps.filter.outputs.ashfox }}
       docs: ${{ steps.filter.outputs.docs }}
     steps:
       - name: Checkout
@@ -28,66 +30,139 @@ jobs:
         with:
           token: ${{ github.token }}
           filters: |
-            quality:
+            quality_static:
               - '.github/workflows/ci.yml'
               - 'package.json'
               - 'package-lock.json'
               - 'tsconfig.json'
               - 'scripts/**'
-              - 'src/**'
-              - 'packages/**'
-              - 'apps/plugin-desktop/**'
-              - 'apps/mcp-headless/**'
+              - 'config/**'
+              - 'packages/runtime/**'
+              - 'packages/contracts/**'
+            runtime_unit:
+              - '.github/workflows/ci.yml'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.json'
+              - 'config/quality/**'
+              - 'packages/runtime/**'
+              - 'packages/contracts/**'
+            conformance:
+              - '.github/workflows/ci.yml'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'packages/conformance/**'
+              - 'packages/contracts/**'
+              - 'packages/runtime/**'
             plugin_desktop:
               - '.github/workflows/ci.yml'
               - 'package.json'
               - 'package-lock.json'
               - 'tsconfig.json'
               - 'scripts/esbuild.js'
-              - 'src/**'
+              - 'packages/runtime/**'
               - 'packages/contracts/**'
               - 'apps/plugin-desktop/**'
-            mcp_headless:
+            ashfox:
               - '.github/workflows/ci.yml'
               - 'package.json'
               - 'package-lock.json'
               - 'tsconfig.json'
               - 'scripts/esbuild.js'
-              - 'src/**'
+              - 'packages/runtime/**'
               - 'packages/contracts/**'
-              - 'apps/mcp-headless/**'
+              - 'apps/ashfox/**'
             docs:
               - '.github/workflows/ci.yml'
               - 'README.md'
-              - 'docs/**'
               - 'apps/docs/**'
 
-  quality:
+  quality-static:
     needs: detect-changes
     runs-on: ubuntu-latest
     steps:
-      - name: Skip (no quality-impacting changes)
-        if: needs.detect-changes.outputs.quality != 'true'
-        run: echo "quality skipped (no matching changes)"
+      - name: Skip (no static quality-impacting changes)
+        if: needs.detect-changes.outputs.quality_static != 'true'
+        run: echo "quality:static skipped (no matching changes)"
 
       - name: Checkout
-        if: needs.detect-changes.outputs.quality == 'true'
+        if: needs.detect-changes.outputs.quality_static == 'true'
         uses: actions/checkout@v4
 
       - name: Setup Node
-        if: needs.detect-changes.outputs.quality == 'true'
+        if: needs.detect-changes.outputs.quality_static == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
       - name: Install
-        if: needs.detect-changes.outputs.quality == 'true'
+        if: needs.detect-changes.outputs.quality_static == 'true'
         run: npm ci
 
-      - name: ashfox quality gate
-        if: needs.detect-changes.outputs.quality == 'true'
-        run: npm run quality
+      - name: Type and quality checks
+        if: needs.detect-changes.outputs.quality_static == 'true'
+        run: |
+          npm run quality:check
+          npm run quality:deadcode
+          npm run quality:audit
+          npm run release:validate
+
+  runtime-unit:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip (no runtime/unit-test-impacting changes)
+        if: needs.detect-changes.outputs.runtime_unit != 'true'
+        run: echo "runtime unit skipped (no matching changes)"
+
+      - name: Checkout
+        if: needs.detect-changes.outputs.runtime_unit == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        if: needs.detect-changes.outputs.runtime_unit == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        if: needs.detect-changes.outputs.runtime_unit == 'true'
+        run: npm ci
+
+      - name: Runtime unit tests with coverage
+        if: needs.detect-changes.outputs.runtime_unit == 'true'
+        run: |
+          npm run test:cov
+          npm run quality:coverage
+
+  conformance:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip (no conformance-impacting changes)
+        if: needs.detect-changes.outputs.conformance != 'true'
+        run: echo "conformance skipped (no matching changes)"
+
+      - name: Checkout
+        if: needs.detect-changes.outputs.conformance == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        if: needs.detect-changes.outputs.conformance == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        if: needs.detect-changes.outputs.conformance == 'true'
+        run: npm ci
+
+      - name: Conformance tests
+        if: needs.detect-changes.outputs.conformance == 'true'
+        run: npm run test:conformance
 
   build-plugin-desktop:
     needs: detect-changes
@@ -116,32 +191,32 @@ jobs:
         if: needs.detect-changes.outputs.plugin_desktop == 'true'
         run: npm run build:plugin-desktop
 
-  build-mcp-headless:
+  build-ashfox:
     needs: detect-changes
     runs-on: ubuntu-latest
     steps:
-      - name: Skip (no mcp-headless changes)
-        if: needs.detect-changes.outputs.mcp_headless != 'true'
-        run: echo "build:mcp-headless skipped (no matching changes)"
+      - name: Skip (no ashfox app changes)
+        if: needs.detect-changes.outputs.ashfox != 'true'
+        run: echo "build:ashfox skipped (no matching changes)"
 
       - name: Checkout
-        if: needs.detect-changes.outputs.mcp_headless == 'true'
+        if: needs.detect-changes.outputs.ashfox == 'true'
         uses: actions/checkout@v4
 
       - name: Setup Node
-        if: needs.detect-changes.outputs.mcp_headless == 'true'
+        if: needs.detect-changes.outputs.ashfox == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
       - name: Install
-        if: needs.detect-changes.outputs.mcp_headless == 'true'
+        if: needs.detect-changes.outputs.ashfox == 'true'
         run: npm ci
 
-      - name: Build mcp-headless
-        if: needs.detect-changes.outputs.mcp_headless == 'true'
-        run: npm run build:mcp-headless
+      - name: Build ashfox app
+        if: needs.detect-changes.outputs.ashfox == 'true'
+        run: npm run build:ashfox
 
   docs-static-check:
     needs: detect-changes

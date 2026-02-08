@@ -1,10 +1,11 @@
-﻿{
+{
   "compilerOptions": {
     "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "Node",
     "baseUrl": ".",
     "paths": {
+      "@ashfox/runtime/*": ["packages/runtime/src/*"],
       "@ashfox/contracts/types": ["packages/contracts/src/types/index.ts"],
       "@ashfox/contracts/types/*": ["packages/contracts/src/types/*"],
       "@ashfox/contracts/mcpSchemas/*": ["packages/contracts/src/mcpSchemas/*"],
@@ -23,5 +24,11 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src/**/*", "apps/plugin-desktop/src/**/*", "apps/mcp-headless/src/**/*", "packages/contracts/src/**/*"]
+  "include": [
+    "packages/runtime/src/**/*",
+    "apps/plugin-desktop/src/**/*",
+    "apps/ashfox/src/**/*",
+    "packages/contracts/src/**/*"
+  ]
 }
+

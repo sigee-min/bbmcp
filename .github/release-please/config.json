@@ -8,7 +8,7 @@
       "package-name": "ashfox",
       "bump-patch-for-minor-pre-major": true,
       "extra-files": [
-        "src/config.ts"
+        "packages/runtime/src/config.ts"
       ]
     }
   }

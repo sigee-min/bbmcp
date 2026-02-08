@@ -227,7 +227,7 @@ function loadToolData() {
     stdin: {
       contents: `
         import { toolSchemas } from './packages/contracts/src/mcpSchemas/toolSchemas';
-        import { MCP_HIGH_LEVEL_TOOLS, MCP_LOW_LEVEL_TOOLS } from './src/transport/mcp/tools';
+        import { MCP_HIGH_LEVEL_TOOLS, MCP_LOW_LEVEL_TOOLS } from './packages/runtime/src/transport/mcp/tools';
         module.exports = {
           toolSchemas,
           tools: [...MCP_HIGH_LEVEL_TOOLS, ...MCP_LOW_LEVEL_TOOLS].map((tool) => ({
@@ -267,18 +267,18 @@ function loadToolResultExamples() {
     options: parsed.options,
   });
   const checker = program.getTypeChecker();
-  const targetSuffix = path.join('src', 'types', 'tools', 'results.ts').replace(/\\/g, '/');
+  const targetSuffix = path.join('packages', 'runtime', 'src', 'types', 'tools', 'results.ts').replace(/\\/g, '/');
   const sourceFile = program
     .getSourceFiles()
     .find((sf) => sf.fileName.replace(/\\/g, '/').endsWith(targetSuffix));
   if (!sourceFile) {
-    throw new Error('Cannot locate src/types/tools/results.ts in TypeScript program.');
+    throw new Error('Cannot locate packages/runtime/src/types/tools/results.ts in TypeScript program.');
   }
   const toolResultMap = sourceFile.statements.find(
     (node) => ts.isInterfaceDeclaration(node) && node.name.text === 'ToolResultMap',
   );
   if (!toolResultMap) {
-    throw new Error('Cannot find ToolResultMap interface in src/types/tools/results.ts.');
+    throw new Error('Cannot find ToolResultMap interface in packages/runtime/src/types/tools/results.ts.');
   }
 
   const samples = {};

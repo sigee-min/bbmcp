@@ -4,19 +4,20 @@
   "private": true,
   "workspaces": [
     "apps/plugin-desktop",
-    "apps/mcp-headless",
+    "apps/ashfox",
+    "packages/runtime",
     "packages/contracts",
     "packages/conformance"
   ],
   "scripts": {
-    "build": "npm run build:plugin-desktop && npm run build:mcp-headless",
+    "build": "npm run build:plugin-desktop && npm run build:ashfox",
     "build:plugin-desktop": "npm --workspace @ashfox/plugin-desktop run build",
-    "build:mcp-headless": "npm --workspace @ashfox/mcp-headless run build",
+    "build:ashfox": "npm --workspace @ashfox/ashfox run build",
     "docs:generate:tools": "node ./scripts/docs/generate-tool-pages.js",
-    "test:unit": "node scripts/tests/run.js",
+    "test:unit": "npm --workspace @ashfox/runtime run test",
     "test:conformance": "npm --workspace @ashfox/conformance run test",
     "test": "npm run typecheck && npm run test:unit && npm run test:conformance",
-    "test:cov": "c8 --reporter=text --reporter=json-summary --reporter=lcov --report-dir coverage npm run test:unit",
+    "test:cov": "npm --workspace @ashfox/runtime run test:cov",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "spec:sync": "node scripts/specs/update-blockbench-spec.js",
     "quality:check": "npm run typecheck && node scripts/quality/check.js",
@@ -39,4 +40,5 @@
     "zod": "^4.3.6"
   }
 }
+
 

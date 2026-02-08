@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const SNAPSHOT_PATH = path.join(__dirname, '..', '..', 'docs', 'blockbench-spec-snapshot.json');
+const SNAPSHOT_PATH = path.join(__dirname, '..', '..', 'config', 'specs', 'blockbench-spec-snapshot.json');
 const RELEASES_URL = 'https://api.github.com/repos/JannisX11/blockbench/releases/latest';
 
 const nowIsoDate = () => new Date().toISOString().slice(0, 10);

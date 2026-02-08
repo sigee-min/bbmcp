@@ -15,7 +15,7 @@ When reporting issues, include:
 
 ## Before Opening an Issue
 - Read `README.md`
-- Check guides under `docs/guides/`
+- Check guides under `apps/docs/content/docs/en/guides/`
 - Search existing issues for duplicates
 
 ## Security Issues

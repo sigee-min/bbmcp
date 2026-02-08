@@ -22,7 +22,7 @@ const buildPlugin = () =>
 
 const buildSidecar = () =>
   esbuild.build({
-    entryPoints: [path.join(repoRoot, 'apps/mcp-headless/src/index.ts')],
+    entryPoints: [path.join(repoRoot, 'apps/ashfox/src/index.ts')],
     outfile: path.join(repoRoot, 'dist/ashfox-sidecar.js'),
     bundle: true,
     sourcemap: true,
@@ -32,14 +32,14 @@ const buildSidecar = () =>
     logLevel: 'info'
   });
 
-const VALID_TARGETS = new Set(['all', 'plugin-desktop', 'mcp-headless']);
+const VALID_TARGETS = new Set(['all', 'plugin-desktop', 'ashfox']);
 
 const parseTargets = () => {
   const arg = process.argv[2] || 'all';
   if (!VALID_TARGETS.has(arg)) {
     throw new Error(`Unknown build target: ${arg}. Use one of ${Array.from(VALID_TARGETS).join(', ')}`);
   }
-  if (arg === 'all') return ['plugin-desktop', 'mcp-headless'];
+  if (arg === 'all') return ['plugin-desktop', 'ashfox'];
   return [arg];
 };
 
@@ -49,7 +49,7 @@ const parseTargets = () => {
   if (targets.includes('plugin-desktop')) {
     await buildPlugin();
   }
-  if (targets.includes('mcp-headless')) {
+  if (targets.includes('ashfox')) {
     await buildSidecar();
   }
   console.log('build ok');
@@ -57,4 +57,5 @@ const parseTargets = () => {
   console.error(err);
   process.exit(1);
 });
+
 

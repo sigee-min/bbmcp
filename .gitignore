@@ -8,6 +8,7 @@ lerna-debug.log*
 
 # Sisyphus artifacts
 .sisyphus/
+.ashfox/
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
@@ -78,12 +79,15 @@ web_modules/
 .parcel-cache
 
 # Next.js build output
-.next
-out
+.next/
+out/
+apps/**/.next/
+apps/**/out/
 
 # Nuxt.js build / generate output
-.nuxt
-dist
+.nuxt/
+dist/
+packages/**/dist/
 
 # Gatsby files
 .cache/

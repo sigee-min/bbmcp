@@ -21,8 +21,8 @@ if (run.status !== 0) {
 
 const output = run.stdout || '';
 const ignoredDeadcodePaths = [
-  '/src/types.ts:',
-  '/src/types/',
+  '/packages/runtime/src/types.ts:',
+  '/packages/runtime/src/types/',
   '/packages/contracts/src/types/'
 ];
 const lines = output

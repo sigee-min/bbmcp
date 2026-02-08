@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
-import { TOOL_SCHEMA_VERSION as RUNTIME_SCHEMA_VERSION } from '../../../src/config';
-import { DEFAULT_TOOL_REGISTRY } from '../../../src/transport/mcp/tools';
+import { TOOL_SCHEMA_VERSION as RUNTIME_SCHEMA_VERSION } from '../../../packages/runtime/src/config';
+import { DEFAULT_TOOL_REGISTRY } from '../../../packages/runtime/src/transport/mcp/tools';
 import {
   TOOL_SCHEMA_VERSION as CONTRACT_SCHEMA_VERSION,
   computeToolRegistryHash

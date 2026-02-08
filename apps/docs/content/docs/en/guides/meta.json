@@ -1,0 +1,15 @@
+{
+  "title": "Guides",
+  "pages": [
+    "index",
+    "modeling-workflow",
+    "rigging",
+    "animation-workflow",
+    "texture-workflow",
+    "uv-atlas",
+    "texture-spec",
+    "llm-texture-strategy",
+    "vision-fallback",
+    "entity-workflow"
+  ]
+}

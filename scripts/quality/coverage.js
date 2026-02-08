@@ -1,13 +1,13 @@
 /* eslint-disable no-console */
 // ashfox release gate: coverage regression gate.
-// We intentionally use a committed baseline (docs/coverage-baseline.json) and fail on regressions.
+// We intentionally use a committed baseline (config/quality/coverage-baseline.json) and fail on regressions.
 
 const fs = require('fs');
 const path = require('path');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const summaryPath = path.join(repoRoot, 'coverage', 'coverage-summary.json');
-const baselinePath = path.join(repoRoot, 'docs', 'coverage-baseline.json');
+const baselinePath = path.join(repoRoot, 'config', 'quality', 'coverage-baseline.json');
 
 const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, 'utf8'));
 
@@ -55,7 +55,7 @@ const main = () => {
 
   if (!fs.existsSync(baselinePath)) {
     throw new Error(
-      'coverage: missing docs/coverage-baseline.json (run `npm run test:cov && node scripts/quality/coverage.js --update-baseline`)'
+      'coverage: missing config/quality/coverage-baseline.json (run `npm run test:cov && node scripts/quality/coverage.js --update-baseline`)'
     );
   }
 

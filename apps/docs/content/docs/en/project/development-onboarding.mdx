@@ -1,0 +1,86 @@
+﻿---
+title: "Development Onboarding"
+description: "Contributor onboarding guide for build, test, quality, and release workflows."
+---
+
+# Development Onboarding
+
+This guide is the contributor entry point for day-to-day development and PR validation.
+
+## 1) Local Setup
+
+```bash
+git clone https://github.com/sigee-min/ashfox.git
+cd ashfox
+npm install
+```
+
+## 2) Build Commands
+
+```bash
+npm run build
+```
+
+Per app build:
+
+```bash
+npm run build:plugin-desktop
+npm run build:ashfox
+```
+
+## 3) Test and Quality Commands
+
+```bash
+npm run test:unit
+npm run test:conformance
+npm test
+```
+
+Coverage and quality gate:
+
+```bash
+npm run test:cov
+npm run quality
+```
+
+Static quality checks:
+
+```bash
+npm run quality:check
+npm run quality:deadcode
+npm run quality:audit
+npm run release:validate
+```
+
+## 4) Docs Build
+
+```bash
+cd apps/docs
+npm ci
+npm run build
+```
+
+## 5) Contributing Workflow
+
+1. Branch from `main`.
+2. Keep changes scoped (runtime, contracts, docs, or CI).
+3. Run required checks before opening a PR.
+4. Include test evidence in the PR description.
+5. Keep schema and docs synchronized for behavior changes.
+
+Related references:
+- `CONTRIBUTING.md`
+- `CODE_OF_CONDUCT.md`
+- `SECURITY.md`
+- `SUPPORT.md`
+
+## 6) Release Workflow
+
+Release automation runs from `.github/workflows/release-please.yml` using manual dispatch.
+
+- `prepare`: create or update release PR
+- `publish`: publish GitHub Release from merged release PR
+
+Before running release workflows, complete the public checklist:
+- `apps/docs/content/docs/en/project/release-public-checklist.mdx`
+

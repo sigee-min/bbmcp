@@ -1,0 +1,44 @@
+---
+title: "Ashfox Monorepo Runtime Layout"
+description: "Ashfox Monorepo Runtime Layout"
+---
+
+# Ashfox Monorepo Runtime Layout
+
+This document describes the current runtime and contract layout after the full `src`/`docs` root migration.
+
+## Executable Boundaries
+
+- Plugin bundle entry: `apps/plugin-desktop/src/index.ts`
+- Headless/sidecar entry: `apps/ashfox/src/index.ts`
+- Runtime implementation: `packages/runtime/src/*`
+- Contract source of truth: `packages/contracts/src/mcpSchemas/*` and `packages/contracts/src/types/*`
+- Conformance checks: `packages/conformance/tests/*`
+- User-facing docs site: `apps/docs/*`
+
+## Repository Layout
+
+```text
+apps/
+  plugin-desktop/      # Blockbench plugin runtime shell
+  ashfox/        # UI-less MCP runtime shell
+  docs/                # User-facing documentation site
+packages/
+  runtime/             # Shared runtime implementation
+  contracts/           # MCP schemas + contract types
+  conformance/         # Protocol/tool conformance checks
+config/
+  quality/             # Quality baselines (coverage, gates)
+  specs/               # Blockbench spec snapshots
+scripts/
+  ...                  # Build/test/quality/release tooling
+```
+
+## Design Rules
+
+1. Keep runtime code inside `packages/runtime/src/*`.
+2. Keep contract definitions inside `packages/contracts/src/*`.
+3. Keep tests deterministic and workspace-aware.
+4. Treat `toolSchemaVersion` as coarse and `toolRegistry.hash` as the authoritative schema-change signal.
+5. Keep docs and release checklists under `apps/docs/content/docs/*`.
+

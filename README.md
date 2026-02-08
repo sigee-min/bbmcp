@@ -144,7 +144,7 @@ Address notes:
 | Component | Current baseline |
 | --- | --- |
 | Blockbench | Desktop (latest stable) |
-| Node.js (plugin repo) | Node 20 in CI (`quality`, `build-plugin-desktop`, `build-mcp-headless`) |
+| Node.js (plugin repo) | Node 20 in CI (`quality`, `build-plugin-desktop`, `build-ashfox`) |
 | Node.js (docs static check) | Node 24 in CI (`docs-static-check`) |
 | Protocol | MCP JSON-RPC over HTTP (`/mcp`) |
 
@@ -197,18 +197,18 @@ Notes:
 If toolRegistry.hash changes, re-run list_capabilities (or tools/list) to refresh schemas.
 
 ## Guides and Specs
-- docs/guides/texture-spec.md
-- docs/guides/llm-texture-strategy.md
+- apps/docs/content/docs/en/guides/texture-spec.md
+- apps/docs/content/docs/en/guides/llm-texture-strategy.md
 - MCP resources: ashfox://guide/* (see resources/templates/list)
 
 ## Repository Layout
 - `apps/plugin-desktop`: plugin app entrypoint (desktop runtime boundary)
-- `apps/mcp-headless`: headless MCP app entrypoint (sidecar boundary)
+- `apps/ashfox`: headless MCP app entrypoint (sidecar boundary)
 - `apps/docs`: user-facing docs site
+- `packages/runtime`: shared runtime implementation (plugin + server + usecases)
 - `packages/contracts`: MCP contract source (`mcpSchemas`) + schema policy (`version/hash`)
 - `packages/conformance`: contract conformance checks (schema coverage + validation behavior)
-- `src`: current shared implementation for plugin/server/usecases
-- `docs/architecture/monorepo-target.md`: incremental migration plan
+- `apps/docs/content/docs/en/project/development-onboarding.mdx`: contributor onboarding for build/test/release
 
 ## Showcase
 Sample output generated with Ashfox tool calls (modeling/texturing/animation).  
@@ -221,25 +221,36 @@ Generation time and final quality vary by prompt, model, and runtime environment
 | ![Ashfox Model](apps/docs/public/assets/images/ashfox.png) | ![Ashfox Texture](apps/docs/public/assets/images/ashfox-texture.png) |
 
 ## Development
-Build:
+Install dependencies:
 ```bash
+npm install
+```
+
+Core scripts:
+| Script | Purpose |
+| --- | --- |
+| `npm run build` | Build plugin + headless bundles into `dist/` |
+| `npm run build:plugin-desktop` | Build only the Blockbench plugin bundle |
+| `npm run build:ashfox` | Build only the headless MCP bundle |
+| `npm run typecheck` | Run strict TypeScript checks |
+| `npm run test:unit` | Run runtime unit tests (`packages/runtime/tests`) |
+| `npm run test:conformance` | Run contract/conformance tests |
+| `npm test` | Run `typecheck + unit + conformance` |
+| `npm run test:cov` | Run unit tests with coverage output |
+| `npm run quality` | Run the full CI quality gate |
+| `npm run quality:check` | Run static quality checks (typecheck + policy checks) |
+| `npm run quality:deadcode` | Fail on unused exports |
+| `npm run quality:coverage` | Enforce coverage thresholds |
+| `npm run quality:audit` | Run dependency vulnerability audit |
+| `npm run release:validate` | Validate release/version consistency |
+| `npm run docs:generate:tools` | Regenerate tool reference pages from schemas |
+| `npm run spec:sync` | Refresh Blockbench spec snapshot used by tests |
+
+Docs site build (workspace-local):
+```bash
+cd apps/docs
+npm ci
 npm run build
-```
-
-Per app build:
-```bash
-npm run build:plugin-desktop
-npm run build:mcp-headless
-```
-
-Tests:
-```bash
-npm test
-```
-
-Quality checks:
-```bash
-npm run quality:check
 ```
 
 ## Release Automation
@@ -267,9 +278,10 @@ npm run quality:check
 - Code of conduct: `CODE_OF_CONDUCT.md`
 - Support and issue reporting: `SUPPORT.md`
 - Security policy and vulnerability reporting: `SECURITY.md`
-- Public release checklist: `docs/release-public-checklist.md`
+- Public release checklist: `apps/docs/content/docs/en/project/release-public-checklist.mdx`
 
 ## License
 See LICENSE.
+
 
 

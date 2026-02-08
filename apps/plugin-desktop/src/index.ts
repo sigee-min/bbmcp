@@ -1,1 +1,1 @@
-import '../../../src/plugin';
+import '../../../packages/runtime/src/plugin';

@@ -4,7 +4,25 @@ Blockbench MCP bridge plugin. bbmcp exposes a low-level, deterministic tool surf
 
 Docs: [bbmcp.sigee.xyz](https://bbmcp.sigee.xyz)
 
-## Install from URL (Quick)
+## Contents
+- Installation
+- Quickstart (first successful request)
+- Endpoint Configuration
+- Features
+- Requirements
+- Compatibility
+- Recommended Flow
+- Supported Formats
+- Support Limits
+- Tool Discovery
+- Guides and Specs
+- Showcase
+- Development
+- Release Automation
+- Community and Security
+
+## Installation
+### Option A: Install from release URL (recommended)
 In Blockbench Desktop:
 1) Open `File > Plugins > Load Plugin from URL`
 2) Paste the URL below
@@ -14,21 +32,97 @@ In Blockbench Desktop:
 https://github.com/sigee-min/bbmcp/releases/latest/download/bbmcp.js
 ```
 
-## Showcase
-Real output from bbmcp, created from natural language in under 5 minutes.
-No manual setup.
+### Option B: Clone and build from source
+```bash
+git clone https://github.com/sigee-min/bbmcp.git
+cd bbmcp
+npm install
+npm run build
+```
 
-| Item | Value |
-| --- | --- |
-| Workflow | bone, cube, uv, texture, animation |
-| Build time | < 5 minutes |
-| Generation model | gpt-5.3-codex xhigh |
+Then load the plugin in Blockbench:
+- Use the plugin manager, or load `dist/bbmcp.js` manually.
 
-![Greyfox Animation](docs/page/public/assets/images/greyfox-animation.gif)
+## Quickstart (first successful request)
+1) Start Blockbench with bbmcp enabled.
+2) Connect your MCP client to:
 
-| Final Model (Hero) | Texture Atlas |
-| --- | --- |
-| ![Greyfox Model](docs/page/public/assets/images/greyfox.png) | ![Greyfox Texture](docs/page/public/assets/images/greyfox-texture.png) |
+```text
+http://127.0.0.1:8787/mcp
+```
+
+3) Send a first connectivity check (`tools/list`):
+
+```bash
+curl -s http://127.0.0.1:8787/mcp \
+  -H "Content-Type: application/json" \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}"
+```
+
+Expected response shape (trimmed):
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      { "name": "list_capabilities" },
+      { "name": "ensure_project" }
+    ]
+  }
+}
+```
+
+4) Call `list_capabilities` (schema + limits snapshot):
+
+```bash
+curl -s http://127.0.0.1:8787/mcp \
+  -H "Content-Type: application/json" \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"list_capabilities\",\"arguments\":{}}}"
+```
+
+Expected response shape (trimmed):
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "structuredContent": {
+      "pluginVersion": "0.0.x",
+      "toolSchemaVersion": "YYYY-MM-DD",
+      "blockbenchVersion": "x.y.z",
+      "limits": {
+        "maxCubes": 2048,
+        "maxTextureSize": 2048,
+        "maxAnimationSeconds": 120
+      }
+    }
+  }
+}
+```
+
+Quick checks if it fails:
+- Confirm bbmcp plugin is loaded in Blockbench Desktop.
+- Confirm URL/path is exactly `http://127.0.0.1:8787/mcp`.
+- If custom host/port/path is used, verify settings and env vars match.
+
+## Endpoint Configuration
+Config precedence (highest to lowest):
+1) Blockbench Settings (`bbmcp: Server`)
+2) Environment variables: `BBMCP_HOST`, `BBMCP_PORT`, `BBMCP_PATH`
+3) Defaults
+
+Environment example:
+```bash
+BBMCP_HOST=127.0.0.1
+BBMCP_PORT=8787
+BBMCP_PATH=/mcp
+```
+
+Address notes:
+- Server bind defaults to `0.0.0.0:8787`.
+- Local client connection should use `127.0.0.1:8787` or `localhost:8787`.
+- Path default is `/mcp`.
 
 ## Features
 - Low-level modeling only: add_bone/add_cube/add_mesh (one item per call).
@@ -45,38 +139,13 @@ No manual setup.
 - Blockbench desktop (latest).
 - Node.js for build scripts.
 
-## Install
-```bash
-npm install
-npm run build
-```
-
-Load the plugin in Blockbench:
-- Use the plugin manager, or load dist/bbmcp.js manually.
-
-## Quickstart
-1) Start Blockbench (plugin loads and starts the MCP server).
-2) Connect to the MCP endpoint (default below).
-3) Call list_capabilities to read schemas + limits.
-
-Default endpoint:
-```
-http://0.0.0.0:8787/mcp
-```
-Note: 0.0.0.0 binds all interfaces. Use 127.0.0.1 for local-only access.
-
-## Endpoint Configuration
-Config precedence (highest to lowest):
-1) Blockbench Settings (bbmcp: Server)
-2) Environment variables: BBMCP_HOST, BBMCP_PORT, BBMCP_PATH
-3) Defaults
-
-Environment example:
-```bash
-BBMCP_HOST=127.0.0.1
-BBMCP_PORT=8787
-BBMCP_PATH=/mcp
-```
+## Compatibility
+| Component | Current baseline |
+| --- | --- |
+| Blockbench | Desktop (latest stable) |
+| Node.js (plugin repo) | Node 20 in CI (`build-test`) |
+| Node.js (docs static check) | Node 24 in CI (`docs-static-check`) |
+| Protocol | MCP JSON-RPC over HTTP (`/mcp`) |
 
 ## Recommended Flow
 Project setup:
@@ -130,6 +199,16 @@ If toolRegistry.hash changes, re-run list_capabilities (or tools/list) to refres
 - docs/guides/texture-spec.md
 - docs/guides/llm-texture-strategy.md
 - MCP resources: bbmcp://guide/* (see resources/templates/list)
+
+## Showcase
+Sample output generated with bbmcp tool calls (modeling/texturing/animation).  
+Generation time and final quality vary by prompt, model, and runtime environment.
+
+![Greyfox Animation](docs/page/public/assets/images/greyfox-animation.gif)
+
+| Final Model (Hero) | Texture Atlas |
+| --- | --- |
+| ![Greyfox Model](docs/page/public/assets/images/greyfox.png) | ![Greyfox Texture](docs/page/public/assets/images/greyfox-texture.png) |
 
 ## Development
 Build:

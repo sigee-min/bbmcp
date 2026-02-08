@@ -1,6 +1,6 @@
-import { hashTextToHex } from '../../shared/hash';
 import { McpToolDefinition } from './types';
-import { toolSchemas } from '../../shared/mcpSchemas/toolSchemas';
+import { toolSchemas } from '../../../packages/contracts/src/mcpSchemas/toolSchemas';
+import { computeToolRegistryHash } from '../../../packages/contracts/src/mcpSchemas/policy';
 
 export type ToolRegistry = {
   tools: McpToolDefinition[];
@@ -188,11 +188,10 @@ export const MCP_LOW_LEVEL_TOOLS: McpToolDefinition[] = [
 export const buildToolRegistry = (options?: { includeLowLevel?: boolean }): ToolRegistry => {
   const tools = options?.includeLowLevel ? [...MCP_HIGH_LEVEL_TOOLS, ...MCP_LOW_LEVEL_TOOLS] : MCP_HIGH_LEVEL_TOOLS;
   const map = new Map<string, McpToolDefinition>(tools.map((tool) => [tool.name, tool]));
-  const signature = JSON.stringify(tools.map((tool) => ({ name: tool.name, inputSchema: tool.inputSchema })));
   return {
     tools,
     map,
-    hash: hashTextToHex(signature),
+    hash: computeToolRegistryHash(tools),
     count: tools.length
   };
 };

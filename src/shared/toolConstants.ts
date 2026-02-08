@@ -54,9 +54,5 @@ export type EnsureProjectAction = typeof ENSURE_PROJECT_ACTIONS[number];
 export const CUBE_FACE_DIRECTIONS = ['north', 'south', 'east', 'west', 'up', 'down'] as const;
 export type CubeFaceDirection = typeof CUBE_FACE_DIRECTIONS[number];
 
-export const PREVIEW_MODES = ['fixed', 'turntable'] as const;
-
-export const PREVIEW_OUTPUTS = ['single', 'sequence'] as const;
-
 
 

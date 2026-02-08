@@ -1,5 +1,5 @@
 import type { JsonSchema } from '../types';
-import { PREVIEW_MODES, PREVIEW_OUTPUTS } from '../../../../../src/shared/toolConstants';
+import { PREVIEW_MODES, PREVIEW_OUTPUTS } from '../constants';
 import { numberArray, stateProps } from '../schemas/common';
 
 export const previewToolSchemas: Record<string, JsonSchema> = {

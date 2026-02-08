@@ -2,11 +2,20 @@
   "name": "ashfox",
   "version": "0.0.2",
   "private": true,
+  "workspaces": [
+    "apps/plugin-desktop",
+    "apps/mcp-headless",
+    "packages/contracts",
+    "packages/conformance"
+  ],
   "scripts": {
-    "build": "node ./scripts/esbuild.js",
+    "build": "npm run build:plugin-desktop && npm run build:mcp-headless",
+    "build:plugin-desktop": "npm --workspace @ashfox/plugin-desktop run build",
+    "build:mcp-headless": "npm --workspace @ashfox/mcp-headless run build",
     "docs:generate:tools": "node ./scripts/docs/generate-tool-pages.js",
     "test:unit": "node scripts/tests/run.js",
-    "test": "npm run typecheck && npm run test:unit",
+    "test:conformance": "npm --workspace @ashfox/conformance run test",
+    "test": "npm run typecheck && npm run test:unit && npm run test:conformance",
     "test:cov": "c8 --reporter=text --reporter=json-summary --reporter=lcov --report-dir coverage npm run test:unit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "spec:sync": "node scripts/specs/update-blockbench-spec.js",
@@ -14,7 +23,7 @@
     "quality:audit": "node scripts/quality/audit.js",
     "quality:deadcode": "node scripts/quality/deadcode.js",
     "quality:coverage": "node scripts/quality/coverage.js",
-    "quality": "npm run test:cov && npm run build && npm run quality:check && npm run quality:deadcode && npm run quality:coverage && npm run quality:audit"
+    "quality": "npm run test:cov && npm run test:conformance && npm run build && npm run quality:check && npm run quality:deadcode && npm run quality:coverage && npm run quality:audit"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",

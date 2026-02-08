@@ -144,7 +144,7 @@ Address notes:
 | Component | Current baseline |
 | --- | --- |
 | Blockbench | Desktop (latest stable) |
-| Node.js (plugin repo) | Node 20 in CI (`build-test`) |
+| Node.js (plugin repo) | Node 20 in CI (`quality`, `build-plugin-desktop`, `build-mcp-headless`) |
 | Node.js (docs static check) | Node 24 in CI (`docs-static-check`) |
 | Protocol | MCP JSON-RPC over HTTP (`/mcp`) |
 
@@ -205,7 +205,8 @@ If toolRegistry.hash changes, re-run list_capabilities (or tools/list) to refres
 - `apps/plugin-desktop`: plugin app entrypoint (desktop runtime boundary)
 - `apps/mcp-headless`: headless MCP app entrypoint (sidecar boundary)
 - `apps/docs`: user-facing docs site
-- `packages/contracts`: MCP contract source (`mcpSchemas`) used by runtime via compatibility wrappers
+- `packages/contracts`: MCP contract source (`mcpSchemas`) + schema policy (`version/hash`)
+- `packages/conformance`: contract conformance checks (schema coverage + validation behavior)
 - `src`: current shared implementation for plugin/server/usecases
 - `docs/architecture/monorepo-target.md`: incremental migration plan
 
@@ -223,6 +224,12 @@ Generation time and final quality vary by prompt, model, and runtime environment
 Build:
 ```bash
 npm run build
+```
+
+Per app build:
+```bash
+npm run build:plugin-desktop
+npm run build:mcp-headless
 ```
 
 Tests:

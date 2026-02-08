@@ -1,0 +1,8 @@
+{
+  "name": "@ashfox/mcp-headless",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node ../../scripts/esbuild.js mcp-headless"
+  }
+}

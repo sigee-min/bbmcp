@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
-import type { JsonSchema } from '../../packages/contracts/src/mcpSchemas/types';
-import { validateSchema } from '../../packages/contracts/src/mcpSchemas/validation';
+import type { JsonSchema } from '../../contracts/src/mcpSchemas/types';
+import { validateSchema } from '../../contracts/src/mcpSchemas/validation';
 
 {
   const schema: JsonSchema = { type: 'object' };

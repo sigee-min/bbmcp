@@ -1,7 +1,7 @@
 import { errorMessage } from '../../logging';
 import { err } from '../../shared/tooling/toolResponse';
-import { validateSchema } from '../../shared/mcpSchemas/validation';
-import { markSchemaValidated } from '../../shared/mcpSchemas/validationFlag';
+import { validateSchema } from '../../../packages/contracts/src/mcpSchemas/validation';
+import { markSchemaValidated } from '../../../packages/contracts/src/mcpSchemas/validationFlag';
 import {
   MCP_TOOL_EXECUTION_FAILED,
   MCP_TOOL_NAME_REQUIRED,

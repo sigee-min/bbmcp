@@ -1,0 +1,19 @@
+export const FORMAT_KINDS = [
+  'Java Block/Item',
+  'geckolib',
+  'animated_java',
+  'Image',
+  'Generic Model'
+] as const;
+
+export const PROJECT_STATE_DETAILS = ['summary', 'full'] as const;
+
+export const ENSURE_PROJECT_MATCHES = ['none', 'format', 'name', 'format_and_name'] as const;
+export const ENSURE_PROJECT_ON_MISMATCH = ['reuse', 'error', 'create'] as const;
+export const ENSURE_PROJECT_ON_MISSING = ['create', 'error'] as const;
+export const ENSURE_PROJECT_ACTIONS = ['ensure', 'delete'] as const;
+
+export const CUBE_FACE_DIRECTIONS = ['north', 'south', 'east', 'west', 'up', 'down'] as const;
+
+export const PREVIEW_MODES = ['fixed', 'turntable'] as const;
+export const PREVIEW_OUTPUTS = ['single', 'sequence'] as const;

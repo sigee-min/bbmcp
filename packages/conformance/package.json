@@ -1,0 +1,8 @@
+{
+  "name": "@ashfox/conformance",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node run.js"
+  }
+}

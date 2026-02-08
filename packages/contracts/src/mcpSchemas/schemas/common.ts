@@ -1,5 +1,5 @@
 import type { JsonSchema } from '../types';
-import { CUBE_FACE_DIRECTIONS, PROJECT_STATE_DETAILS } from '../../../../../src/shared/toolConstants';
+import { CUBE_FACE_DIRECTIONS, PROJECT_STATE_DETAILS } from '../constants';
 
 export const numberArray = (minItems: number, maxItems: number): JsonSchema => ({
   type: 'array',

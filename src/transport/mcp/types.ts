@@ -1,4 +1,4 @@
-import type { JsonSchema } from '../../shared/mcpSchemas/types';
+import type { JsonSchema } from '../../../packages/contracts/src/mcpSchemas/types';
 export type { JsonSchema };
 
 export type McpToolDefinition = {

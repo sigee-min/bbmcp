@@ -3,7 +3,7 @@ import {
   ENSURE_PROJECT_MATCHES,
   ENSURE_PROJECT_ON_MISMATCH,
   ENSURE_PROJECT_ON_MISSING
-} from '../../../../../src/shared/toolConstants';
+} from '../constants';
 
 export const ensureProjectBaseProperties: Record<string, JsonSchema> = {
   name: { type: 'string' },

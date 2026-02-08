@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  build-test:
+  quality:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,6 +23,42 @@ jobs:
 
       - name: ashfox quality gate
         run: npm run quality
+
+  build-plugin-desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build plugin-desktop
+        run: npm run build:plugin-desktop
+
+  build-mcp-headless:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build mcp-headless
+        run: npm run build:mcp-headless
 
   docs-static-check:
     runs-on: ubuntu-latest

@@ -1,5 +1,10 @@
 {
   "name": "@ashfox/contracts",
   "version": "0.0.0",
-  "private": true
+  "private": true,
+  "exports": {
+    "./mcpSchemas/*": "./src/mcpSchemas/*.ts",
+    "./mcpSchemas/schemas/*": "./src/mcpSchemas/schemas/*.ts",
+    "./mcpSchemas/toolSchemas/*": "./src/mcpSchemas/toolSchemas/*.ts"
+  }
 }

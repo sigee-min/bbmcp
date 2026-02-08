@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { respondErrorSimple, respondOk } from '../../src/dispatcher/responseHelpers';
 import { recordTrace } from '../../src/dispatcher/trace';
-import { markSchemaValidated } from '../../src/shared/mcpSchemas/validationFlag';
+import { markSchemaValidated } from '../../packages/contracts/src/mcpSchemas/validationFlag';
 
 {
   const response = respondOk({ ok: true });

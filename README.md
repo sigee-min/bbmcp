@@ -215,7 +215,7 @@ If toolRegistry.hash changes, re-run list_capabilities (or tools/list) to refres
 - `packages/backend-blockbench`: blockbench backend adapter (dispatcher bridge)
 - `packages/backend-engine`: clean-room engine backend scaffold
 - `deploy/docker-compose.yml`: multi-service deployment scaffold (`web + mcp-gateway + worker`)
-- `apps/docs/content/docs/en/project/development-onboarding.mdx`: contributor onboarding for build/test/release
+- `apps/docs/content/docs/en/contributors/project/development-onboarding.mdx`: contributor onboarding for build/test/release
 
 ## Showcase
 Sample output generated with Ashfox tool calls (modeling/texturing/animation).  
@@ -300,7 +300,7 @@ docker compose up --build
 - Code of conduct: `CODE_OF_CONDUCT.md`
 - Support and issue reporting: `SUPPORT.md`
 - Security policy and vulnerability reporting: `SECURITY.md`
-- Public release checklist: `apps/docs/content/docs/en/project/release-public-checklist.mdx`
+- Public release checklist: `apps/docs/content/docs/en/contributors/project/release-public-checklist.mdx`
 
 ## License
 See LICENSE.

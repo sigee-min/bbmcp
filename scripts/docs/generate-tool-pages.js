@@ -725,7 +725,7 @@ function generateToolReferenceIndex(locale) {
 }
 
 function writeToolReferenceLocale(locale, toolsByName, schemasByName, resultExamplesByName) {
-  const baseDir = path.join(docsRoot, locale, 'tool-reference');
+  const baseDir = path.join(docsRoot, locale, 'users', 'tool-reference');
   fs.rmSync(baseDir, { recursive: true, force: true });
   ensureDir(baseDir);
 

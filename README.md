@@ -283,7 +283,7 @@ docker compose up --build
 - In `prepare` mode, select `bump`:
   - `auto`: follow conventional commits
   - `patch` / `minor` / `major`: force the next release PR version
-- Merging the release PR updates `package.json`/`CHANGELOG.md` via bot.
+- Merging the release PR updates `package.json`/`.github/CHANGELOG.md` via bot.
 - release-please config files are stored in:
   - `.github/release-please/config.json`
   - `.github/release-please/manifest.json`
@@ -304,6 +304,5 @@ docker compose up --build
 
 ## License
 See LICENSE.
-
 
 

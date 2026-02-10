@@ -13,7 +13,6 @@ description: "공개 릴리즈 체크리스트"
 - [ ] `npm run build`
 - [ ] `npm test`
 - [ ] `npm run quality`
-- [ ] `npm run release:validate`
 - [ ] 실패하거나 스킵된 핵심 테스트가 없는지 확인
 
 ## 2. 동작 검증
@@ -51,5 +50,6 @@ description: "공개 릴리즈 체크리스트"
   - [ ] 신규 기능
   - [ ] 수정 사항
   - [ ] 알려진 제한 사항
-- [ ] 버전/태그가 일관되게 갱신됨 (`package.json`, `packages/runtime/src/config.ts`, `.github/release-please/manifest.json`)
+- [ ] 필요한 앱의 버전만 갱신됨 (`apps/*/package.json`)
+- [ ] `.github/workflows/release.yml` 실행 후 자동 생성 릴리즈 노트 확인
 - [ ] 클린 환경에서 최종 스모크 테스트 완료

@@ -251,7 +251,6 @@ Core scripts:
 | `npm run quality:deadcode` | Fail on unused exports |
 | `npm run quality:coverage` | Enforce coverage thresholds |
 | `npm run quality:audit` | Run dependency vulnerability audit |
-| `npm run release:validate` | Validate release/version consistency |
 | `npm run docs:generate:tools` | Regenerate tool reference pages from schemas |
 | `npm run spec:sync` | Refresh Blockbench spec snapshot used by tests |
 
@@ -276,24 +275,21 @@ docker compose up --build
 ```
 
 ## Release Automation
-- Single release workflow: `.github/workflows/release-please.yml` (manual `workflow_dispatch` only).
-- Select `mode` when running:
-  - `prepare`: create/update the release PR
-  - `publish`: publish GitHub Release from the merged version
-- In `prepare` mode, select `bump`:
-  - `auto`: follow conventional commits
-  - `patch` / `minor` / `major`: force the next release PR version
-- Merging the release PR updates `package.json`/`.github/CHANGELOG.md` via bot.
-- release-please config files are stored in:
-  - `.github/release-please/config.json`
-  - `.github/release-please/manifest.json`
-- `release-please` auth:
-  - recommended: set repository secret `RELEASE_PLEASE_TOKEN` (token must allow `contents:write` and `pull_requests:write`)
-  - optional fallback: set repository variable `RELEASE_PLEASE_ALLOW_GITHUB_TOKEN=true` and enable GitHub Actions PR creation in repository settings
-  - if neither is configured, the workflow exits cleanly with a notice (no failure)
-- Publish policy:
-  - first release: auto-create
-  - after bootstrap: publish when version is bumped (`major`/`minor`/`patch`)
+- Single publish workflow: `.github/workflows/release.yml` (manual `workflow_dispatch` only).
+- No release PR is created. Running the workflow builds artifacts and publishes a GitHub Release directly.
+- App versions are managed independently in each app package:
+  - `apps/ashfox/package.json`
+  - `apps/plugin-desktop/package.json`
+  - `apps/mcp-gateway/package.json`
+  - `apps/worker/package.json`
+  - `apps/web/package.json`
+  - `apps/docs/package.json`
+- Release title policy:
+  - Title is date-based: `Ashfox Update YYYY-MM-DD`.
+  - Tag is generated from date and commit SHA to avoid collisions.
+- Release note policy:
+  - Primary: GitHub auto-generated release notes (`generate_release_notes`).
+  - Fallback: repo script-generated notes from commits and app version table (`.github/release-notes.generated.md`).
 
 ## Community and Security
 - Contributing guide: `CONTRIBUTING.md`
@@ -304,5 +300,3 @@ docker compose up --build
 
 ## License
 See LICENSE.
-
-

@@ -129,7 +129,6 @@ jobs:
           npm run quality:check
           npm run quality:deadcode
           npm run quality:audit
-          npm run release:validate
 
   runtime-unit:
     needs: detect-changes

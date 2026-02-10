@@ -1,0 +1,73 @@
+name: release
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Generate release notes and metadata
+        id: notes
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_NOTES_DISABLE_LLM: "true"
+        run: node scripts/release/generate-release-notes.js
+
+      - name: Create GitHub Release (primary: GitHub auto notes)
+        id: release_primary
+        continue-on-error: true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.notes.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.notes.outputs.release_name }}
+          generate_release_notes: true
+          make_latest: true
+          files: |
+            dist/ashfox-bbplugin.js
+            dist/ashfox-bbplugin.js.map
+            dist/ashfox.js
+            dist/ashfox.js.map
+          overwrite_files: true
+
+      - name: Create GitHub Release (fallback: generated body)
+        if: steps.release_primary.outcome == 'failure'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.notes.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.notes.outputs.release_name }}
+          body_path: ${{ steps.notes.outputs.body_path }}
+          make_latest: true
+          files: |
+            dist/ashfox-bbplugin.js
+            dist/ashfox-bbplugin.js.map
+            dist/ashfox.js
+            dist/ashfox.js.map
+          overwrite_files: true

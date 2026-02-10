@@ -36,8 +36,7 @@
     "quality:audit": "node scripts/quality/audit.js",
     "quality:deadcode": "node scripts/quality/deadcode.js",
     "quality:coverage": "node scripts/quality/coverage.js",
-    "release:validate": "node scripts/release/validate.js",
-    "quality": "npm run test:cov && npm run test:conformance && npm run test:gateway && npm run build && npm run quality:check && npm run quality:deadcode && npm run quality:coverage && npm run quality:audit && npm run release:validate"
+    "quality": "npm run test:cov && npm run test:conformance && npm run test:gateway && npm run build && npm run quality:check && npm run quality:deadcode && npm run quality:coverage && npm run quality:audit"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",

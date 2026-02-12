@@ -1,23 +1,36 @@
 ---
 title: 로컬 플러그인 세션 준비
 description: 로컬 설치, 엔드포인트 설정, 첫 MCP 호출까지 한 번에 진행하는 체크리스트입니다.
+summary: "로컬 설치, 엔드포인트 설정, 첫 MCP 호출까지 한 번에 진행하는 체크리스트입니다."
 ---
 
 # 로컬 플러그인 세션 준비
 
-## 목표
-
+## 목적
 Blockbench에서 Ashfox 플러그인을 로드하고 로컬 엔드포인트로 첫 MCP 호출을 성공시킵니다.
 
-## 단계
+## 사전 준비
+- Blockbench가 설치되어 있고 로컬 플러그인 로드가 가능해야 합니다.
+- 저장소 루트에서 플러그인 번들을 빌드해야 합니다 (`npm run build:plugin-desktop`).
+- 플러그인 설정에서 MCP 엔드포인트 경로(`/mcp`)를 확인해야 합니다.
 
+## 빠른 시작
+1. 저장소 루트에서 `npm run build:plugin-desktop`로 번들을 생성합니다.
+2. Blockbench 플러그인 관리자에서 `dist/ashfox-bbplugin.js`를 로드합니다.
+3. 플러그인 설정에서 엔드포인트 경로(`/mcp`)를 지정합니다.
+
+## 상세 단계
 1. 저장소 루트에서 `npm run build:plugin-desktop`로 번들을 생성합니다.
 2. Blockbench 플러그인 관리자에서 `dist/ashfox-bbplugin.js`를 로드합니다.
 3. 플러그인 설정에서 엔드포인트 경로(`/mcp`)를 지정합니다.
 4. `system.list_capabilities` 같은 경량 호출로 연결을 확인합니다.
 
-## 관련 문서
+## 실패와 복구
+- 연결 실패: 엔드포인트 경로, 서비스 실행 상태, 방화벽/권한 설정을 재확인합니다.
+- 스키마 오류: 최소 요청으로 재시도하고 클라이언트 스키마 캐시를 갱신합니다.
+- 검증 실패: 리포트된 항목을 수정한 뒤 Quick Start부터 다시 실행합니다.
 
+## 관련 문서
 - [Blockbench Plugin 설치](/ko/docs/users/blockbench-plugin/installation)
 - [Blockbench Plugin 시작](/ko/docs/users/blockbench-plugin/getting-started)
 - [연결 문제 해결](/ko/docs/users/troubleshooting/connectivity)

@@ -1,6 +1,7 @@
 ---
 title: Set Trigger Keyframes
 description: "Sets trigger keyframes (sound/particle/timeline), one key per call."
+summary: "Sets trigger keyframes (sound/particle/timeline), one key per call."
 ---
 
 ## Quick Summary
@@ -81,16 +82,16 @@ Sets trigger keyframes (sound/particle/timeline), one key per call.
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `clipId` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `clip` | `string` | ✅ | Not specified in schema. | No additional constraints declared. |
-| `channel` | `enum("sound", "particle", "timeline")` | ✅ | Not specified in schema. | enum: "sound", "particle", "timeline" |
-| `keys` | `array<object>` | ✅ | Not specified in schema. | minItems: 1, maxItems: 1 |
-| `keys[].time` | `number` | ✅ | Not specified in schema. | No additional constraints declared. |
-| `keys[].value` | `any` | ✅ | Not specified in schema. | No additional constraints declared. |
-| `ifRevision` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeState` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeDiff` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | Not specified in schema. | enum: "summary", "full" |
+| `clipId` | `string` | ❌ | Animation clip identifier used as the target. | No extra constraints beyond the declared type. |
+| `clip` | `string` | ✅ | Animation clip name used as the target. | No extra constraints beyond the declared type. |
+| `channel` | `enum("sound", "particle", "timeline")` | ✅ | Request parameter `channel`. | enum: "sound", "particle", "timeline" |
+| `keys` | `array<object>` | ✅ | Request parameter `keys`. | minItems: 1, maxItems: 1 |
+| `keys[].time` | `number` | ✅ | Request parameter `keys[].time`. | No extra constraints beyond the declared type. |
+| `keys[].value` | `any` | ✅ | Request parameter `keys[].value`. | No extra constraints beyond the declared type. |
+| `ifRevision` | `string` | ❌ | Optimistic concurrency token used to avoid stale writes. | No extra constraints beyond the declared type. |
+| `includeState` | `boolean` | ❌ | Includes the latest project snapshot in the response. | No extra constraints beyond the declared type. |
+| `includeDiff` | `boolean` | ❌ | Includes revision diff data in the response. | No extra constraints beyond the declared type. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | Controls diff verbosity when diff data is included. | enum: "summary", "full" |
 
 ## Minimal Request Example
 ```json
@@ -120,5 +121,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
+- Treat response examples as schematic and handle optional fields defensively.
 - For mutating tools, use `ifRevision` when the tool supports it.

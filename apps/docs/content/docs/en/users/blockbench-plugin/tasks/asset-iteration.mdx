@@ -1,23 +1,36 @@
 ---
 title: Run Modeling and Texture Iteration
 description: Task flow for creating assets, iterating texture changes, and previewing results.
+summary: "Task flow for creating assets, iterating texture changes, and previewing results."
 ---
 
 # Run Modeling and Texture Iteration
 
-## Goal
-
+## Purpose
 Iterate asset geometry and textures quickly with repeatable tool calls.
 
-## Steps
+## Prerequisites
+- Blockbench is installed and can load local plugins.
+- Plugin bundle is built from repository root (`npm run build:plugin-desktop`).
+- MCP endpoint path (`/mcp`) is configured in plugin settings.
 
+## Quick Start
+1. Ensure project context is initialized (`project.ensure_project`).
+2. Apply modeling changes (`add_*`, `update_*`, `delete_*` model tools).
+3. Read and assign textures (`read_texture`, `assign_texture`).
+
+## Detailed Steps
 1. Ensure project context is initialized (`project.ensure_project`).
 2. Apply modeling changes (`add_*`, `update_*`, `delete_*` model tools).
 3. Read and assign textures (`read_texture`, `assign_texture`).
 4. Preview and inspect intermediate result (`project.render_preview`).
 
-## Related Docs
+## Failure and Recovery
+- Connection failure: verify endpoint path, service status, and firewall/permission settings.
+- Schema error: retry with the minimal request and refresh client schema cache.
+- Validation failure: resolve reported findings, then re-run from Quick Start.
 
+## Related Docs
 - [Modeling Tool Reference](/en/docs/users/tool-reference/modeling)
 - [Texturing Tool Reference](/en/docs/users/tool-reference/texturing)
 - [Modeling Workflow Guide](/en/docs/users/guides/modeling-workflow)

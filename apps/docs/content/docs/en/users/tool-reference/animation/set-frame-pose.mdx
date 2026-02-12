@@ -1,6 +1,7 @@
 ---
 title: Set Pose Frame
 description: "Sets a pose frame for multiple bones at a single frame (rot/pos/scale)."
+summary: "Sets a pose frame for multiple bones at a single frame (rot/pos/scale)."
 ---
 
 ## Quick Summary
@@ -130,20 +131,20 @@ Sets a pose frame for multiple bones at a single frame (rot/pos/scale).
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `clipId` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `clip` | `string` | ✅ | Not specified in schema. | No additional constraints declared. |
-| `frame` | `number` | ✅ | Not specified in schema. | No additional constraints declared. |
-| `bones` | `array<any \| any \| any>` | ✅ | Not specified in schema. | minItems: 1 |
-| `bones[].name` | `string` | ✅ | Not specified in schema. | No additional constraints declared. |
-| `bones[].rot` | `array<number>` | ❌ | Not specified in schema. | minItems: 3, maxItems: 3 |
-| `bones[].pos` | `array<number>` | ❌ | Not specified in schema. | minItems: 3, maxItems: 3 |
-| `bones[].scale` | `array<number>` | ❌ | Not specified in schema. | minItems: 3, maxItems: 3 |
-| `bones[].interp` | `enum("linear", "step", "catmullrom")` | ❌ | Not specified in schema. | enum: "linear", "step", "catmullrom" |
-| `interp` | `enum("linear", "step", "catmullrom")` | ❌ | Not specified in schema. | enum: "linear", "step", "catmullrom" |
-| `ifRevision` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeState` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeDiff` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | Not specified in schema. | enum: "summary", "full" |
+| `clipId` | `string` | ❌ | Animation clip identifier used as the target. | No extra constraints beyond the declared type. |
+| `clip` | `string` | ✅ | Animation clip name used as the target. | No extra constraints beyond the declared type. |
+| `frame` | `number` | ✅ | Target frame index for this operation. | No extra constraints beyond the declared type. |
+| `bones` | `array<any \| any \| any>` | ✅ | Bone pose payload applied at the target frame. | minItems: 1 |
+| `bones[].name` | `string` | ✅ | Specifies the target name used for matching. | No extra constraints beyond the declared type. |
+| `bones[].rot` | `array<number>` | ❌ | Request parameter `bones[].rot`. | minItems: 3, maxItems: 3 |
+| `bones[].pos` | `array<number>` | ❌ | Request parameter `bones[].pos`. | minItems: 3, maxItems: 3 |
+| `bones[].scale` | `array<number>` | ❌ | Request parameter `bones[].scale`. | minItems: 3, maxItems: 3 |
+| `bones[].interp` | `enum("linear", "step", "catmullrom")` | ❌ | Request parameter `bones[].interp`. | enum: "linear", "step", "catmullrom" |
+| `interp` | `enum("linear", "step", "catmullrom")` | ❌ | Request parameter `interp`. | enum: "linear", "step", "catmullrom" |
+| `ifRevision` | `string` | ❌ | Optimistic concurrency token used to avoid stale writes. | No extra constraints beyond the declared type. |
+| `includeState` | `boolean` | ❌ | Includes the latest project snapshot in the response. | No extra constraints beyond the declared type. |
+| `includeDiff` | `boolean` | ❌ | Includes revision diff data in the response. | No extra constraints beyond the declared type. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | Controls diff verbosity when diff data is included. | enum: "summary", "full" |
 
 ## Minimal Request Example
 ```json
@@ -180,5 +181,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
+- Treat response examples as schematic and handle optional fields defensively.
 - For mutating tools, use `ifRevision` when the tool supports it.

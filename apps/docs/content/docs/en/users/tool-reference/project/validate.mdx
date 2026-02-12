@@ -1,6 +1,7 @@
 ---
 title: Validate
 description: "Validates the current project."
+summary: "Validates the current project."
 ---
 
 ## Quick Summary
@@ -33,8 +34,8 @@ Validates the current project.
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `includeState` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `ifRevision` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
+| `includeState` | `boolean` | ❌ | Includes the latest project snapshot in the response. | No extra constraints beyond the declared type. |
+| `ifRevision` | `string` | ❌ | Optimistic concurrency token used to avoid stale writes. | No extra constraints beyond the declared type. |
 
 ## Minimal Request Example
 ```json
@@ -60,5 +61,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
-- For mutating tools, use `ifRevision` when the tool supports it.
+- Treat response examples as schematic and handle optional fields defensively.
+- This tool is read-only, so `ifRevision` is usually unnecessary.

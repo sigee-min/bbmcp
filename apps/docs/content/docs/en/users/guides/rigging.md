@@ -1,6 +1,7 @@
 ---
 title: "Rigging Guide"
 description: "Hierarchy design principles for animation-ready rigs."
+summary: "Hierarchy design principles for animation-ready rigs."
 ---
 
 # Rigging Guide

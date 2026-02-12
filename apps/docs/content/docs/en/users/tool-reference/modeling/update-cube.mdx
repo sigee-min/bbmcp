@@ -1,6 +1,7 @@
 ---
 title: Update Cube
 description: "Updates a cube by id/name."
+summary: "Updates a cube by id/name."
 ---
 
 ## Quick Summary
@@ -113,25 +114,25 @@ Updates a cube by id/name.
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `id` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `name` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `newName` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `bone` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `boneId` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `boneRoot` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `from` | `array<number>` | ❌ | Not specified in schema. | minItems: 3, maxItems: 3 |
-| `to` | `array<number>` | ❌ | Not specified in schema. | minItems: 3, maxItems: 3 |
-| `origin` | `array<number>` | ❌ | Not specified in schema. | minItems: 3, maxItems: 3 |
-| `rotation` | `array<number>` | ❌ | Not specified in schema. | minItems: 3, maxItems: 3 |
-| `inflate` | `number` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `mirror` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `visibility` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `boxUv` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `uvOffset` | `array<number>` | ❌ | Not specified in schema. | minItems: 2, maxItems: 2 |
-| `ifRevision` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeState` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeDiff` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | Not specified in schema. | enum: "summary", "full" |
+| `id` | `string` | ❌ | Specifies the unique target id for this operation. | No extra constraints beyond the declared type. |
+| `name` | `string` | ❌ | Specifies the target name used for matching. | No extra constraints beyond the declared type. |
+| `newName` | `string` | ❌ | Request parameter `newName`. | No extra constraints beyond the declared type. |
+| `bone` | `string` | ❌ | Request parameter `bone`. | No extra constraints beyond the declared type. |
+| `boneId` | `string` | ❌ | Request parameter `boneId`. | No extra constraints beyond the declared type. |
+| `boneRoot` | `boolean` | ❌ | Request parameter `boneRoot`. | No extra constraints beyond the declared type. |
+| `from` | `array<number>` | ❌ | Request parameter `from`. | minItems: 3, maxItems: 3 |
+| `to` | `array<number>` | ❌ | Request parameter `to`. | minItems: 3, maxItems: 3 |
+| `origin` | `array<number>` | ❌ | Request parameter `origin`. | minItems: 3, maxItems: 3 |
+| `rotation` | `array<number>` | ❌ | Request parameter `rotation`. | minItems: 3, maxItems: 3 |
+| `inflate` | `number` | ❌ | Request parameter `inflate`. | No extra constraints beyond the declared type. |
+| `mirror` | `boolean` | ❌ | Request parameter `mirror`. | No extra constraints beyond the declared type. |
+| `visibility` | `boolean` | ❌ | Request parameter `visibility`. | No extra constraints beyond the declared type. |
+| `boxUv` | `boolean` | ❌ | Request parameter `boxUv`. | No extra constraints beyond the declared type. |
+| `uvOffset` | `array<number>` | ❌ | Request parameter `uvOffset`. | minItems: 2, maxItems: 2 |
+| `ifRevision` | `string` | ❌ | Optimistic concurrency token used to avoid stale writes. | No extra constraints beyond the declared type. |
+| `includeState` | `boolean` | ❌ | Includes the latest project snapshot in the response. | No extra constraints beyond the declared type. |
+| `includeDiff` | `boolean` | ❌ | Includes revision diff data in the response. | No extra constraints beyond the declared type. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | Controls diff verbosity when diff data is included. | enum: "summary", "full" |
 
 ## Minimal Request Example
 ```json
@@ -154,5 +155,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
+- Treat response examples as schematic and handle optional fields defensively.
 - For mutating tools, use `ifRevision` when the tool supports it.

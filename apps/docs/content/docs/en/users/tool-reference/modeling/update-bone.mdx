@@ -1,6 +1,7 @@
 ---
 title: Update Bone
 description: "Updates a bone by id/name."
+summary: "Updates a bone by id/name."
 ---
 
 ## Quick Summary
@@ -88,20 +89,20 @@ Updates a bone by id/name.
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `id` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `name` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `newName` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `parent` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `parentId` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `parentRoot` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `pivot` | `array<number>` | ❌ | Not specified in schema. | minItems: 3, maxItems: 3 |
-| `rotation` | `array<number>` | ❌ | Not specified in schema. | minItems: 3, maxItems: 3 |
-| `scale` | `array<number>` | ❌ | Not specified in schema. | minItems: 3, maxItems: 3 |
-| `visibility` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `ifRevision` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeState` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeDiff` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | Not specified in schema. | enum: "summary", "full" |
+| `id` | `string` | ❌ | Specifies the unique target id for this operation. | No extra constraints beyond the declared type. |
+| `name` | `string` | ❌ | Specifies the target name used for matching. | No extra constraints beyond the declared type. |
+| `newName` | `string` | ❌ | Request parameter `newName`. | No extra constraints beyond the declared type. |
+| `parent` | `string` | ❌ | Request parameter `parent`. | No extra constraints beyond the declared type. |
+| `parentId` | `string` | ❌ | Request parameter `parentId`. | No extra constraints beyond the declared type. |
+| `parentRoot` | `boolean` | ❌ | Request parameter `parentRoot`. | No extra constraints beyond the declared type. |
+| `pivot` | `array<number>` | ❌ | Request parameter `pivot`. | minItems: 3, maxItems: 3 |
+| `rotation` | `array<number>` | ❌ | Request parameter `rotation`. | minItems: 3, maxItems: 3 |
+| `scale` | `array<number>` | ❌ | Request parameter `scale`. | minItems: 3, maxItems: 3 |
+| `visibility` | `boolean` | ❌ | Request parameter `visibility`. | No extra constraints beyond the declared type. |
+| `ifRevision` | `string` | ❌ | Optimistic concurrency token used to avoid stale writes. | No extra constraints beyond the declared type. |
+| `includeState` | `boolean` | ❌ | Includes the latest project snapshot in the response. | No extra constraints beyond the declared type. |
+| `includeDiff` | `boolean` | ❌ | Includes revision diff data in the response. | No extra constraints beyond the declared type. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | Controls diff verbosity when diff data is included. | enum: "summary", "full" |
 
 ## Minimal Request Example
 ```json
@@ -124,5 +125,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
+- Treat response examples as schematic and handle optional fields defensively.
 - For mutating tools, use `ifRevision` when the tool supports it.

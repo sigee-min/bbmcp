@@ -1,23 +1,36 @@
 ---
 title: Bootstrap Local Service Stack
 description: Bring up web, gateway, and worker services for local validation.
+summary: "Bring up web, gateway, and worker services for local validation."
 ---
 
 # Bootstrap Local Service Stack
 
-## Goal
-
+## Purpose
 Bring up the Ashfox service stack locally with predictable startup order.
 
-## Steps
+## Prerequisites
+- Repository dependencies are installed (`npm install`).
+- Required services (gateway/worker or target environment) are running.
+- MCP endpoint is reachable from your client/network environment.
 
+## Quick Start
+1. Install dependencies at repository root (`npm install`).
+2. Build required packages (`npm run build`, `npm --workspace @ashfox/web run build`).
+3. Start gateway and worker services.
+
+## Detailed Steps
 1. Install dependencies at repository root (`npm install`).
 2. Build required packages (`npm run build`, `npm --workspace @ashfox/web run build`).
 3. Start gateway and worker services.
 4. Validate endpoint reachability from an external client.
 
-## Related Docs
+## Failure and Recovery
+- Connection failure: verify endpoint path, service status, and firewall/permission settings.
+- Schema error: retry with the minimal request and refresh client schema cache.
+- Validation failure: resolve reported findings, then re-run from Quick Start.
 
+## Related Docs
 - [Ashfox Installation](/en/docs/users/ashfox/installation)
 - [Ashfox Getting Started](/en/docs/users/ashfox/getting-started)
 - [Connectivity Troubleshooting](/en/docs/users/troubleshooting/connectivity)

@@ -1,6 +1,7 @@
 ---
 title: "Modeling Workflow"
 description: "Guide-first modeling flow for predictable edits and lower rework."
+summary: "Guide-first modeling flow for predictable edits and lower rework."
 ---
 
 # Modeling Workflow

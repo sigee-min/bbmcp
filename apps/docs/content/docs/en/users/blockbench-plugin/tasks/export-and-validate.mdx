@@ -1,22 +1,35 @@
 ---
 title: Export and Validate Release Candidate
 description: Prepare final checks before export, then produce traceable artifacts.
+summary: "Prepare final checks before export, then produce traceable artifacts."
 ---
 
 # Export and Validate Release Candidate
 
-## Goal
-
+## Purpose
 Run validation gates and export artifacts that are ready for handoff.
 
-## Steps
+## Prerequisites
+- Blockbench is installed and can load local plugins.
+- Plugin bundle is built from repository root (`npm run build:plugin-desktop`).
+- MCP endpoint path (`/mcp`) is configured in plugin settings.
 
+## Quick Start
+1. Run model checks with `project.validate`.
+2. Resolve findings and re-run validation until clean.
+3. Export output with `project.export`.
+
+## Detailed Steps
 1. Run model checks with `project.validate`.
 2. Resolve findings and re-run validation until clean.
 3. Export output with `project.export`.
 4. Save trace log for auditability (`project.export_trace_log`).
 
-## Related Docs
+## Failure and Recovery
+- Connection failure: verify endpoint path, service status, and firewall/permission settings.
+- Schema error: retry with the minimal request and refresh client schema cache.
+- Validation failure: resolve reported findings, then re-run from Quick Start.
 
+## Related Docs
 - [Project Tool Reference](/en/docs/users/tool-reference/project)
 - [Validation and Export Troubleshooting](/en/docs/users/troubleshooting/validation-and-export)

@@ -1,6 +1,7 @@
 ---
 title: Create Animation Clip
 description: "Creates an animation clip (low-level)."
+summary: "Creates an animation clip (low-level)."
 ---
 
 ## Quick Summary
@@ -64,15 +65,15 @@ Creates an animation clip (low-level).
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `id` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `name` | `string` | ✅ | Not specified in schema. | No additional constraints declared. |
-| `length` | `number` | ✅ | Not specified in schema. | No additional constraints declared. |
-| `loop` | `boolean` | ✅ | Not specified in schema. | No additional constraints declared. |
-| `fps` | `number` | ✅ | Not specified in schema. | No additional constraints declared. |
-| `ifRevision` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeState` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeDiff` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | Not specified in schema. | enum: "summary", "full" |
+| `id` | `string` | ❌ | Specifies the unique target id for this operation. | No extra constraints beyond the declared type. |
+| `name` | `string` | ✅ | Specifies the target name used for matching. | No extra constraints beyond the declared type. |
+| `length` | `number` | ✅ | Request parameter `length`. | No extra constraints beyond the declared type. |
+| `loop` | `boolean` | ✅ | Request parameter `loop`. | No extra constraints beyond the declared type. |
+| `fps` | `number` | ✅ | Request parameter `fps`. | No extra constraints beyond the declared type. |
+| `ifRevision` | `string` | ❌ | Optimistic concurrency token used to avoid stale writes. | No extra constraints beyond the declared type. |
+| `includeState` | `boolean` | ❌ | Includes the latest project snapshot in the response. | No extra constraints beyond the declared type. |
+| `includeDiff` | `boolean` | ❌ | Includes revision diff data in the response. | No extra constraints beyond the declared type. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | Controls diff verbosity when diff data is included. | enum: "summary", "full" |
 
 ## Minimal Request Example
 ```json
@@ -98,5 +99,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
+- Treat response examples as schematic and handle optional fields defensively.
 - For mutating tools, use `ifRevision` when the tool supports it.

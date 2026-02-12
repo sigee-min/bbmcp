@@ -1,6 +1,7 @@
 ---
 title: "엔티티 워크플로"
 description: "GeckoLib 대상 엔티티를 안정적으로 제작하는 종단 간 가이드"
+summary: "GeckoLib 대상 엔티티를 안정적으로 제작하는 종단 간 가이드"
 ---
 
 # 엔티티 워크플로

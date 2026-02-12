@@ -1,6 +1,7 @@
 ---
 title: "Texture and UV Behavior"
 description: "Operational expectations for texture mapping, UV integrity, and paint requests."
+summary: "Operational expectations for texture mapping, UV integrity, and paint requests."
 ---
 
 # Texture and UV Behavior

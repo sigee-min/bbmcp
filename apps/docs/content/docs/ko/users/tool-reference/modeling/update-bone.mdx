@@ -1,6 +1,7 @@
 ---
 title: 본 수정
 description: "기존 본의 이름/부모/변환 값을 갱신합니다."
+summary: "기존 본의 이름/부모/변환 값을 갱신합니다."
 ---
 
 ## 빠른 요약
@@ -88,20 +89,20 @@ description: "기존 본의 이름/부모/변환 값을 갱신합니다."
 ## 필드 레퍼런스
 | Field | Type | 필수 | 설명 | 제약 |
 | --- | --- | --- | --- | --- |
-| `id` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `name` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `newName` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `parent` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `parentId` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `parentRoot` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `pivot` | `array<number>` | ❌ | 스키마에 별도 설명이 없습니다. | minItems: 3, maxItems: 3 |
-| `rotation` | `array<number>` | ❌ | 스키마에 별도 설명이 없습니다. | minItems: 3, maxItems: 3 |
-| `scale` | `array<number>` | ❌ | 스키마에 별도 설명이 없습니다. | minItems: 3, maxItems: 3 |
-| `visibility` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `ifRevision` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `includeState` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `includeDiff` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "summary", "full" |
+| `id` | `string` | ❌ | 작업 대상의 고유 id를 지정합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `name` | `string` | ❌ | 매칭에 사용할 대상 이름을 지정합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `newName` | `string` | ❌ | `newName` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `parent` | `string` | ❌ | `parent` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `parentId` | `string` | ❌ | `parentId` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `parentRoot` | `boolean` | ❌ | `parentRoot` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `pivot` | `array<number>` | ❌ | `pivot` 요청 파라미터입니다. | minItems: 3, maxItems: 3 |
+| `rotation` | `array<number>` | ❌ | `rotation` 요청 파라미터입니다. | minItems: 3, maxItems: 3 |
+| `scale` | `array<number>` | ❌ | `scale` 요청 파라미터입니다. | minItems: 3, maxItems: 3 |
+| `visibility` | `boolean` | ❌ | `visibility` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `ifRevision` | `string` | ❌ | 낙관적 동시성 제어를 위한 리비전 토큰입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `includeState` | `boolean` | ❌ | 응답에 최신 프로젝트 스냅샷을 포함합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `includeDiff` | `boolean` | ❌ | 응답에 리비전 diff 데이터를 포함합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | diff 포함 시 상세 수준을 제어합니다. | enum: "summary", "full" |
 
 ## 최소 요청 예시
 ```json

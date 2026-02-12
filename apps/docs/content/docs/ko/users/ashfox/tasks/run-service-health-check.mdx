@@ -1,22 +1,35 @@
 ---
 title: 서비스 헬스체크 실행
 description: 런타임, 스키마 호환성, 릴리즈 준비 상태를 기본 게이트로 점검합니다.
+summary: "런타임, 스키마 호환성, 릴리즈 준비 상태를 기본 게이트로 점검합니다."
 ---
 
 # 서비스 헬스체크 실행
 
-## 목표
-
+## 목적
 릴리즈 또는 배포 변경 전에 운영 드리프트를 조기에 감지합니다.
 
-## 단계
+## 사전 준비
+- 저장소 의존성이 설치되어 있어야 합니다 (`npm install`).
+- 필요한 서비스(gateway/worker 또는 대상 환경)가 실행 중이어야 합니다.
+- MCP 엔드포인트에 접근 가능한 네트워크/권한 상태여야 합니다.
 
+## 빠른 시작
+1. 저장소 품질 게이트를 실행합니다 (`npm run quality`).
+2. 문서 품질 검사를 실행합니다 (`npm run docs:quality`).
+3. docs 정적 빌드를 실행합니다 (`npm --workspace apps/docs run build`).
+
+## 상세 단계
 1. 저장소 품질 게이트를 실행합니다 (`npm run quality`).
 2. 문서 품질 검사를 실행합니다 (`npm run docs:quality`).
 3. docs 정적 빌드를 실행합니다 (`npm --workspace apps/docs run build`).
 4. 정적 정책 게이트를 확인합니다 (`npm run quality:check`).
 
-## 관련 문서
+## 실패와 복구
+- 연결 실패: 엔드포인트 경로, 서비스 실행 상태, 방화벽/권한 설정을 재확인합니다.
+- 스키마 오류: 최소 요청으로 재시도하고 클라이언트 스키마 캐시를 갱신합니다.
+- 검증 실패: 리포트된 항목을 수정한 뒤 Quick Start부터 다시 실행합니다.
 
+## 관련 문서
 - [Ashfox 워크플로우 가이드](/ko/docs/users/ashfox/guide)
 - [검증 및 내보내기](/ko/docs/users/troubleshooting/validation-and-export)

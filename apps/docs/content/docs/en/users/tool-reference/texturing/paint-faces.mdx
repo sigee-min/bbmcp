@@ -1,6 +1,7 @@
 ---
 title: Paint Faces
 description: "Paints one cube face with one drawing op (UV handled internally). Default coordSpace=face; use coordSpace=texture with width/height for texture-space coordinates."
+summary: "Paints one cube face with one drawing op (UV handled internally). Default coordSpace=face; use coordSpace=texture with width/height for texture-space coordinates."
 ---
 
 ## Quick Summary
@@ -229,33 +230,33 @@ Paints one cube face with one drawing op (UV handled internally). Default coordS
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `textureId` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `textureName` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `target` | `object` | ✅ | Not specified in schema. | additionalProperties=false |
-| `target.cubeId` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `target.cubeName` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
+| `textureId` | `string` | ❌ | Request parameter `textureId`. | No extra constraints beyond the declared type. |
+| `textureName` | `string` | ❌ | Request parameter `textureName`. | No extra constraints beyond the declared type. |
+| `target` | `object` | ✅ | Container object describing the target selector. | additionalProperties=false |
+| `target.cubeId` | `string` | ❌ | Request parameter `target.cubeId`. | No extra constraints beyond the declared type. |
+| `target.cubeName` | `string` | ❌ | Request parameter `target.cubeName`. | No extra constraints beyond the declared type. |
 | `target.face` | `enum("north", "south", "east", "west", "up", "down")` | ❌ | Optional face filter. Omit to apply to all cube faces. | enum: "north", "south", "east", "west", "up", "down" |
-| `coordSpace` | `enum("face", "texture")` | ❌ | Not specified in schema. | enum: "face", "texture" |
-| `width` | `number` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `height` | `number` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `op` | `object` | ✅ | Not specified in schema. | additionalProperties=false |
+| `coordSpace` | `enum("face", "texture")` | ❌ | Request parameter `coordSpace`. | enum: "face", "texture" |
+| `width` | `number` | ❌ | Request parameter `width`. | No extra constraints beyond the declared type. |
+| `height` | `number` | ❌ | Request parameter `height`. | No extra constraints beyond the declared type. |
+| `op` | `object` | ✅ | Request parameter `op`. | additionalProperties=false |
 | `op.op` | `enum("set_pixel", "fill_rect", "draw_rect", "draw_line")` | ✅ | Drawing operation. Coordinates are in source-canvas pixels (not UV pixels). | enum: "set_pixel", "fill_rect", "draw_rect", "draw_line" |
-| `op.x` | `number` | ❌ | X coordinate (pixels). | No additional constraints declared. |
-| `op.y` | `number` | ❌ | Y coordinate (pixels). | No additional constraints declared. |
-| `op.width` | `number` | ❌ | Width (pixels). | No additional constraints declared. |
-| `op.height` | `number` | ❌ | Height (pixels). | No additional constraints declared. |
-| `op.x1` | `number` | ❌ | Line start X (pixels). | No additional constraints declared. |
-| `op.y1` | `number` | ❌ | Line start Y (pixels). | No additional constraints declared. |
-| `op.x2` | `number` | ❌ | Line end X (pixels). | No additional constraints declared. |
-| `op.y2` | `number` | ❌ | Line end Y (pixels). | No additional constraints declared. |
-| `op.color` | `string` | ❌ | Color in hex (e.g., "#ff00aa" or "#ff00aaff"). | No additional constraints declared. |
-| `op.lineWidth` | `number` | ❌ | Stroke width (pixels). | No additional constraints declared. |
+| `op.x` | `number` | ❌ | X coordinate (pixels). | No extra constraints beyond the declared type. |
+| `op.y` | `number` | ❌ | Y coordinate (pixels). | No extra constraints beyond the declared type. |
+| `op.width` | `number` | ❌ | Width (pixels). | No extra constraints beyond the declared type. |
+| `op.height` | `number` | ❌ | Height (pixels). | No extra constraints beyond the declared type. |
+| `op.x1` | `number` | ❌ | Line start X (pixels). | No extra constraints beyond the declared type. |
+| `op.y1` | `number` | ❌ | Line start Y (pixels). | No extra constraints beyond the declared type. |
+| `op.x2` | `number` | ❌ | Line end X (pixels). | No extra constraints beyond the declared type. |
+| `op.y2` | `number` | ❌ | Line end Y (pixels). | No extra constraints beyond the declared type. |
+| `op.color` | `string` | ❌ | Color in hex (e.g., "#ff00aa" or "#ff00aaff"). | No extra constraints beyond the declared type. |
+| `op.lineWidth` | `number` | ❌ | Stroke width (pixels). | No extra constraints beyond the declared type. |
 | `op.shade` | `boolean \| object` | ❌ | Fill shading for fill_rect. Defaults to enabled; set false (or enabled:false) to disable. Object values tune the effect. | anyOf(2) |
-| `mapping` | `enum("stretch", "tile")` | ❌ | Not specified in schema. | enum: "stretch", "tile" |
-| `ifRevision` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeState` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeDiff` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | Not specified in schema. | enum: "summary", "full" |
+| `mapping` | `enum("stretch", "tile")` | ❌ | Request parameter `mapping`. | enum: "stretch", "tile" |
+| `ifRevision` | `string` | ❌ | Optimistic concurrency token used to avoid stale writes. | No extra constraints beyond the declared type. |
+| `includeState` | `boolean` | ❌ | Includes the latest project snapshot in the response. | No extra constraints beyond the declared type. |
+| `includeDiff` | `boolean` | ❌ | Includes revision diff data in the response. | No extra constraints beyond the declared type. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | Controls diff verbosity when diff data is included. | enum: "summary", "full" |
 
 ## Conditional Rules
 ### `anyOf`
@@ -319,5 +320,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
+- Treat response examples as schematic and handle optional fields defensively.
 - For mutating tools, use `ifRevision` when the tool supports it.

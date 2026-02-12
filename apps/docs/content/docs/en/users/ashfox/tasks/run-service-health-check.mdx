@@ -1,22 +1,35 @@
 ---
 title: Run Service Health Checks
 description: Execute baseline checks for runtime, schema compatibility, and release readiness.
+summary: "Execute baseline checks for runtime, schema compatibility, and release readiness."
 ---
 
 # Run Service Health Checks
 
-## Goal
-
+## Purpose
 Detect operational drift before release or deployment updates.
 
-## Steps
+## Prerequisites
+- Repository dependencies are installed (`npm install`).
+- Required services (gateway/worker or target environment) are running.
+- MCP endpoint is reachable from your client/network environment.
 
+## Quick Start
+1. Execute repository quality gates (`npm run quality`).
+2. Run docs quality checks (`npm run docs:quality`).
+3. Build docs static output (`npm --workspace apps/docs run build`).
+
+## Detailed Steps
 1. Execute repository quality gates (`npm run quality`).
 2. Run docs quality checks (`npm run docs:quality`).
 3. Build docs static output (`npm --workspace apps/docs run build`).
 4. Confirm static policy gates (`npm run quality:check`).
 
-## Related Docs
+## Failure and Recovery
+- Connection failure: verify endpoint path, service status, and firewall/permission settings.
+- Schema error: retry with the minimal request and refresh client schema cache.
+- Validation failure: resolve reported findings, then re-run from Quick Start.
 
+## Related Docs
 - [Ashfox Workflow Guide](/en/docs/users/ashfox/guide)
 - [Validation and Export](/en/docs/users/troubleshooting/validation-and-export)

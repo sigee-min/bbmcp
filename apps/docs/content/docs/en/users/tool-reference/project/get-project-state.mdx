@@ -1,6 +1,7 @@
 ---
 title: Get Project State
 description: "Returns the current project state (summary by default). Summary includes texture metadata and textureResolution. Full detail includes textureUsage (per-face mappings) when available."
+summary: "Returns the current project state (summary by default). Summary includes texture metadata and textureResolution. Full detail includes textureUsage (per-face mappings) when available."
 ---
 
 ## Quick Summary
@@ -38,8 +39,8 @@ Returns the current project state (summary by default). Summary includes texture
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `detail` | `enum("summary", "full")` | ❌ | Not specified in schema. | enum: "summary", "full" |
-| `includeUsage` | `boolean` | ❌ | Include textureUsage in the response (defaults to true when detail=full). | No additional constraints declared. |
+| `detail` | `enum("summary", "full")` | ❌ | Controls response detail level. | enum: "summary", "full" |
+| `includeUsage` | `boolean` | ❌ | Include textureUsage in the response (defaults to true when detail=full). | No extra constraints beyond the declared type. |
 
 ## Minimal Request Example
 ```json
@@ -71,5 +72,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
-- For mutating tools, use `ifRevision` when the tool supports it.
+- Treat response examples as schematic and handle optional fields defensively.
+- This tool is read-only, so `ifRevision` is usually unnecessary.

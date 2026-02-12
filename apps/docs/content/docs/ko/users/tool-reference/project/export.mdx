@@ -1,6 +1,7 @@
 ---
 title: 내보내기
 description: "대상 포맷으로 결과물을 내보내 파이프라인 후속 단계에 전달합니다."
+summary: "대상 포맷으로 결과물을 내보내 파이프라인 후속 단계에 전달합니다."
 ---
 
 ## 빠른 요약
@@ -69,14 +70,14 @@ description: "대상 포맷으로 결과물을 내보내 파이프라인 후속 
 ## 필드 레퍼런스
 | Field | Type | 필수 | 설명 | 제약 |
 | --- | --- | --- | --- | --- |
-| `format` | `enum("java_block_item_json", "gecko_geo_anim", "animated_java", "generic_model_json", "gltf", "native_codec")` | ✅ | 스키마에 별도 설명이 없습니다. | enum: "java_block_item_json", "gecko_geo_anim", "animated_java", "generic_model_json", "gltf", "native_codec" |
-| `codecId` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `destPath` | `string` | ✅ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `options` | `object` | ❌ | 스키마에 별도 설명이 없습니다. | additionalProperties=false |
-| `options.fallback` | `enum("strict", "best_effort")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "strict", "best_effort" |
-| `options.includeDiagnostics` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `includeState` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `ifRevision` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
+| `format` | `enum("java_block_item_json", "gecko_geo_anim", "animated_java", "generic_model_json", "gltf", "native_codec")` | ✅ | 모델 또는 내보내기 포맷을 지정합니다. | enum: "java_block_item_json", "gecko_geo_anim", "animated_java", "generic_model_json", "gltf", "native_codec" |
+| `codecId` | `string` | ❌ | `codecId` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `destPath` | `string` | ✅ | 산출물 저장 경로를 지정합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `options` | `object` | ❌ | `options` 요청 파라미터입니다. | additionalProperties=false |
+| `options.fallback` | `enum("strict", "best_effort")` | ❌ | `options.fallback` 요청 파라미터입니다. | enum: "strict", "best_effort" |
+| `options.includeDiagnostics` | `boolean` | ❌ | `options.includeDiagnostics` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `includeState` | `boolean` | ❌ | 응답에 최신 프로젝트 스냅샷을 포함합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `ifRevision` | `string` | ❌ | 낙관적 동시성 제어를 위한 리비전 토큰입니다. | 선언된 타입 외 추가 제약은 없습니다. |
 
 ## 최소 요청 예시
 ```json

@@ -1,23 +1,36 @@
 ---
 title: Set Up Local Plugin Session
 description: End-to-end checklist for local plugin install, endpoint setup, and first command run.
+summary: "End-to-end checklist for local plugin install, endpoint setup, and first command run."
 ---
 
 # Set Up Local Plugin Session
 
-## Goal
-
+## Purpose
 Load Ashfox plugin in Blockbench and complete the first MCP call against your local endpoint.
 
-## Steps
+## Prerequisites
+- Blockbench is installed and can load local plugins.
+- Plugin bundle is built from repository root (`npm run build:plugin-desktop`).
+- MCP endpoint path (`/mcp`) is configured in plugin settings.
 
+## Quick Start
+1. Build plugin bundle with `npm run build:plugin-desktop` at repository root.
+2. Load `dist/ashfox-bbplugin.js` in Blockbench plugin manager.
+3. Configure endpoint in plugin settings (`/mcp` path).
+
+## Detailed Steps
 1. Build plugin bundle with `npm run build:plugin-desktop` at repository root.
 2. Load `dist/ashfox-bbplugin.js` in Blockbench plugin manager.
 3. Configure endpoint in plugin settings (`/mcp` path).
 4. Run a lightweight tool call such as `system.list_capabilities`.
 
-## Related Docs
+## Failure and Recovery
+- Connection failure: verify endpoint path, service status, and firewall/permission settings.
+- Schema error: retry with the minimal request and refresh client schema cache.
+- Validation failure: resolve reported findings, then re-run from Quick Start.
 
+## Related Docs
 - [Blockbench Plugin Installation](/en/docs/users/blockbench-plugin/installation)
 - [Blockbench Plugin Getting Started](/en/docs/users/blockbench-plugin/getting-started)
 - [Connectivity Troubleshooting](/en/docs/users/troubleshooting/connectivity)

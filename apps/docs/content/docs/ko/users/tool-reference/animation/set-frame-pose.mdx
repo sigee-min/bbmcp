@@ -1,6 +1,7 @@
 ---
 title: 프레임 포즈 설정
 description: "특정 프레임에 본 포즈 키를 설정합니다."
+summary: "특정 프레임에 본 포즈 키를 설정합니다."
 ---
 
 ## 빠른 요약
@@ -130,20 +131,20 @@ description: "특정 프레임에 본 포즈 키를 설정합니다."
 ## 필드 레퍼런스
 | Field | Type | 필수 | 설명 | 제약 |
 | --- | --- | --- | --- | --- |
-| `clipId` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `clip` | `string` | ✅ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `frame` | `number` | ✅ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `bones` | `array<any \| any \| any>` | ✅ | 스키마에 별도 설명이 없습니다. | minItems: 1 |
-| `bones[].name` | `string` | ✅ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `bones[].rot` | `array<number>` | ❌ | 스키마에 별도 설명이 없습니다. | minItems: 3, maxItems: 3 |
-| `bones[].pos` | `array<number>` | ❌ | 스키마에 별도 설명이 없습니다. | minItems: 3, maxItems: 3 |
-| `bones[].scale` | `array<number>` | ❌ | 스키마에 별도 설명이 없습니다. | minItems: 3, maxItems: 3 |
-| `bones[].interp` | `enum("linear", "step", "catmullrom")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "linear", "step", "catmullrom" |
-| `interp` | `enum("linear", "step", "catmullrom")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "linear", "step", "catmullrom" |
-| `ifRevision` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `includeState` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `includeDiff` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "summary", "full" |
+| `clipId` | `string` | ❌ | 작업 대상 애니메이션 클립 식별자입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `clip` | `string` | ✅ | 작업 대상 애니메이션 클립 이름입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `frame` | `number` | ✅ | 작업 대상 프레임 인덱스입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `bones` | `array<any \| any \| any>` | ✅ | 대상 프레임에 적용할 본 포즈 데이터입니다. | minItems: 1 |
+| `bones[].name` | `string` | ✅ | 매칭에 사용할 대상 이름을 지정합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `bones[].rot` | `array<number>` | ❌ | `bones[].rot` 요청 파라미터입니다. | minItems: 3, maxItems: 3 |
+| `bones[].pos` | `array<number>` | ❌ | `bones[].pos` 요청 파라미터입니다. | minItems: 3, maxItems: 3 |
+| `bones[].scale` | `array<number>` | ❌ | `bones[].scale` 요청 파라미터입니다. | minItems: 3, maxItems: 3 |
+| `bones[].interp` | `enum("linear", "step", "catmullrom")` | ❌ | `bones[].interp` 요청 파라미터입니다. | enum: "linear", "step", "catmullrom" |
+| `interp` | `enum("linear", "step", "catmullrom")` | ❌ | `interp` 요청 파라미터입니다. | enum: "linear", "step", "catmullrom" |
+| `ifRevision` | `string` | ❌ | 낙관적 동시성 제어를 위한 리비전 토큰입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `includeState` | `boolean` | ❌ | 응답에 최신 프로젝트 스냅샷을 포함합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `includeDiff` | `boolean` | ❌ | 응답에 리비전 diff 데이터를 포함합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | diff 포함 시 상세 수준을 제어합니다. | enum: "summary", "full" |
 
 ## 최소 요청 예시
 ```json

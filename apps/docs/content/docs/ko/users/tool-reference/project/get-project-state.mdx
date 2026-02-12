@@ -1,6 +1,7 @@
 ---
 title: 프로젝트 상태 조회
 description: "현재 프로젝트의 구조, 텍스처, 애니메이션 상태를 읽기 전용으로 조회합니다."
+summary: "현재 프로젝트의 구조, 텍스처, 애니메이션 상태를 읽기 전용으로 조회합니다."
 ---
 
 ## 빠른 요약
@@ -38,8 +39,8 @@ description: "현재 프로젝트의 구조, 텍스처, 애니메이션 상태�
 ## 필드 레퍼런스
 | Field | Type | 필수 | 설명 | 제약 |
 | --- | --- | --- | --- | --- |
-| `detail` | `enum("summary", "full")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "summary", "full" |
-| `includeUsage` | `boolean` | ❌ | Include textureUsage in the response (defaults to true when detail=full). | 추가 제약이 선언되지 않았습니다. |
+| `detail` | `enum("summary", "full")` | ❌ | 응답 상세 수준을 제어합니다. | enum: "summary", "full" |
+| `includeUsage` | `boolean` | ❌ | Include textureUsage in the response (defaults to true when detail=full). | 선언된 타입 외 추가 제약은 없습니다. |
 
 ## 최소 요청 예시
 ```json
@@ -72,4 +73,4 @@ description: "현재 프로젝트의 구조, 텍스처, 애니메이션 상태�
 ## 운영 노트
 - 입력 스키마에 선언된 필드만 전송하세요.
 - 응답 예시는 스키매틱이므로 선택 필드는 방어적으로 처리하세요.
-- 변경 도구에서 지원되는 경우 `ifRevision`을 사용해 충돌을 줄이세요.
+- 이 도구는 읽기 전용이므로 일반적으로 `ifRevision`이 필요하지 않습니다.

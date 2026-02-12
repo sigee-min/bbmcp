@@ -1,6 +1,7 @@
 ---
 title: Export
 description: "Exports the current project to the requested output format (including native codec targets like glTF/OBJ/FBX when available)."
+summary: "Exports the current project to the requested output format (including native codec targets like glTF/OBJ/FBX when available)."
 ---
 
 ## Quick Summary
@@ -69,14 +70,14 @@ Exports the current project to the requested output format (including native cod
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `format` | `enum("java_block_item_json", "gecko_geo_anim", "animated_java", "generic_model_json", "gltf", "native_codec")` | ✅ | Not specified in schema. | enum: "java_block_item_json", "gecko_geo_anim", "animated_java", "generic_model_json", "gltf", "native_codec" |
-| `codecId` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `destPath` | `string` | ✅ | Not specified in schema. | No additional constraints declared. |
-| `options` | `object` | ❌ | Not specified in schema. | additionalProperties=false |
-| `options.fallback` | `enum("strict", "best_effort")` | ❌ | Not specified in schema. | enum: "strict", "best_effort" |
-| `options.includeDiagnostics` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeState` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `ifRevision` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
+| `format` | `enum("java_block_item_json", "gecko_geo_anim", "animated_java", "generic_model_json", "gltf", "native_codec")` | ✅ | Specifies the model or export format. | enum: "java_block_item_json", "gecko_geo_anim", "animated_java", "generic_model_json", "gltf", "native_codec" |
+| `codecId` | `string` | ❌ | Request parameter `codecId`. | No extra constraints beyond the declared type. |
+| `destPath` | `string` | ✅ | Destination path for writing output artifacts. | No extra constraints beyond the declared type. |
+| `options` | `object` | ❌ | Request parameter `options`. | additionalProperties=false |
+| `options.fallback` | `enum("strict", "best_effort")` | ❌ | Request parameter `options.fallback`. | enum: "strict", "best_effort" |
+| `options.includeDiagnostics` | `boolean` | ❌ | Request parameter `options.includeDiagnostics`. | No extra constraints beyond the declared type. |
+| `includeState` | `boolean` | ❌ | Includes the latest project snapshot in the response. | No extra constraints beyond the declared type. |
+| `ifRevision` | `string` | ❌ | Optimistic concurrency token used to avoid stale writes. | No extra constraints beyond the declared type. |
 
 ## Minimal Request Example
 ```json
@@ -99,5 +100,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
+- Treat response examples as schematic and handle optional fields defensively.
 - For mutating tools, use `ifRevision` when the tool supports it.

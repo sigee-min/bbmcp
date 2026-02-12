@@ -1,6 +1,7 @@
 ---
 title: 큐브 추가
 description: "새 큐브를 추가합니다."
+summary: "새 큐브를 추가합니다."
 ---
 
 ## 빠른 요약
@@ -112,23 +113,23 @@ description: "새 큐브를 추가합니다."
 ## 필드 레퍼런스
 | Field | Type | 필수 | 설명 | 제약 |
 | --- | --- | --- | --- | --- |
-| `id` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `name` | `string` | ✅ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `from` | `array<number>` | ✅ | 스키마에 별도 설명이 없습니다. | minItems: 3, maxItems: 3 |
-| `to` | `array<number>` | ✅ | 스키마에 별도 설명이 없습니다. | minItems: 3, maxItems: 3 |
-| `origin` | `array<number>` | ❌ | 스키마에 별도 설명이 없습니다. | minItems: 3, maxItems: 3 |
-| `rotation` | `array<number>` | ❌ | 스키마에 별도 설명이 없습니다. | minItems: 3, maxItems: 3 |
-| `bone` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `boneId` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `inflate` | `number` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `mirror` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `visibility` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `boxUv` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `uvOffset` | `array<number>` | ❌ | 스키마에 별도 설명이 없습니다. | minItems: 2, maxItems: 2 |
-| `ifRevision` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `includeState` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `includeDiff` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "summary", "full" |
+| `id` | `string` | ❌ | 작업 대상의 고유 id를 지정합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `name` | `string` | ✅ | 매칭에 사용할 대상 이름을 지정합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `from` | `array<number>` | ✅ | `from` 요청 파라미터입니다. | minItems: 3, maxItems: 3 |
+| `to` | `array<number>` | ✅ | `to` 요청 파라미터입니다. | minItems: 3, maxItems: 3 |
+| `origin` | `array<number>` | ❌ | `origin` 요청 파라미터입니다. | minItems: 3, maxItems: 3 |
+| `rotation` | `array<number>` | ❌ | `rotation` 요청 파라미터입니다. | minItems: 3, maxItems: 3 |
+| `bone` | `string` | ❌ | `bone` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `boneId` | `string` | ❌ | `boneId` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `inflate` | `number` | ❌ | `inflate` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `mirror` | `boolean` | ❌ | `mirror` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `visibility` | `boolean` | ❌ | `visibility` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `boxUv` | `boolean` | ❌ | `boxUv` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `uvOffset` | `array<number>` | ❌ | `uvOffset` 요청 파라미터입니다. | minItems: 2, maxItems: 2 |
+| `ifRevision` | `string` | ❌ | 낙관적 동시성 제어를 위한 리비전 토큰입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `includeState` | `boolean` | ❌ | 응답에 최신 프로젝트 스냅샷을 포함합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `includeDiff` | `boolean` | ❌ | 응답에 리비전 diff 데이터를 포함합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | diff 포함 시 상세 수준을 제어합니다. | enum: "summary", "full" |
 
 ## 최소 요청 예시
 ```json

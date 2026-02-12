@@ -1,6 +1,7 @@
 ---
 title: "Animation Workflow"
 description: "Guide-first clip and keyframe workflow for deterministic animation results."
+summary: "Guide-first clip and keyframe workflow for deterministic animation results."
 ---
 
 # Animation Workflow

@@ -1,23 +1,36 @@
 ---
 title: Connect External MCP Client
 description: Configure and validate a remote MCP client against Ashfox service endpoints.
+summary: "Configure and validate a remote MCP client against Ashfox service endpoints."
 ---
 
 # Connect External MCP Client
 
-## Goal
-
+## Purpose
 Establish stable MCP connectivity from non-Blockbench clients.
 
-## Steps
+## Prerequisites
+- Repository dependencies are installed (`npm install`).
+- Required services (gateway/worker or target environment) are running.
+- MCP endpoint is reachable from your client/network environment.
 
+## Quick Start
+1. Confirm gateway endpoint path and authentication assumptions.
+2. Execute handshake and capability discovery (`system.list_capabilities`).
+3. Run one read-only project call to verify payload path.
+
+## Detailed Steps
 1. Confirm gateway endpoint path and authentication assumptions.
 2. Execute handshake and capability discovery (`system.list_capabilities`).
 3. Run one read-only project call to verify payload path.
 4. Validate error mapping and retry behavior in client logs.
 
-## Related Docs
+## Failure and Recovery
+- Connection failure: verify endpoint path, service status, and firewall/permission settings.
+- Schema error: retry with the minimal request and refresh client schema cache.
+- Validation failure: resolve reported findings, then re-run from Quick Start.
 
+## Related Docs
 - [Ashfox Installation](/en/docs/users/ashfox/installation)
 - [Schema and Client Cache](/en/docs/users/troubleshooting/schema-and-client-cache)
 - [Revision and Concurrency](/en/docs/users/troubleshooting/revision-and-concurrency)

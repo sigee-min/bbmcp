@@ -1,6 +1,7 @@
 ---
 title: Assign Texture
 description: "Binds a texture to cubes/faces (no UV edits)."
+summary: "Binds a texture to cubes/faces (no UV edits)."
 ---
 
 ## Quick Summary
@@ -78,15 +79,15 @@ Binds a texture to cubes/faces (no UV edits).
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `textureId` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `textureName` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `cubeIds` | `array<string>` | ❌ | Limit to these cube ids. If cubeNames is also provided, both must match. | No additional constraints declared. |
-| `cubeNames` | `array<string>` | ❌ | Limit to these cube names. If cubeIds is also provided, both must match. | No additional constraints declared. |
-| `faces` | `array<enum("north", "south", "east", "west", "up", "down")>` | ❌ | Not specified in schema. | minItems: 1 |
-| `ifRevision` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeState` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeDiff` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | Not specified in schema. | enum: "summary", "full" |
+| `textureId` | `string` | ❌ | Request parameter `textureId`. | No extra constraints beyond the declared type. |
+| `textureName` | `string` | ❌ | Request parameter `textureName`. | No extra constraints beyond the declared type. |
+| `cubeIds` | `array<string>` | ❌ | Limit to these cube ids. If cubeNames is also provided, both must match. | No extra constraints beyond the declared type. |
+| `cubeNames` | `array<string>` | ❌ | Limit to these cube names. If cubeIds is also provided, both must match. | No extra constraints beyond the declared type. |
+| `faces` | `array<enum("north", "south", "east", "west", "up", "down")>` | ❌ | Request parameter `faces`. | minItems: 1 |
+| `ifRevision` | `string` | ❌ | Optimistic concurrency token used to avoid stale writes. | No extra constraints beyond the declared type. |
+| `includeState` | `boolean` | ❌ | Includes the latest project snapshot in the response. | No extra constraints beyond the declared type. |
+| `includeDiff` | `boolean` | ❌ | Includes revision diff data in the response. | No extra constraints beyond the declared type. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | Controls diff verbosity when diff data is included. | enum: "summary", "full" |
 
 ## Minimal Request Example
 ```json
@@ -112,5 +113,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
+- Treat response examples as schematic and handle optional fields defensively.
 - For mutating tools, use `ifRevision` when the tool supports it.

@@ -1,6 +1,7 @@
 ---
 title: "Entity Workflow"
 description: "End-to-end guide for GeckoLib-targeted entity production."
+summary: "End-to-end guide for GeckoLib-targeted entity production."
 ---
 
 # Entity Workflow

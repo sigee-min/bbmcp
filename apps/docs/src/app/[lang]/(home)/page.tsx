@@ -10,7 +10,9 @@ import {
   openGraphAlternateLocales,
   openGraphLocale,
   siteName,
+  siteDescription,
   siteTitle,
+  toAbsoluteUrl,
 } from '@/lib/site';
 
 type LocalizedHomePageProps = {
@@ -67,5 +69,38 @@ export default async function HomePage({ params }: LocalizedHomePageProps) {
   const { lang } = await params;
   if (!isLocale(lang)) notFound();
 
-  return <LandingPage locale={lang} copy={getLandingCopy(lang)} />;
+  const copy = getLandingCopy(lang);
+  const homeUrl = toAbsoluteUrl(`/${lang}`);
+  const websiteSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: siteName,
+    url: homeUrl,
+    inLanguage: lang,
+    description: copy.description,
+  };
+  const appSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: siteName,
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'Cross-platform',
+    description: siteDescription,
+    url: homeUrl,
+    inLanguage: lang,
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(appSchema) }}
+      />
+      <LandingPage locale={lang} copy={copy} />
+    </>
+  );
 }

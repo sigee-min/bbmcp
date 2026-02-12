@@ -1,6 +1,7 @@
 ---
 title: 큐브 페이스 페인팅
 description: "큐브 타깃에 단일 페인팅 연산을 적용합니다."
+summary: "큐브 타깃에 단일 페인팅 연산을 적용합니다."
 ---
 
 ## 빠른 요약
@@ -229,33 +230,33 @@ description: "큐브 타깃에 단일 페인팅 연산을 적용합니다."
 ## 필드 레퍼런스
 | Field | Type | 필수 | 설명 | 제약 |
 | --- | --- | --- | --- | --- |
-| `textureId` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `textureName` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `target` | `object` | ✅ | 스키마에 별도 설명이 없습니다. | additionalProperties=false |
-| `target.cubeId` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `target.cubeName` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
+| `textureId` | `string` | ❌ | `textureId` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `textureName` | `string` | ❌ | `textureName` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `target` | `object` | ✅ | 대상 선택 정보를 담는 컨테이너 객체입니다. | additionalProperties=false |
+| `target.cubeId` | `string` | ❌ | `target.cubeId` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `target.cubeName` | `string` | ❌ | `target.cubeName` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
 | `target.face` | `enum("north", "south", "east", "west", "up", "down")` | ❌ | Optional face filter. Omit to apply to all cube faces. | enum: "north", "south", "east", "west", "up", "down" |
-| `coordSpace` | `enum("face", "texture")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "face", "texture" |
-| `width` | `number` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `height` | `number` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `op` | `object` | ✅ | 스키마에 별도 설명이 없습니다. | additionalProperties=false |
+| `coordSpace` | `enum("face", "texture")` | ❌ | `coordSpace` 요청 파라미터입니다. | enum: "face", "texture" |
+| `width` | `number` | ❌ | `width` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `height` | `number` | ❌ | `height` 요청 파라미터입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `op` | `object` | ✅ | `op` 요청 파라미터입니다. | additionalProperties=false |
 | `op.op` | `enum("set_pixel", "fill_rect", "draw_rect", "draw_line")` | ✅ | Drawing operation. Coordinates are in source-canvas pixels (not UV pixels). | enum: "set_pixel", "fill_rect", "draw_rect", "draw_line" |
-| `op.x` | `number` | ❌ | X coordinate (pixels). | 추가 제약이 선언되지 않았습니다. |
-| `op.y` | `number` | ❌ | Y coordinate (pixels). | 추가 제약이 선언되지 않았습니다. |
-| `op.width` | `number` | ❌ | Width (pixels). | 추가 제약이 선언되지 않았습니다. |
-| `op.height` | `number` | ❌ | Height (pixels). | 추가 제약이 선언되지 않았습니다. |
-| `op.x1` | `number` | ❌ | Line start X (pixels). | 추가 제약이 선언되지 않았습니다. |
-| `op.y1` | `number` | ❌ | Line start Y (pixels). | 추가 제약이 선언되지 않았습니다. |
-| `op.x2` | `number` | ❌ | Line end X (pixels). | 추가 제약이 선언되지 않았습니다. |
-| `op.y2` | `number` | ❌ | Line end Y (pixels). | 추가 제약이 선언되지 않았습니다. |
-| `op.color` | `string` | ❌ | Color in hex (e.g., "#ff00aa" or "#ff00aaff"). | 추가 제약이 선언되지 않았습니다. |
-| `op.lineWidth` | `number` | ❌ | Stroke width (pixels). | 추가 제약이 선언되지 않았습니다. |
+| `op.x` | `number` | ❌ | X coordinate (pixels). | 선언된 타입 외 추가 제약은 없습니다. |
+| `op.y` | `number` | ❌ | Y coordinate (pixels). | 선언된 타입 외 추가 제약은 없습니다. |
+| `op.width` | `number` | ❌ | Width (pixels). | 선언된 타입 외 추가 제약은 없습니다. |
+| `op.height` | `number` | ❌ | Height (pixels). | 선언된 타입 외 추가 제약은 없습니다. |
+| `op.x1` | `number` | ❌ | Line start X (pixels). | 선언된 타입 외 추가 제약은 없습니다. |
+| `op.y1` | `number` | ❌ | Line start Y (pixels). | 선언된 타입 외 추가 제약은 없습니다. |
+| `op.x2` | `number` | ❌ | Line end X (pixels). | 선언된 타입 외 추가 제약은 없습니다. |
+| `op.y2` | `number` | ❌ | Line end Y (pixels). | 선언된 타입 외 추가 제약은 없습니다. |
+| `op.color` | `string` | ❌ | Color in hex (e.g., "#ff00aa" or "#ff00aaff"). | 선언된 타입 외 추가 제약은 없습니다. |
+| `op.lineWidth` | `number` | ❌ | Stroke width (pixels). | 선언된 타입 외 추가 제약은 없습니다. |
 | `op.shade` | `boolean \| object` | ❌ | Fill shading for fill_rect. Defaults to enabled; set false (or enabled:false) to disable. Object values tune the effect. | anyOf(2) |
-| `mapping` | `enum("stretch", "tile")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "stretch", "tile" |
-| `ifRevision` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `includeState` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `includeDiff` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "summary", "full" |
+| `mapping` | `enum("stretch", "tile")` | ❌ | `mapping` 요청 파라미터입니다. | enum: "stretch", "tile" |
+| `ifRevision` | `string` | ❌ | 낙관적 동시성 제어를 위한 리비전 토큰입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `includeState` | `boolean` | ❌ | 응답에 최신 프로젝트 스냅샷을 포함합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `includeDiff` | `boolean` | ❌ | 응답에 리비전 diff 데이터를 포함합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | diff 포함 시 상세 수준을 제어합니다. | enum: "summary", "full" |
 
 ## 조건 규칙
 ### `anyOf`

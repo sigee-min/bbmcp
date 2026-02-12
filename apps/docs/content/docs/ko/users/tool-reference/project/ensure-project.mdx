@@ -1,6 +1,7 @@
 ---
 title: 프로젝트 준비
 description: "활성 프로젝트를 재사용하거나 조건에 맞춰 생성/정리해 작업 가능한 상태를 보장합니다."
+summary: "활성 프로젝트를 재사용하거나 조건에 맞춰 생성/정리해 작업 가능한 상태를 보장합니다."
 ---
 
 ## 빠른 요약
@@ -108,22 +109,22 @@ description: "활성 프로젝트를 재사용하거나 조건에 맞춰 생성/
 ## 필드 레퍼런스
 | Field | Type | 필수 | 설명 | 제약 |
 | --- | --- | --- | --- | --- |
-| `action` | `enum("ensure", "delete")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "ensure", "delete" |
-| `target` | `object` | ❌ | 스키마에 별도 설명이 없습니다. | additionalProperties=false |
-| `target.name` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `format` | `enum("Java Block/Item", "geckolib", "animated_java", "Generic Model")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "Java Block/Item", "geckolib", "animated_java", "Generic Model" |
-| `name` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `match` | `enum("none", "format", "name", "format_and_name")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "none", "format", "name", "format_and_name" |
-| `onMismatch` | `enum("reuse", "error", "create")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "reuse", "error", "create" |
-| `onMissing` | `enum("create", "error")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "create", "error" |
-| `confirmDiscard` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `uvPixelsPerBlock` | `number` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `dialog` | `object` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `force` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `ifRevision` | `string` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `includeState` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `includeDiff` | `boolean` | ❌ | 스키마에 별도 설명이 없습니다. | 추가 제약이 선언되지 않았습니다. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | 스키마에 별도 설명이 없습니다. | enum: "summary", "full" |
+| `action` | `enum("ensure", "delete")` | ❌ | 요청에서 수행할 동작 모드를 선택합니다. | enum: "ensure", "delete" |
+| `target` | `object` | ❌ | 대상 선택 정보를 담는 컨테이너 객체입니다. | additionalProperties=false |
+| `target.name` | `string` | ❌ | 매칭에 사용할 대상 이름을 지정합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `format` | `enum("Java Block/Item", "geckolib", "animated_java", "Generic Model")` | ❌ | 모델 또는 내보내기 포맷을 지정합니다. | enum: "Java Block/Item", "geckolib", "animated_java", "Generic Model" |
+| `name` | `string` | ❌ | 매칭에 사용할 대상 이름을 지정합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `match` | `enum("none", "format", "name", "format_and_name")` | ❌ | `match` 요청 파라미터입니다. | enum: "none", "format", "name", "format_and_name" |
+| `onMismatch` | `enum("reuse", "error", "create")` | ❌ | `onMismatch` 요청 파라미터입니다. | enum: "reuse", "error", "create" |
+| `onMissing` | `enum("create", "error")` | ❌ | `onMissing` 요청 파라미터입니다. | enum: "create", "error" |
+| `confirmDiscard` | `boolean` | ❌ | 기존 상태 폐기 허용 여부를 확인합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `uvPixelsPerBlock` | `number` | ❌ | 블록당 UV 픽셀 밀도를 설정합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `dialog` | `object` | ❌ | 런타임 UI 다이얼로그 옵션을 전달합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `force` | `boolean` | ❌ | 소프트 안전장치를 우회하고 강제 실행합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `ifRevision` | `string` | ❌ | 낙관적 동시성 제어를 위한 리비전 토큰입니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `includeState` | `boolean` | ❌ | 응답에 최신 프로젝트 스냅샷을 포함합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `includeDiff` | `boolean` | ❌ | 응답에 리비전 diff 데이터를 포함합니다. | 선언된 타입 외 추가 제약은 없습니다. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | diff 포함 시 상세 수준을 제어합니다. | enum: "summary", "full" |
 
 ## 최소 요청 예시
 ```json

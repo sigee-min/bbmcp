@@ -1,6 +1,7 @@
 ---
 title: "Vision Fallback"
 description: "Image-handling fallback strategy for clients that cannot consume inline image payloads."
+summary: "Image-handling fallback strategy for clients that cannot consume inline image payloads."
 ---
 
 # Vision Fallback

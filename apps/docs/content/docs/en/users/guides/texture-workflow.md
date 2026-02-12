@@ -1,6 +1,7 @@
 ---
 title: "Texture Workflow"
 description: "Guide-first texture workflow with auto-UV assumptions and paint discipline."
+summary: "Guide-first texture workflow with auto-UV assumptions and paint discipline."
 ---
 
 # Texture Workflow

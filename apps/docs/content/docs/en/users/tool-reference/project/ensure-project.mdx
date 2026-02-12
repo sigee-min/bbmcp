@@ -1,6 +1,7 @@
 ---
 title: Ensure Project
 description: "Ensures a usable project. Reuses the active project by default and can create a new one when missing or on mismatch (per options). Use match/onMismatch/onMissing to control behavior. action=\"delete\" closes the active project (requires target.name)."
+summary: "Ensures a usable project. Reuses the active project by default and can create a new one when missing or on mismatch (per options). Use match/onMismatch/onMissing to control behavior. action=\\\"delete\\\" closes the..."
 ---
 
 ## Quick Summary
@@ -108,22 +109,22 @@ Ensures a usable project. Reuses the active project by default and can create a 
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `action` | `enum("ensure", "delete")` | ❌ | Not specified in schema. | enum: "ensure", "delete" |
-| `target` | `object` | ❌ | Not specified in schema. | additionalProperties=false |
-| `target.name` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `format` | `enum("Java Block/Item", "geckolib", "animated_java", "Generic Model")` | ❌ | Not specified in schema. | enum: "Java Block/Item", "geckolib", "animated_java", "Generic Model" |
-| `name` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `match` | `enum("none", "format", "name", "format_and_name")` | ❌ | Not specified in schema. | enum: "none", "format", "name", "format_and_name" |
-| `onMismatch` | `enum("reuse", "error", "create")` | ❌ | Not specified in schema. | enum: "reuse", "error", "create" |
-| `onMissing` | `enum("create", "error")` | ❌ | Not specified in schema. | enum: "create", "error" |
-| `confirmDiscard` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `uvPixelsPerBlock` | `number` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `dialog` | `object` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `force` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `ifRevision` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeState` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeDiff` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | Not specified in schema. | enum: "summary", "full" |
+| `action` | `enum("ensure", "delete")` | ❌ | Selects the operation mode for this request. | enum: "ensure", "delete" |
+| `target` | `object` | ❌ | Container object describing the target selector. | additionalProperties=false |
+| `target.name` | `string` | ❌ | Specifies the target name used for matching. | No extra constraints beyond the declared type. |
+| `format` | `enum("Java Block/Item", "geckolib", "animated_java", "Generic Model")` | ❌ | Specifies the model or export format. | enum: "Java Block/Item", "geckolib", "animated_java", "Generic Model" |
+| `name` | `string` | ❌ | Specifies the target name used for matching. | No extra constraints beyond the declared type. |
+| `match` | `enum("none", "format", "name", "format_and_name")` | ❌ | Request parameter `match`. | enum: "none", "format", "name", "format_and_name" |
+| `onMismatch` | `enum("reuse", "error", "create")` | ❌ | Request parameter `onMismatch`. | enum: "reuse", "error", "create" |
+| `onMissing` | `enum("create", "error")` | ❌ | Request parameter `onMissing`. | enum: "create", "error" |
+| `confirmDiscard` | `boolean` | ❌ | Confirms that existing state can be discarded. | No extra constraints beyond the declared type. |
+| `uvPixelsPerBlock` | `number` | ❌ | Sets UV pixel density per block. | No extra constraints beyond the declared type. |
+| `dialog` | `object` | ❌ | Additional UI dialog options passed to runtime. | No extra constraints beyond the declared type. |
+| `force` | `boolean` | ❌ | Forces operation by bypassing soft safety checks. | No extra constraints beyond the declared type. |
+| `ifRevision` | `string` | ❌ | Optimistic concurrency token used to avoid stale writes. | No extra constraints beyond the declared type. |
+| `includeState` | `boolean` | ❌ | Includes the latest project snapshot in the response. | No extra constraints beyond the declared type. |
+| `includeDiff` | `boolean` | ❌ | Includes revision diff data in the response. | No extra constraints beyond the declared type. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | Controls diff verbosity when diff data is included. | enum: "summary", "full" |
 
 ## Minimal Request Example
 ```json
@@ -148,5 +149,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
+- Treat response examples as schematic and handle optional fields defensively.
 - For mutating tools, use `ifRevision` when the tool supports it.

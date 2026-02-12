@@ -1,6 +1,7 @@
 ---
 title: Export Trace Log
 description: "Flushes the trace log to disk (writeFile/export) and returns the resource URI for the in-memory log."
+summary: "Flushes the trace log to disk (writeFile/export) and returns the resource URI for the in-memory log."
 ---
 
 ## Quick Summary
@@ -41,9 +42,9 @@ Flushes the trace log to disk (writeFile/export) and returns the resource URI fo
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `mode` | `enum("auto", "writeFile", "export")` | ❌ | Not specified in schema. | enum: "auto", "writeFile", "export" |
-| `destPath` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `fileName` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
+| `mode` | `enum("auto", "writeFile", "export")` | ❌ | Selects how the tool executes this request. | enum: "auto", "writeFile", "export" |
+| `destPath` | `string` | ❌ | Destination path for writing output artifacts. | No extra constraints beyond the declared type. |
+| `fileName` | `string` | ❌ | Output file name used when exporting. | No extra constraints beyond the declared type. |
 
 ## Minimal Request Example
 ```json
@@ -61,5 +62,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
-- For mutating tools, use `ifRevision` when the tool supports it.
+- Treat response examples as schematic and handle optional fields defensively.
+- This tool is read-only, so `ifRevision` is usually unnecessary.

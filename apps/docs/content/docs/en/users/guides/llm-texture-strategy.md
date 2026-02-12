@@ -1,6 +1,7 @@
 ---
 title: "LLM Texture Strategy"
 description: "Prompting and execution strategy for reliable texture generation loops."
+summary: "Prompting and execution strategy for reliable texture generation loops."
 ---
 
 # LLM Texture Strategy

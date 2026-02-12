@@ -1,6 +1,7 @@
 ---
 title: Delete Bone
 description: "Deletes a bone by id/name (or ids/names for bulk removal)."
+summary: "Deletes a bone by id/name (or ids/names for bulk removal)."
 ---
 
 ## Quick Summary
@@ -63,14 +64,14 @@ Deletes a bone by id/name (or ids/names for bulk removal).
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `id` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `name` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `ids` | `array<string>` | ❌ | Not specified in schema. | minItems: 1 |
-| `names` | `array<string>` | ❌ | Not specified in schema. | minItems: 1 |
-| `ifRevision` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeState` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeDiff` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `diffDetail` | `enum("summary", "full")` | ❌ | Not specified in schema. | enum: "summary", "full" |
+| `id` | `string` | ❌ | Specifies the unique target id for this operation. | No extra constraints beyond the declared type. |
+| `name` | `string` | ❌ | Specifies the target name used for matching. | No extra constraints beyond the declared type. |
+| `ids` | `array<string>` | ❌ | Specifies multiple target ids for batch operation. | minItems: 1 |
+| `names` | `array<string>` | ❌ | Specifies multiple target names for batch operation. | minItems: 1 |
+| `ifRevision` | `string` | ❌ | Optimistic concurrency token used to avoid stale writes. | No extra constraints beyond the declared type. |
+| `includeState` | `boolean` | ❌ | Includes the latest project snapshot in the response. | No extra constraints beyond the declared type. |
+| `includeDiff` | `boolean` | ❌ | Includes revision diff data in the response. | No extra constraints beyond the declared type. |
+| `diffDetail` | `enum("summary", "full")` | ❌ | Controls diff verbosity when diff data is included. | enum: "summary", "full" |
 
 ## Minimal Request Example
 ```json
@@ -100,5 +101,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
+- Treat response examples as schematic and handle optional fields defensively.
 - For mutating tools, use `ifRevision` when the tool supports it.

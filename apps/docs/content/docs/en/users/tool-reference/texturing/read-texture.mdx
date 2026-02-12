@@ -1,6 +1,7 @@
 ---
 title: Read Texture
 description: "Reads a texture image (dataUri + metadata) or saves a snapshot to .ashfox/tmp."
+summary: "Reads a texture image (dataUri + metadata) or saves a snapshot to .ashfox/tmp."
 ---
 
 ## Quick Summary
@@ -42,11 +43,11 @@ Reads a texture image (dataUri + metadata) or saves a snapshot to .ashfox/tmp.
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `id` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `name` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `saveToTmp` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `tmpName` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `tmpPrefix` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
+| `id` | `string` | ❌ | Specifies the unique target id for this operation. | No extra constraints beyond the declared type. |
+| `name` | `string` | ❌ | Specifies the target name used for matching. | No extra constraints beyond the declared type. |
+| `saveToTmp` | `boolean` | ❌ | Request parameter `saveToTmp`. | No extra constraints beyond the declared type. |
+| `tmpName` | `string` | ❌ | Request parameter `tmpName`. | No extra constraints beyond the declared type. |
+| `tmpPrefix` | `string` | ❌ | Request parameter `tmpPrefix`. | No extra constraints beyond the declared type. |
 
 ## Minimal Request Example
 ```json
@@ -71,5 +72,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
-- For mutating tools, use `ifRevision` when the tool supports it.
+- Treat response examples as schematic and handle optional fields defensively.
+- This tool is read-only, so `ifRevision` is usually unnecessary.

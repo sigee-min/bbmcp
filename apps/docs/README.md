@@ -47,6 +47,9 @@ This gate validates:
 
 - required frontmatter fields
 - internal docs links
+- command examples (`npm run ...`) against real workspace scripts
+- task template structure (`Purpose/Prerequisites/Quick Start/Detailed Steps/Failure and Recovery/Related Docs`)
+- summary coverage and placeholder phrase thresholds
 - locale pair consistency
 
 ## Writing Standard

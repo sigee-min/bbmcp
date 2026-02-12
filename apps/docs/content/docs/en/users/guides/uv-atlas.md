@@ -1,6 +1,7 @@
 ---
 title: "UV Atlas Guide"
 description: "How internal UV atlas behavior affects modeling and texturing decisions."
+summary: "How internal UV atlas behavior affects modeling and texturing decisions."
 ---
 
 # UV Atlas Guide

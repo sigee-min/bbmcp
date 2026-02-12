@@ -1,6 +1,7 @@
 ---
 title: Render Preview
 description: "Renders a preview image. fixed -> single (optional angle). turntable -> sequence. Returns MCP image content blocks (base64 PNG) plus structured metadata without dataUri. Set saveToTmp=true to write snapshots into .ashfox/tmp for manual upload fallback. See ashfox://guide/vision-fallback via resources/read. Single returns result.image; sequence returns result.frames[]. Example(single): \\{\"mode\":\"fixed\",\"output\":\"single\",\"angle\":[30,45,0]\\} Example(sequence): \\{\"mode\":\"turntable\",\"output\":\"sequence\",\"durationSeconds\":2,\"fps\":12\\}"
+summary: "Renders a preview image. fixed -> single (optional angle). turntable -> sequence. Returns MCP image content blocks (base64 PNG) plus structured metadata without dataUri. Set saveToTmp=true to write snapshots into..."
 ---
 
 ## Quick Summary
@@ -77,18 +78,18 @@ Renders a preview image. fixed -> single (optional angle). turntable -> sequence
 ## Field Reference
 | Field | Type | Required | Description | Constraints |
 | --- | --- | --- | --- | --- |
-| `mode` | `enum("fixed", "turntable")` | ✅ | Not specified in schema. | enum: "fixed", "turntable" |
-| `angle` | `array<number>` | ❌ | Not specified in schema. | minItems: 2, maxItems: 3 |
-| `clip` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `timeSeconds` | `number` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `durationSeconds` | `number` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `fps` | `number` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `output` | `enum("single", "sequence")` | ❌ | Not specified in schema. | enum: "single", "sequence" |
-| `saveToTmp` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `tmpName` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `tmpPrefix` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `includeState` | `boolean` | ❌ | Not specified in schema. | No additional constraints declared. |
-| `ifRevision` | `string` | ❌ | Not specified in schema. | No additional constraints declared. |
+| `mode` | `enum("fixed", "turntable")` | ✅ | Selects how the tool executes this request. | enum: "fixed", "turntable" |
+| `angle` | `array<number>` | ❌ | Request parameter `angle`. | minItems: 2, maxItems: 3 |
+| `clip` | `string` | ❌ | Animation clip name used as the target. | No extra constraints beyond the declared type. |
+| `timeSeconds` | `number` | ❌ | Request parameter `timeSeconds`. | No extra constraints beyond the declared type. |
+| `durationSeconds` | `number` | ❌ | Request parameter `durationSeconds`. | No extra constraints beyond the declared type. |
+| `fps` | `number` | ❌ | Request parameter `fps`. | No extra constraints beyond the declared type. |
+| `output` | `enum("single", "sequence")` | ❌ | Request parameter `output`. | enum: "single", "sequence" |
+| `saveToTmp` | `boolean` | ❌ | Request parameter `saveToTmp`. | No extra constraints beyond the declared type. |
+| `tmpName` | `string` | ❌ | Request parameter `tmpName`. | No extra constraints beyond the declared type. |
+| `tmpPrefix` | `string` | ❌ | Request parameter `tmpPrefix`. | No extra constraints beyond the declared type. |
+| `includeState` | `boolean` | ❌ | Includes the latest project snapshot in the response. | No extra constraints beyond the declared type. |
+| `ifRevision` | `string` | ❌ | Optimistic concurrency token used to avoid stale writes. | No extra constraints beyond the declared type. |
 
 ## Minimal Request Example
 ```json
@@ -111,5 +112,5 @@ This response is a schematic example. Actual values and optional fields vary by 
 
 ## Operational Notes
 - Send only fields declared in the input schema.
-- Treat the response example as schematic, and handle optional fields defensively.
-- For mutating tools, use `ifRevision` when the tool supports it.
+- Treat response examples as schematic and handle optional fields defensively.
+- This tool is read-only, so `ifRevision` is usually unnecessary.

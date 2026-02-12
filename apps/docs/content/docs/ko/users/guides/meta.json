@@ -2,7 +2,6 @@
   "title": "워크플로우 가이드",
   "pages": [
     "index",
-    "llm-3d-asset-project",
     "modeling-workflow",
     "rigging",
     "animation-workflow",

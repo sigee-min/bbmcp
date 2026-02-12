@@ -4,8 +4,24 @@ import { FormatOverrides, resolveFormatId } from './domain/formats';
 import { TEXTURE_WORKFLOW_INSTRUCTIONS } from './shared/tooling/toolInstructions';
 import { TOOL_SCHEMA_VERSION as CONTRACT_TOOL_SCHEMA_VERSION } from '@ashfox/contracts/mcpSchemas/policy';
 
+declare const __ASHFOX_PLUGIN_VERSION__: string | undefined;
+
+const resolveInjectedPluginVersion = (): string | undefined => {
+  if (typeof __ASHFOX_PLUGIN_VERSION__ !== 'string') return undefined;
+  const trimmed = __ASHFOX_PLUGIN_VERSION__.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const resolveEnvPluginVersion = (): string | undefined => {
+  if (typeof process === 'undefined') return undefined;
+  const raw = process.env?.ASHFOX_PLUGIN_VERSION;
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
 export const PLUGIN_ID = 'ashfox';
-export const PLUGIN_VERSION = '0.0.2'; // should match apps/plugin-desktop/package.json
+export const PLUGIN_VERSION = resolveInjectedPluginVersion() ?? resolveEnvPluginVersion() ?? '0.0.0-dev';
 export const TOOL_SCHEMA_VERSION = CONTRACT_TOOL_SCHEMA_VERSION;
 export const DEFAULT_SERVER_HOST = '0.0.0.0';
 export const DEFAULT_SERVER_PORT = 8787;
@@ -98,5 +114,3 @@ export function computeCapabilities(
     guidance: CAPABILITIES_GUIDANCE
   };
 }
-
-

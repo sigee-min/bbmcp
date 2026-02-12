@@ -13,6 +13,28 @@ register({
 
 globalThis.__ashfox_test_promises = [];
 
+const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+const setRuntimeVersionEnv = () => {
+  const repoRoot = path.resolve(__dirname, '..', '..', '..');
+  const pluginPkg = readJson(path.join(repoRoot, 'apps', 'plugin-desktop', 'package.json'));
+  const ashfoxPkg = readJson(path.join(repoRoot, 'apps', 'ashfox', 'package.json'));
+  const pluginVersion = typeof pluginPkg.version === 'string' ? pluginPkg.version.trim() : '';
+  const ashfoxVersion = typeof ashfoxPkg.version === 'string' ? ashfoxPkg.version.trim() : '';
+
+  if (!pluginVersion || !ashfoxVersion) {
+    throw new Error('runtime tests: missing app version in package.json');
+  }
+  if (pluginVersion !== ashfoxVersion) {
+    throw new Error(
+      `runtime tests: app version drift detected: apps/plugin-desktop(${pluginVersion}) != apps/ashfox(${ashfoxVersion})`
+    );
+  }
+  process.env.ASHFOX_PLUGIN_VERSION = pluginVersion;
+};
+
+setRuntimeVersionEnv();
+
 const discoverTests = () =>
   fs
     .readdirSync(__dirname, { withFileTypes: true })
@@ -40,5 +62,4 @@ const selectedTests = testFilter ? tests.filter((test) => test.includes(testFilt
   console.error(err);
   process.exitCode = 1;
 });
-
 

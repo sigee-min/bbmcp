@@ -51,26 +51,7 @@ const scanFile = (filePath, rules) => {
   return findings;
 };
 
-const assertVersionConsistency = () => {
-  const pkgPath = path.join(repoRoot, 'package.json');
-  const cfgPath = path.join(repoRoot, 'packages', 'runtime', 'src', 'config.ts');
-  const pkg = JSON.parse(readText(pkgPath));
-  const configText = readText(cfgPath);
-  const match = configText.match(/export const PLUGIN_VERSION = '([^']+)'/);
-  const pluginVersion = match ? match[1] : null;
-  if (!pluginVersion) {
-    throw new Error('quality: cannot read PLUGIN_VERSION from packages/runtime/src/config.ts');
-  }
-  if (pkg.version !== pluginVersion) {
-    throw new Error(
-      `quality: version mismatch: package.json(${pkg.version}) != packages/runtime/src/config.ts PLUGIN_VERSION(${pluginVersion})`
-    );
-  }
-};
-
 const main = () => {
-  assertVersionConsistency();
-
   const srcDir = path.join(repoRoot, 'packages', 'runtime', 'src');
   const tsFiles = walk(srcDir, (p) => p.endsWith('.ts'));
 
@@ -166,4 +147,3 @@ const main = () => {
 };
 
 main();
-

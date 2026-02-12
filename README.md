@@ -284,6 +284,11 @@ docker compose up --build
   - `apps/worker/package.json`
   - `apps/web/package.json`
   - `apps/docs/package.json`
+- Plugin runtime version policy:
+  - `apps/plugin-desktop` and `apps/ashfox` are kept in lockstep.
+  - `packages/runtime/src/config.ts` `PLUGIN_VERSION` is injected at build time from `apps/plugin-desktop/package.json`.
+  - `npm run version:sync:runtime` validates and reports the runtime version source.
+  - `npm run version:check:runtime` is the strict CI gate for lockstep/version injection policy.
 - Release title policy:
   - Title is date-based: `Ashfox Update YYYY-MM-DD`.
   - Tag is generated from date and commit SHA to avoid collisions.

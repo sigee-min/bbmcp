@@ -8,7 +8,25 @@ const ensureDir = (dir) => {
   fs.mkdirSync(dir, { recursive: true });
 };
 
-const buildPlugin = () =>
+const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+const resolveRuntimeVersion = () => {
+  const pluginPkg = readJson(path.join(repoRoot, 'apps/plugin-desktop/package.json'));
+  const ashfoxPkg = readJson(path.join(repoRoot, 'apps/ashfox/package.json'));
+  const pluginVersion = typeof pluginPkg.version === 'string' ? pluginPkg.version.trim() : '';
+  const ashfoxVersion = typeof ashfoxPkg.version === 'string' ? ashfoxPkg.version.trim() : '';
+
+  if (!pluginVersion) throw new Error('build: apps/plugin-desktop/package.json version is missing.');
+  if (!ashfoxVersion) throw new Error('build: apps/ashfox/package.json version is missing.');
+  if (pluginVersion !== ashfoxVersion) {
+    throw new Error(
+      `build: app version drift detected: apps/plugin-desktop(${pluginVersion}) != apps/ashfox(${ashfoxVersion})`
+    );
+  }
+  return pluginVersion;
+};
+
+const buildPlugin = (runtimeVersion) =>
   esbuild.build({
     entryPoints: [path.join(repoRoot, 'apps/plugin-desktop/src/index.ts')],
     outfile: path.join(repoRoot, 'dist/ashfox-bbplugin.js'),
@@ -17,10 +35,13 @@ const buildPlugin = () =>
     platform: 'browser',
     format: 'iife',
     target: ['es2020'],
+    define: {
+      __ASHFOX_PLUGIN_VERSION__: JSON.stringify(runtimeVersion)
+    },
     logLevel: 'info'
   });
 
-const buildSidecar = () =>
+const buildSidecar = (runtimeVersion) =>
   esbuild.build({
     entryPoints: [path.join(repoRoot, 'apps/ashfox/src/index.ts')],
     outfile: path.join(repoRoot, 'dist/ashfox.js'),
@@ -29,6 +50,9 @@ const buildSidecar = () =>
     platform: 'node',
     format: 'cjs',
     target: ['es2020'],
+    define: {
+      __ASHFOX_PLUGIN_VERSION__: JSON.stringify(runtimeVersion)
+    },
     logLevel: 'info'
   });
 
@@ -45,17 +69,17 @@ const parseTargets = () => {
 
 (async () => {
   const targets = parseTargets();
+  const runtimeVersion = resolveRuntimeVersion();
   ensureDir(path.join(repoRoot, 'dist'));
   if (targets.includes('plugin-desktop')) {
-    await buildPlugin();
+    await buildPlugin(runtimeVersion);
   }
   if (targets.includes('ashfox')) {
-    await buildSidecar();
+    await buildSidecar(runtimeVersion);
   }
   console.log('build ok');
 })().catch((err) => {
   console.error(err);
   process.exit(1);
 });
-
 

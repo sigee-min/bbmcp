@@ -60,14 +60,13 @@ const buildState = (): SessionState => ({
   const geo = bundle.data as {
     format_version: string;
     'minecraft:geometry': Array<{ description: { identifier: string }; bones: Array<{ name: string; cubes: unknown[] }> }>;
-    ashfox_meta: { schema: string; format: string };
   };
   const animArtifact = bundle.artifacts.find((artifact) => artifact.id === 'animation');
   const anim = (animArtifact?.data ?? {}) as {
     animations: Record<
       string,
       {
-        loop: string;
+        loop?: boolean;
         animation_length: number;
         bones: Record<string, { rotation: Record<string, unknown> }>;
         sound_effects?: Record<string, unknown>;
@@ -82,10 +81,10 @@ const buildState = (): SessionState => ({
   assert.equal(geo.format_version, '1.12.0');
   assert.equal(geo['minecraft:geometry'][0].description.identifier, 'geometry.draco');
   assert.equal(geo['minecraft:geometry'][0].bones.length, 2);
-  assert.equal(idle.loop, 'loop');
+  assert.equal(idle.loop, true);
   assert.equal(idle.animation_length, 2);
-  assert.deepEqual(idle.bones.head.rotation['0'], [0, 0, 0]);
-  assert.equal(idle.sound_effects?.['0.5'], 'dragon.growl');
+  assert.deepEqual(idle.bones.head.rotation['0.0'], [0, 0, 0]);
+  assert.deepEqual(idle.sound_effects?.['0.5'], { effect: 'dragon.growl' });
   assert.equal(idle.timeline?.['1.5'], 'beat');
-  assert.equal(typeof idle.bones.head.rotation['1'], 'object');
+  assert.equal(typeof idle.bones.head.rotation['1.0'], 'object');
 }

@@ -61,6 +61,8 @@ const buildCanonicalCube = (cube: SessionState['cubes'][number]): CanonicalCube 
     sanitizeNumber(cube.from[2])
   ],
   to: [sanitizeNumber(cube.to[0]), sanitizeNumber(cube.to[1]), sanitizeNumber(cube.to[2])],
+  origin: sanitizeVec3(cube.origin),
+  rotation: sanitizeVec3(cube.rotation),
   uv: cube.uv ? [sanitizeNumber(cube.uv[0]), sanitizeNumber(cube.uv[1])] : undefined,
   uvOffset: cube.uvOffset
     ? [sanitizeNumber(cube.uvOffset[0]), sanitizeNumber(cube.uvOffset[1])]

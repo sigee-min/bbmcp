@@ -126,7 +126,7 @@ const withGlobals = (overrides: TestGlobals, run: () => void) => {
       const compiled = registered[0].compile as () => string;
       const out = compiled();
       assert.equal(typeof out, 'string');
-      assert.equal(out.includes('ashfox_meta'), true);
+      assert.equal(out.includes('minecraft:geometry'), true);
     }
   );
 }

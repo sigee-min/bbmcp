@@ -104,7 +104,17 @@ const createBaseState = (name: string): SessionState => ({
     'minecraft:geometry': [
       {
         description: { identifier: 'geometry.fx001' },
-        bones: [{ name: 'root' }]
+        bones: [
+          {
+            name: 'root',
+            cubes: [
+              {
+                origin: [-4, 0, 0],
+                size: [4, 4, 4]
+              }
+            ]
+          }
+        ]
       }
     ]
   });
@@ -114,7 +124,7 @@ const createBaseState = (name: string): SessionState => ({
         bones: {
           root: {
             rotation: {
-              '0': [0, 10, 0]
+              '0.0': [0, -10, 0]
             }
           }
         }
@@ -167,8 +177,8 @@ const createBaseState = (name: string): SessionState => ({
     animations: {
       walk: {
         animation_length: 2,
-        loop: 'loop',
-        sound_effects: { '0.25': 'step' },
+        loop: true,
+        sound_effects: { '0.25': { effect: 'step' } },
         timeline: { '1.25': 'beat' }
       }
     }
@@ -201,7 +211,7 @@ const createBaseState = (name: string): SessionState => ({
   const key = anim.animations.idle.bones.root.rotation['0.5'] as Record<string, unknown>;
   assertJsonSubset(key, {
     pre: [0, 0, 0],
-    post: [0, 20, 0],
+    post: [0, -20, 0],
     easing: 'easeInOutSine',
     easingArgs: [0.42]
   });

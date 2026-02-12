@@ -17,28 +17,6 @@ export interface ExportBundle {
 
 const DEFAULT_CODEC_REGISTRY = new CodecRegistry();
 
-const attachMeta = (
-  artifact: CodecArtifact,
-  format: NonGltfExportFormat,
-  state: SessionState
-): CodecArtifact => {
-  if (!artifact.data || typeof artifact.data !== 'object' || Array.isArray(artifact.data)) {
-    return artifact;
-  }
-  return {
-    ...artifact,
-    data: {
-      ...(artifact.data as Record<string, unknown>),
-      ashfox_meta: {
-        schema: 'internal',
-        format,
-        name: state.name ?? null,
-        artifact: artifact.id
-      }
-    }
-  };
-};
-
 const primaryArtifact = (artifacts: CodecArtifact[]): CodecArtifact =>
   artifacts.find((artifact) => artifact.primary) ?? artifacts[0];
 
@@ -61,23 +39,21 @@ export function buildInternalExport(
         animations: state.animations
       }
     };
-    const fallbackWithMeta = attachMeta(fallbackArtifact, format, state);
     return {
       format,
-      data: fallbackWithMeta.data,
-      artifacts: [fallbackWithMeta],
+      data: fallbackArtifact.data,
+      artifacts: [fallbackArtifact],
       warnings: [strategyResult.error.message],
       lossy: true
     };
   }
   const model = buildCanonicalExportModel(state);
   const encoded = strategyResult.data.encode(model);
-  const artifactsWithMeta = encoded.artifacts.map((artifact) => attachMeta(artifact, format, state));
-  const primary = primaryArtifact(artifactsWithMeta);
+  const primary = primaryArtifact(encoded.artifacts);
   return {
     format,
     data: primary.data,
-    artifacts: artifactsWithMeta,
+    artifacts: encoded.artifacts,
     warnings: encoded.warnings ?? [],
     lossy: Boolean(encoded.lossy)
   };

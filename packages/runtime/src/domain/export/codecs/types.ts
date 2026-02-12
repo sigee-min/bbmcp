@@ -11,6 +11,8 @@ export interface CanonicalCube {
   bone: string;
   from: [number, number, number];
   to: [number, number, number];
+  origin?: [number, number, number];
+  rotation?: [number, number, number];
   uv?: [number, number];
   uvOffset?: [number, number];
   inflate?: number;
@@ -29,12 +31,12 @@ export interface CanonicalBone {
 
 export interface CanonicalChannelKey {
   time: number;
-  vector: [number, number, number];
+  vector: [number | string, number | string, number | string];
   interp?: CanonicalInterpolation;
   easing?: string;
   easingArgs?: unknown[];
-  pre?: [number, number, number];
-  post?: [number, number, number];
+  pre?: [number | string, number | string, number | string];
+  post?: [number | string, number | string, number | string];
   bezier?: unknown;
 }
 

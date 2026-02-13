@@ -12,6 +12,7 @@ import { handleSessionDelete, handleSseGet } from './routerHttpHandlers';
 import { handleMessage } from './routerRpcHandlers';
 import { getSessionFromHeaders, resolveSession } from './routerSession';
 import { ResourceStore } from '../../ports/resources';
+import type { MetricsRegistry } from '../../observability/metrics';
 import {
   MCP_CONTENT_TYPE_REQUIRED,
   MCP_METHOD_NOT_ALLOWED,
@@ -32,6 +33,7 @@ export class McpRouter {
   private readonly config: McpServerConfig;
   private readonly executor: ToolExecutor;
   private readonly log: Logger;
+  private readonly metrics?: MetricsRegistry;
   private readonly resources?: ResourceStore;
   private readonly toolRegistry: ToolRegistry;
   private readonly sessions = new SessionStore();
@@ -44,19 +46,22 @@ export class McpRouter {
     executor: ToolExecutor,
     log: Logger,
     resources?: ResourceStore,
-    toolRegistry: ToolRegistry = DEFAULT_TOOL_REGISTRY
+    toolRegistry: ToolRegistry = DEFAULT_TOOL_REGISTRY,
+    metrics?: MetricsRegistry
   ) {
     this.config = { ...config, path: normalizePath(config.path) };
     this.executor = executor;
     this.log = log;
+    this.metrics = metrics;
     this.resources = resources;
     this.toolRegistry = toolRegistry;
     this.supportedProtocols = config.supportedProtocols ?? DEFAULT_SUPPORTED_PROTOCOLS;
     this.sessionTtlMs = normalizeSessionTtl(config.sessionTtlMs);
   }
 
-  async handle(req: HttpRequest): Promise<ResponsePlan> {
+  async handle(req: HttpRequest, context: { log?: Logger } = {}): Promise<ResponsePlan> {
     this.pruneSessions();
+    const log = context.log ?? this.log;
     const method = (req.method || 'GET').toUpperCase();
     const url = req.url || '/';
     if (!matchesPath(url, this.config.path)) {
@@ -73,7 +78,7 @@ export class McpRouter {
       return handleSessionDelete(this.getHttpContext(), req);
     }
     if (method === 'POST') {
-      return this.handlePost(req);
+      return this.handlePost(req, log);
     }
     return this.jsonResponse(405, { error: { code: 'method_not_allowed', message: MCP_METHOD_NOT_ALLOWED } });
   }
@@ -94,10 +99,11 @@ export class McpRouter {
     return null;
   }
 
-  private createRpcContext() {
+  private createRpcContext(log: Logger) {
     return {
       executor: this.executor,
-      log: this.log,
+      log,
+      metrics: this.metrics,
       resources: this.resources,
       toolRegistry: this.toolRegistry,
       sessions: this.sessions,
@@ -141,11 +147,11 @@ export class McpRouter {
     };
   }
 
-  private async handlePost(req: HttpRequest): Promise<ResponsePlan> {
+  private async handlePost(req: HttpRequest, log: Logger): Promise<ResponsePlan> {
     const validationFailure = this.validatePostRequest(req);
     if (validationFailure) return validationFailure;
 
-    const parsed = parsePostMessage(req.body ?? '', this.log);
+    const parsed = parsePostMessage(req.body ?? '', log);
     if (!parsed.ok) return this.jsonResponse(400, parsed.error);
 
     const protocolHeader = req.headers['mcp-protocol-version'];
@@ -158,7 +164,7 @@ export class McpRouter {
     }
     this.sessions.touch(sessionResult.session);
 
-    const outcome = await handleMessage(this.createRpcContext(), parsed.message, sessionResult.session, parsed.id);
+    const outcome = await handleMessage(this.createRpcContext(log), parsed.message, sessionResult.session, parsed.id);
     return this.toPostResponse(req, outcome, sessionResult);
   }
 
@@ -198,6 +204,5 @@ export class McpRouter {
     return { kind: 'empty', status, headers };
   }
 }
-
 
 

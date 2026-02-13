@@ -1,8 +1,10 @@
-import { errorMessage, Logger } from '../../logging';
+import { errorMessage, Logger, withLogMeta } from '../../logging';
+import { PROMETHEUS_CONTENT_TYPE, type MetricsRegistry } from '../../observability/metrics';
 import { McpRouter } from './router';
 import { HttpRequest, ResponsePlan } from './types';
 import { openSseConnection } from './transport';
 import type { IncomingMessage, Server, ServerResponse } from 'http';
+import { randomId } from './routerUtils';
 import {
   MCP_PAYLOAD_READ_FAILED,
   MCP_PAYLOAD_TOO_LARGE,
@@ -169,18 +171,50 @@ type HttpModule = {
   createServer: (handler: (req: IncomingMessage, res: ServerResponse) => void) => Server;
 };
 
-export const createMcpHttpServer = (http: HttpModule, router: McpRouter, log: Logger) =>
+type McpHttpServerOptions = {
+  metrics?: MetricsRegistry;
+};
+
+const readPathname = (rawUrl: string): string => {
+  try {
+    return new URL(rawUrl, 'http://localhost').pathname;
+  } catch {
+    const normalized = String(rawUrl || '/');
+    const idx = normalized.indexOf('?');
+    return idx >= 0 ? normalized.slice(0, idx) : normalized;
+  }
+};
+
+export const createMcpHttpServer = (http: HttpModule, router: McpRouter, log: Logger, options: McpHttpServerOptions = {}) =>
   http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const method = req.method ?? 'GET';
     const url = req.url ?? '/';
     const headers = normalizeHeaders(req.headers ?? {});
+    const pathname = readPathname(url);
+    const traceId = randomId();
+    const requestLog = withLogMeta(log, { traceId });
+    const startedAt = Date.now();
+
+    if (method.toUpperCase() === 'GET' && pathname === '/metrics' && options.metrics) {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', PROMETHEUS_CONTENT_TYPE);
+      res.setHeader('Cache-Control', 'no-cache');
+      try {
+        res.end(options.metrics.toPrometheusText());
+      } catch (err) {
+        res.destroy?.();
+      }
+      return;
+    }
+
     let body = '';
     if (method === 'POST') {
       try {
         body = await readBody(req);
       } catch (err) {
         const info = normalizeBodyError(err);
-        log.warn('MCP HTTP payload rejected', { code: info.code, message: info.message });
+        const durationMs = Math.max(0, Date.now() - startedAt);
+        requestLog.warn('MCP HTTP payload rejected', { code: info.code, message: info.message, durationMs });
         res.statusCode = info.status;
         res.setHeader('Content-Type', 'application/json');
         try {
@@ -188,13 +222,49 @@ export const createMcpHttpServer = (http: HttpModule, router: McpRouter, log: Lo
         } catch (err) {
           res.destroy?.();
         }
+        options.metrics?.recordMcpRequest(method, info.status);
+        requestLog.info('MCP HTTP request completed', {
+          method: method.toUpperCase(),
+          path: pathname,
+          status: info.status,
+          durationMs
+        });
         return;
       }
     }
 
-    const plan = await router.handle({ method, url, headers, body } as HttpRequest);
+    let plan: ResponsePlan;
+    try {
+      plan = await router.handle({ method, url, headers, body } as HttpRequest, { log: requestLog });
+    } catch (err) {
+      const durationMs = Math.max(0, Date.now() - startedAt);
+      requestLog.error('MCP HTTP request failed', { message: errorMessage(err), durationMs });
+      res.statusCode = 500;
+      res.setHeader('Content-Type', 'application/json');
+      try {
+        res.end(JSON.stringify({ error: { code: 'internal_error', message: 'Internal server error.' } }));
+      } catch (writeErr) {
+        res.destroy?.();
+      }
+      options.metrics?.recordMcpRequest(method, 500);
+      requestLog.info('MCP HTTP request completed', {
+        method: method.toUpperCase(),
+        path: pathname,
+        status: 500,
+        durationMs
+      });
+      return;
+    }
     writePlan(plan, res);
+    const durationMs = Math.max(0, Date.now() - startedAt);
+    options.metrics?.recordMcpRequest(method, plan.status);
+    requestLog.info('MCP HTTP request completed', {
+      method: method.toUpperCase(),
+      path: pathname,
+      status: plan.status,
+      durationMs,
+      kind: plan.kind
+    });
   });
-
 
 

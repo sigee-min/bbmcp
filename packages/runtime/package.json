@@ -4,7 +4,8 @@
   "private": true,
   "exports": {
     "./server": "./src/server.ts",
-    "./logging": "./src/logging.ts"
+    "./logging": "./src/logging.ts",
+    "./observability": "./src/observability/index.ts"
   },
   "scripts": {
     "test": "node tests/run.js",

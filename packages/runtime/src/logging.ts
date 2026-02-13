@@ -147,6 +147,20 @@ export const errorMessage = (err: unknown, fallback?: string): string => {
   return String(err);
 };
 
+export const withLogMeta = (logger: Logger, meta: Record<string, unknown>): Logger => {
+  const scopeMeta = { ...meta };
+  const merge = (child?: Record<string, unknown>): Record<string, unknown> =>
+    child ? { ...child, ...scopeMeta } : { ...scopeMeta };
+
+  return {
+    log: (level, message, childMeta) => logger.log(level, message, merge(childMeta)),
+    debug: (message, childMeta) => logger.debug(message, merge(childMeta)),
+    info: (message, childMeta) => logger.info(message, merge(childMeta)),
+    warn: (message, childMeta) => logger.warn(message, merge(childMeta)),
+    error: (message, childMeta) => logger.error(message, merge(childMeta))
+  };
+};
+
 export class ConsoleLogger implements Logger {
   private readonly prefix: string;
   private readonly minLevel: LogLevelProvider;
@@ -186,5 +200,4 @@ export class ConsoleLogger implements Logger {
     return order.indexOf(level) >= order.indexOf(minLevel);
   }
 }
-
 

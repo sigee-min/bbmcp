@@ -51,8 +51,7 @@ export const restartServer = (args: {
       { host: args.endpointConfig.host, port: args.endpointConfig.port, path: args.endpointConfig.path },
       args.dispatcher,
       logger,
-      args.resourceStore,
-      args.toolRegistry
+      { resources: args.resourceStore, toolRegistry: args.toolRegistry }
     );
     if (inlineStop) {
       inlineServerStop = inlineStop;
@@ -73,4 +72,3 @@ export const restartServer = (args: {
 
   return { sidecar, inlineServerStop };
 };
-

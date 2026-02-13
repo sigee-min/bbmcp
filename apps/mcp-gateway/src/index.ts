@@ -2,6 +2,7 @@ import { createBlockbenchBackend } from '@ashfox/backend-blockbench';
 import { BackendRegistry, type BackendKind } from '@ashfox/backend-core';
 import { createEngineBackend } from '@ashfox/backend-engine';
 import { ConsoleLogger, type LogLevel } from '@ashfox/runtime/logging';
+import { InMemoryMetricsRegistry } from '@ashfox/runtime/observability';
 import { startServer, type ServerConfig } from '@ashfox/runtime/server';
 import { GatewayDispatcher } from './dispatcher';
 import { closeGatewayPersistence, createGatewayPersistence } from './persistence';
@@ -46,9 +47,12 @@ const logLevel: LogLevel = (process.env.ASHFOX_GATEWAY_LOG_LEVEL as LogLevel) ??
 const logger = new ConsoleLogger('ashfox-gateway', () => logLevel);
 
 const main = async (): Promise<void> => {
+  const metrics = new InMemoryMetricsRegistry();
   const persistence = createGatewayPersistence(process.env, {
     failFast: resolveFailFast(process.env.ASHFOX_PERSISTENCE_FAIL_FAST)
   });
+  metrics.setPersistenceReady('database', persistence.health.database.ready);
+  metrics.setPersistenceReady('storage', persistence.health.storage.ready);
 
   const registry = new BackendRegistry();
   registry.register(
@@ -76,7 +80,7 @@ const main = async (): Promise<void> => {
     path: process.env.ASHFOX_PATH ?? DEFAULT_PATH
   };
 
-  const stop = startServer(config, dispatcher, logger);
+  const stop = startServer(config, dispatcher, logger, { metrics });
   if (!stop) {
     await closeGatewayPersistence(persistence);
     throw new Error(

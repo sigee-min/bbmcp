@@ -13,7 +13,12 @@ This matrix maps requirement IDs (ReqIDs) to automated evidence in this repo.
 - SPEC-EXP-001~007:
   - /Users/sigee/Dev/ashfox/packages/runtime/tests/exportService.test.ts
   - /Users/sigee/Dev/ashfox/packages/runtime/tests/exporters.test.ts
-  - /Users/sigee/Dev/ashfox/packages/runtime/tests/oracleRunner.test.ts (FX-001~006)
+  - /Users/sigee/Dev/ashfox/packages/runtime/tests/oracleRunner.test.ts (FX-001~007)
+
+- SPEC-EXP-008 (glTF must be internal cleanroom codec):
+  - /Users/sigee/Dev/ashfox/packages/runtime/tests/exportService.test.ts
+  - /Users/sigee/Dev/ashfox/packages/runtime/tests/genericModelGltfWorkflow.test.ts
+  - /Users/sigee/Dev/ashfox/packages/runtime/tests/oracleRunner.test.ts (FX-007)
 
 - SPEC-EXP-010~014 (gecko_geo_anim sidecar):
   - /Users/sigee/Dev/ashfox/packages/runtime/tests/oracleRunner.test.ts
@@ -37,5 +42,8 @@ This matrix maps requirement IDs (ReqIDs) to automated evidence in this repo.
 - ORC-001~004:
   - /Users/sigee/Dev/ashfox/packages/runtime/tests/oracleRunner.test.ts (JSON structural diff + tolerance + time buckets)
 
+- ORC-005:
+  - /Users/sigee/Dev/ashfox/packages/runtime/tests/oracleRunner.test.ts (FX-007, data URI sha256 compare)
+
 - PASS-001~004:
-  - /Users/sigee/Dev/ashfox/packages/runtime/tests/oracleRunner.test.ts (FX-001~006, deterministic hash check)
+  - /Users/sigee/Dev/ashfox/packages/runtime/tests/oracleRunner.test.ts (FX-001~007, deterministic hash check)

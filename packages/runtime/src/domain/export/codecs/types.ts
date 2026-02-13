@@ -1,4 +1,4 @@
-import type { NonGltfExportFormat } from '../types';
+import type { InternalExportFormat } from '../types';
 import type { AnimationTimePolicy } from '../../animation/timePolicy';
 
 export type CanonicalAnimationChannel = 'rot' | 'pos' | 'scale';
@@ -99,6 +99,7 @@ export interface CanonicalTexture {
   path?: string;
   width?: number;
   height?: number;
+  dataUri?: string;
 }
 
 export interface CanonicalExportModel {
@@ -131,6 +132,6 @@ export interface CodecEncodeResult {
 }
 
 export interface ExportCodecStrategy {
-  readonly format: NonGltfExportFormat;
+  readonly format: InternalExportFormat;
   encode(model: CanonicalExportModel): CodecEncodeResult;
 }

@@ -1,6 +1,6 @@
 import type { ExportPayload } from '@ashfox/contracts/types/internal';
 import type { SessionState } from '../session';
-import type { NonGltfExportFormat } from './export/types';
+import type { InternalExportFormat } from './export/types';
 import { buildCanonicalExportModel } from './export/canonicalModel';
 import { CodecRegistry } from './export/codecRegistry';
 import type { CodecArtifact } from './export/codecs/types';
@@ -8,7 +8,7 @@ import type { CodecArtifact } from './export/codecs/types';
 export type ExportKind = ExportPayload['format'];
 
 export interface ExportBundle {
-  format: NonGltfExportFormat;
+  format: InternalExportFormat;
   data: unknown;
   artifacts: CodecArtifact[];
   warnings: string[];
@@ -21,8 +21,11 @@ const primaryArtifact = (artifacts: CodecArtifact[]): CodecArtifact =>
   artifacts.find((artifact) => artifact.primary) ?? artifacts[0];
 
 export function buildInternalExport(
-  format: NonGltfExportFormat,
-  state: SessionState
+  format: InternalExportFormat,
+  state: SessionState,
+  options?: {
+    primaryTextureDataUri?: string | null;
+  }
 ): ExportBundle {
   const strategyResult = DEFAULT_CODEC_REGISTRY.resolve(format);
   if (!strategyResult.ok) {
@@ -48,6 +51,10 @@ export function buildInternalExport(
     };
   }
   const model = buildCanonicalExportModel(state);
+  const dataUri = options?.primaryTextureDataUri ?? null;
+  if (dataUri && model.textures[0]) {
+    model.textures[0] = { ...model.textures[0], dataUri };
+  }
   const encoded = strategyResult.data.encode(model);
   const primary = primaryArtifact(encoded.artifacts);
   return {

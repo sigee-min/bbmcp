@@ -359,8 +359,13 @@ registerAsync(
       const { service, calls } = createHarness({ gltfError: null });
       const res = await service.exportModel({ format: 'gltf', destPath: 'model.glb' });
       assert.equal(res.ok, true);
-      assert.equal(calls.gltf, 1);
+      assert.equal(calls.gltf, 0);
       assert.equal(calls.native, 0);
+      if (res.ok) {
+        assert.equal(res.value.path, 'model.gltf');
+        assert.equal(res.value.stage, 'fallback');
+        assert.equal(res.value.warnings?.includes('GLT-WARN-DEST_GLB_NOT_SUPPORTED'), true);
+      }
     }
 
     {
@@ -369,11 +374,9 @@ registerAsync(
         gltfError: { code: 'not_implemented', message: 'gltf unavailable' }
       });
       const res = await service.exportModel({ format: 'gltf', destPath: 'model.gltf' });
-      assert.equal(res.ok, false);
-      if (!res.ok) {
-        assert.equal(res.error.code, 'not_implemented');
-      }
-      assert.equal(writes.length, 0);
+      assert.equal(res.ok, true);
+      assert.equal(writes.length, 1);
+      assert.equal(writes[0]!.path, 'model.gltf');
     }
   })()
 );

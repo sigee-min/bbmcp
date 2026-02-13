@@ -142,7 +142,15 @@ if (stateRes.ok) {
 registerAsync(
   service.exportModel({ format: 'gltf', destPath: './out/generic_flow.glb' }).then((exportRes) => {
     assert.equal(exportRes.ok, true);
-    assert.equal(exportCalls.gltf, 1);
+    assert.equal(exportCalls.gltf, 0);
     assert.equal(exportCalls.native, 0);
+    if (exportRes.ok) {
+      assert.equal(exportRes.value.path.endsWith('.gltf'), true);
+      assert.equal(exportRes.value.stage, 'fallback');
+      assert.equal(exportRes.value.warnings?.includes('GLT-WARN-DEST_GLB_NOT_SUPPORTED'), true);
+      assert.equal(exportRes.value.warnings?.includes('GLT-WARN-TRIGGERS_DROPPED'), true);
+      assert.equal(editorState.state.writes.length, 1);
+      assert.equal(editorState.state.writes[0]!.path, './out/generic_flow.gltf');
+    }
   })
 );

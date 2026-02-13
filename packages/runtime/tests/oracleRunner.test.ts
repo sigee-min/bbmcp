@@ -48,6 +48,11 @@ const stableHash = (value: unknown): string =>
     .update(JSON.stringify(normalizeJson(value)))
     .digest('hex');
 
+const sha256Bytes = (bytes: Uint8Array): string =>
+  createHash('sha256')
+    .update(bytes)
+    .digest('hex');
+
 const readJson = (filePath: string): unknown => JSON.parse(fs.readFileSync(filePath, 'utf8'));
 
 const isNumericKey = (key: string): boolean => /^-?\d+(\.\d+)?$/.test(key);
@@ -139,6 +144,31 @@ const assertToolErrorMatches = (actual: ToolError, expected: { code: string; mes
       `${where}.message: expected to include "${expected.message}"`
     );
   }
+};
+
+const decodeDataUriBytes = (uri: string): Uint8Array => {
+  const raw = String(uri ?? '');
+  const match = /^data:([^;]+);base64,(.*)$/i.exec(raw);
+  assert.ok(match, `invalid data URI: ${raw.slice(0, 48)}...`);
+  const base64 = match![2]!.trim().replace(/\s/g, '');
+  return Buffer.from(base64, 'base64');
+};
+
+const sanitizeGltfUrisForJsonCompare = (value: unknown): unknown => {
+  const clone = JSON.parse(JSON.stringify(value)) as any;
+  if (clone && typeof clone === 'object') {
+    if (Array.isArray(clone.buffers)) {
+      clone.buffers.forEach((buf: any) => {
+        if (buf && typeof buf === 'object' && 'uri' in buf) buf.uri = '__IGNORED_DATA_URI__';
+      });
+    }
+    if (Array.isArray(clone.images)) {
+      clone.images.forEach((img: any) => {
+        if (img && typeof img === 'object' && 'uri' in img) img.uri = '__IGNORED_DATA_URI__';
+      });
+    }
+  }
+  return clone;
 };
 
 const runInternalExportFixture = (fixtureId: string, fixtureDir: string) => {
@@ -244,6 +274,97 @@ const runNativeCodecFixture = async (fixtureId: string, fixtureDir: string, code
   const second = await service.exportModel({ format: 'native_codec', codecId, destPath });
   assert.equal(second.ok, true, `${fixtureId}: second export failed`);
   if (!second.ok) return;
+  assert.equal(stableHash(res.value), stableHash(second.value), `${fixtureId}: result drift`);
+};
+
+const runGltfFixture = async (fixtureId: string, fixtureDir: string) => {
+  const expectedDir = path.join(fixtureDir, 'expected');
+  const state = readJson(path.join(fixtureDir, 'state.json')) as SessionState;
+  const match = fixtureId.match(/^FX-(\d+)$/);
+  assert.ok(match, `invalid fixture id: ${fixtureId}`);
+  const suffix = match[1]!;
+  const destPath = `fx${suffix}.gltf`;
+
+  const session = new ProjectSession();
+  const attachRes = session.attach(state);
+  assert.equal(attachRes.ok, true, `${fixtureId}: attach failed`);
+
+  const createService = (editorState: ReturnType<typeof createEditorStubWithState>) => {
+    const calls = { native: 0, gltf: 0 };
+    const service = new ExportService({
+      capabilities: baseCapabilities(),
+      editor: editorState.editor,
+      exporter: {
+        exportNative: () => {
+          calls.native += 1;
+          return { code: 'not_implemented', message: 'export not implemented' };
+        },
+        exportGltf: () => {
+          calls.gltf += 1;
+          return { code: 'not_implemented', message: 'export not implemented' };
+        }
+      },
+      formats: createFormatPortStub('geckolib_model', 'GeckoLib'),
+      getSnapshot: () => session.snapshot(),
+      ensureActive: () => session.ensureActive(),
+      policies: {
+        exportPolicy: 'best_effort',
+        formatOverrides: undefined
+      }
+    });
+    return { service, calls };
+  };
+
+  const editorState = createEditorStubWithState({ readTextureDataUri: '' });
+  const { service, calls } = createService(editorState);
+  const res = await service.exportModel({ format: 'gltf', destPath });
+  assert.equal(res.ok, true, `${fixtureId}: export failed`);
+  if (!res.ok) return;
+  assert.equal(calls.gltf, 0, `${fixtureId}: host exporter.exportGltf should not be called`);
+  assert.equal(calls.native, 0, `${fixtureId}: exporter.exportNative should not be called`);
+
+  const expectedResult = readJson(path.join(expectedDir, 'result.json'));
+  assertJsonEqual(res.value, expectedResult, { path: `${fixtureId}.result` });
+  const expectedWarnings = readJson(path.join(expectedDir, 'warnings.json'));
+  assertJsonEqual(res.value.warnings ?? [], expectedWarnings, { path: `${fixtureId}.warnings` });
+
+  assert.equal(editorState.state.writes.length, 1, `${fixtureId}: expected 1 output file`);
+  assert.equal(path.basename(editorState.state.writes[0]!.path), destPath, `${fixtureId}: output file name mismatch`);
+  const actualGltf = JSON.parse(editorState.state.writes[0]!.contents);
+
+  const expectedGltf = readJson(path.join(expectedDir, destPath));
+  assertJsonEqual(
+    sanitizeGltfUrisForJsonCompare(actualGltf),
+    sanitizeGltfUrisForJsonCompare(expectedGltf),
+    { path: `${fixtureId}.${destPath}` }
+  );
+
+  const expectedSha = readJson(path.join(expectedDir, 'expected.gltf.sha256.json')) as {
+    buffer0_sha256: string;
+    [key: string]: string;
+  };
+
+  const actualBufferUri = actualGltf?.buffers?.[0]?.uri;
+  assert.equal(typeof actualBufferUri, 'string', `${fixtureId}: missing buffers[0].uri`);
+  const actualBufferSha = sha256Bytes(decodeDataUriBytes(actualBufferUri));
+  assert.equal(actualBufferSha, expectedSha.buffer0_sha256, `${fixtureId}: buffer0_sha256 mismatch`);
+
+  const actualImages = Array.isArray(actualGltf?.images) ? actualGltf.images : [];
+  actualImages.forEach((img: any, index: number) => {
+    const uri = img?.uri;
+    assert.equal(typeof uri, 'string', `${fixtureId}: missing images[${index}].uri`);
+    const key = `image${index}_sha256`;
+    assert.ok(typeof expectedSha[key] === 'string', `${fixtureId}: missing expected ${key}`);
+    assert.equal(sha256Bytes(decodeDataUriBytes(uri)), expectedSha[key]!, `${fixtureId}: ${key} mismatch`);
+  });
+
+  // Determinism check: second export should match.
+  const secondEditor = createEditorStubWithState({ readTextureDataUri: '' });
+  const { service: secondService } = createService(secondEditor);
+  const second = await secondService.exportModel({ format: 'gltf', destPath });
+  assert.equal(second.ok, true, `${fixtureId}: second export failed`);
+  if (!second.ok) return;
+  assert.equal(stableHash(editorState.state.writes), stableHash(secondEditor.state.writes), `${fixtureId}: hash drift`);
   assert.equal(stableHash(res.value), stableHash(second.value), `${fixtureId}: result drift`);
 };
 
@@ -364,6 +485,10 @@ registerAsync(
       }
       if (fixtureId === 'FX-006') {
         await runNoRenderFixture(fixtureId, fixtureDir);
+        continue;
+      }
+      if (fixtureId === 'FX-007') {
+        await runGltfFixture(fixtureId, fixtureDir);
         continue;
       }
       throw new Error(`Unhandled oracle fixture: ${fixtureId}`);

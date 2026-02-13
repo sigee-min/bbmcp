@@ -1,0 +1,7 @@
+{
+  "path": "fx007.gltf",
+  "selectedTarget": { "kind": "gltf", "id": "gltf" },
+  "stage": "fallback",
+  "warnings": ["GLT-WARN-TEXTURE_DATA_MISSING"]
+}
+

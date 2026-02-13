@@ -1,0 +1,35 @@
+{
+  "id": "fx001_id",
+  "formatId": "geckolib_model",
+  "name": "fx001",
+  "bones": [{ "name": "root", "pivot": [0, 0, 0] }],
+  "cubes": [
+    {
+      "name": "cube",
+      "bone": "root",
+      "from": [0, 0, 0],
+      "to": [4, 4, 4],
+      "uvOffset": [0, 0]
+    }
+  ],
+  "meshes": [],
+  "textures": [{ "name": "atlas", "width": 64, "height": 64 }],
+  "animations": [
+    {
+      "name": "idle",
+      "length": 1,
+      "loop": true,
+      "fps": 20,
+      "channels": [
+        {
+          "bone": "root",
+          "channel": "rot",
+          "keys": [{ "time": 0, "value": [0, 10, 0] }]
+        }
+      ],
+      "triggers": []
+    }
+  ],
+  "animationTimePolicy": { "timeEpsilon": 1e-9, "triggerDedupeByValue": true }
+}
+

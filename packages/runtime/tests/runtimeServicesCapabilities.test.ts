@@ -61,6 +61,6 @@ const buildRuntime = (overrides: Record<string, unknown>) => {
   const gltf = targets.find((target) => target.id === 'gltf');
   const native = targets.find((target) => target.id === 'native_codec');
 
-  assert.equal(gltf?.available, false);
+  assert.equal(gltf?.available, true);
   assert.equal(native?.available, false);
 }

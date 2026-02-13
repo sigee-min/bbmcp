@@ -91,8 +91,11 @@ export class ExportService {
     }
 
     if (requestedFormat === 'gltf') {
-      const result = await this.exportGltf(payload.destPath, resolvedTarget);
-      return this.withExportHintsResult(result, snapshot, nativeCodecs);
+      const fallbackResult = writeInternalFallbackExport(this.editor, 'gltf', payload.destPath, snapshot, {
+        selectedTarget: resolvedTarget,
+        stage: 'fallback'
+      });
+      return this.withExportHintsResult(fallbackResult, snapshot, nativeCodecs);
     }
     if (requestedFormat === 'native_codec') {
       if (!requested.codecId) {
@@ -158,15 +161,6 @@ export class ExportService {
       stage: 'fallback',
       warnings: includeDiagnostics ? [nativeErr.message] : undefined
     });
-  }
-
-  private async exportGltf(
-    destPath: string,
-    selectedTarget: NonNullable<ExportResult['selectedTarget']>
-  ): Promise<UsecaseResult<ExportResult>> {
-    const err = await this.exporter.exportGltf({ destPath });
-    if (err) return fail(err);
-    return ok({ path: destPath, selectedTarget, stage: 'done' });
   }
 
   private async exportCodec(

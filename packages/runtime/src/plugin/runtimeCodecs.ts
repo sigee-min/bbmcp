@@ -1,7 +1,7 @@
 import type { ProjectSession } from '../session';
 import type { BlockbenchFormats } from '../adapters/blockbench/BlockbenchFormats';
 import type { ExportPolicy } from '../usecases/policies';
-import type { NonGltfExportFormat } from '../domain/export/types';
+import type { InternalExportFormat } from '../domain/export/types';
 import { readGlobals } from '../adapters/blockbench/blockbenchUtils';
 import type { Logger } from '../logging';
 import { buildInternalExport } from '../domain/exporters';
@@ -36,7 +36,7 @@ export const registerCodecs = (args: {
     blockbench.showQuickMessage?.(PLUGIN_UI_EXPORT_FAILED(content), 2000);
   };
 
-  const buildInternalExportString = (exportKind: NonGltfExportFormat): string | null => {
+  const buildInternalExportString = (exportKind: InternalExportFormat): string | null => {
     const snapshot = args.session.snapshot();
     try {
       return JSON.stringify(buildInternalExport(exportKind, snapshot).data);
@@ -45,7 +45,7 @@ export const registerCodecs = (args: {
     }
   };
 
-  const compileFor = (exportKind: NonGltfExportFormat): { ok: true; data: string } | { ok: false; message: string } => {
+  const compileFor = (exportKind: InternalExportFormat): { ok: true; data: string } | { ok: false; message: string } => {
     const formatId = resolveFormatId(
       args.formats.listFormats(),
       args.formatOverrides,
@@ -78,7 +78,7 @@ export const registerCodecs = (args: {
     return { ok: false, message: compiled.error.message };
   };
 
-  const compileWithNotice = (exportKind: NonGltfExportFormat): string | null => {
+  const compileWithNotice = (exportKind: InternalExportFormat): string | null => {
     const result = compileFor(exportKind);
     if (!result.ok) {
       notifyExportFailure(result.message);
@@ -87,7 +87,7 @@ export const registerCodecs = (args: {
     return result.data;
   };
 
-  const register = (exportKind: NonGltfExportFormat, codecName: string) => {
+  const register = (exportKind: InternalExportFormat, codecName: string) => {
     new codecCtor({
       name: codecName,
       extension: 'json',

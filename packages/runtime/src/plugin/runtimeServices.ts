@@ -70,7 +70,7 @@ const INTERNAL_EXPORT_TARGETS: Array<Omit<ExportTargetCapability, 'available'>> 
   {
     kind: 'gltf',
     id: 'gltf',
-    label: 'glTF (native codec)',
+    label: 'glTF (cleanroom codec)',
     extensions: ['gltf', 'glb']
   },
   {
@@ -114,9 +114,7 @@ export const buildRuntimeServices = (options: BuildRuntimeServicesOptions): Runt
           available: true
         }))
       : [];
-  const gltfAvailable = nativeCodecs.some(
-    (codec) => codec.id === 'gltf' || codec.extensions.includes('gltf') || codec.extensions.includes('glb')
-  );
+  const gltfAvailable = true;
   const hasNativeCodecs = nativeCodecs.length > 0;
   const internalTargets: ExportTargetCapability[] = INTERNAL_EXPORT_TARGETS.map((target) => {
     if (target.kind === 'gltf') {
@@ -234,7 +232,6 @@ export const buildRuntimeServices = (options: BuildRuntimeServicesOptions): Runt
     traceLogService
   };
 };
-
 
 
 

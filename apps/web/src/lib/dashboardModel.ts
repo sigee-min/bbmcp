@@ -70,8 +70,35 @@ export interface DashboardState {
   lastAppliedRevision: number;
 }
 
+export interface ScreenPoint {
+  x: number;
+  y: number;
+}
+
+export interface ViewerAnchorMeasurementInput {
+  viewportWidth: number;
+  viewportHeight: number;
+  renderedAnchor: ScreenPoint;
+  expectedAnchor: Vec3;
+  actualAnchor: Vec3;
+}
+
+export interface ViewerAnchorMeasurement {
+  screenErrorPx: number;
+  worldError: number;
+}
+
+export interface ViewerAnchorTolerance {
+  screenPx: number;
+  world: number;
+}
+
 const ZERO_ANCHOR: Vec3 = [0, 0, 0];
 const DEFAULT_ANCHOR: Vec3 = [0, 24, 0];
+const DEFAULT_VIEWER_TOLERANCE: ViewerAnchorTolerance = {
+  screenPx: 1,
+  world: 1e-3
+};
 
 const clamp = (value: number, min: number, max: number): number => {
   if (value < min) {
@@ -82,6 +109,12 @@ const clamp = (value: number, min: number, max: number): number => {
   }
   return value;
 };
+
+const calculateVecDistance = (left: Vec3, right: Vec3): number =>
+  Math.hypot(left[0] - right[0], left[1] - right[1], left[2] - right[2]);
+
+const calculatePointDistance = (left: ScreenPoint, right: ScreenPoint): number =>
+  Math.hypot(left.x - right.x, left.y - right.y);
 
 const asVec3 = (value: readonly number[] | undefined, fallback: Vec3): Vec3 => {
   if (!value || value.length !== 3) {
@@ -146,6 +179,25 @@ export const createErrorState = (code: DashboardErrorCode): DashboardState => ({
   lastAppliedRevision: -1
 });
 
+export const applyDashboardError = (state: DashboardState, code: DashboardErrorCode): DashboardState => {
+  if (state.projects.length === 0) {
+    return createErrorState(code);
+  }
+
+  const selectedProject = getProjectById(state.projects, state.selectedProjectId) ?? state.projects[0] ?? null;
+  const selectedProjectId = selectedProject?.projectId ?? null;
+  const shouldResetViewer = selectedProjectId !== state.selectedProjectId;
+
+  return {
+    ...state,
+    status: 'success',
+    errorCode: code,
+    selectedProjectId,
+    viewer: shouldResetViewer ? buildViewerState(selectedProject) : state.viewer,
+    lastAppliedRevision: selectedProject?.revision ?? state.lastAppliedRevision
+  };
+};
+
 export const createLoadedState = (projects: readonly ProjectSnapshot[]): DashboardState => {
   if (projects.length === 0) {
     return {
@@ -193,11 +245,53 @@ export const setActiveTab = (state: DashboardState, tabId: InspectorTabId): Dash
   activeTab: tabId
 });
 
+export const markStreamConnecting = (state: DashboardState): DashboardState => ({
+  ...state,
+  streamStatus: 'connecting'
+});
+
+export const markStreamOpen = (state: DashboardState, projectId: string): DashboardState => {
+  if (state.selectedProjectId !== projectId) {
+    return state;
+  }
+  return {
+    ...state,
+    streamStatus: 'open',
+    errorCode: state.errorCode === 'stream_unavailable' ? null : state.errorCode
+  };
+};
+
+export const markStreamReconnecting = (state: DashboardState, projectId: string): DashboardState => {
+  if (state.selectedProjectId !== projectId || state.status !== 'success') {
+    return state;
+  }
+  return {
+    ...state,
+    streamStatus: 'reconnecting',
+    errorCode: 'stream_unavailable'
+  };
+};
+
 export const rotateViewer = (viewer: ViewerState, deltaX: number, deltaY: number): ViewerState => ({
   focusAnchor: viewer.focusAnchor,
   yawDeg: viewer.yawDeg + deltaX * 0.35,
   pitchDeg: clamp(viewer.pitchDeg - deltaY * 0.35, -75, 75)
 });
+
+export const getViewportCenter = (viewportWidth: number, viewportHeight: number): ScreenPoint => ({
+  x: viewportWidth / 2,
+  y: viewportHeight / 2
+});
+
+export const measureViewerAnchorAlignment = (input: ViewerAnchorMeasurementInput): ViewerAnchorMeasurement => ({
+  screenErrorPx: calculatePointDistance(getViewportCenter(input.viewportWidth, input.viewportHeight), input.renderedAnchor),
+  worldError: calculateVecDistance(input.expectedAnchor, input.actualAnchor)
+});
+
+export const isViewerAnchorWithinTolerance = (
+  measurement: ViewerAnchorMeasurement,
+  tolerance: ViewerAnchorTolerance = DEFAULT_VIEWER_TOLERANCE
+): boolean => measurement.screenErrorPx <= tolerance.screenPx && measurement.worldError <= tolerance.world;
 
 export const shouldApplyStreamPayload = (
   selectedProjectId: string | null,

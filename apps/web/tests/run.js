@@ -8,14 +8,19 @@ register({
   transpileOnly: true,
   compilerOptions: {
     module: 'CommonJS',
-    moduleResolution: 'Node'
+    moduleResolution: 'Node',
+    jsx: 'react-jsx'
   }
 });
 
 const discoverTests = () =>
   fs
     .readdirSync(__dirname, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.test.ts'))
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        (entry.name.endsWith('.test.ts') || entry.name.endsWith('.test.tsx') || entry.name.endsWith('.test.js'))
+    )
     .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b));
 
@@ -25,7 +30,18 @@ const discoverTests = () =>
     throw new Error('No tests discovered in apps/web/tests');
   }
   for (const testFile of testFiles) {
-    require(path.join(__dirname, testFile));
+    const loaded = require(path.join(__dirname, testFile));
+    if (typeof loaded === 'function') {
+      await loaded();
+      continue;
+    }
+    if (loaded && typeof loaded.then === 'function') {
+      await loaded;
+      continue;
+    }
+    if (loaded && typeof loaded.run === 'function') {
+      await loaded.run();
+    }
   }
   console.log('tests ok');
 })().catch((error) => {

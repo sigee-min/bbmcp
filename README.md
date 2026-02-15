@@ -225,6 +225,10 @@ Install dependencies:
 npm install
 ```
 
+Runtime test dependency policy:
+- keep `ts-node` pinned only at the repository root (`package.json` + `package-lock.json`)
+- use `npm run verify:runtime-test-policy` before commit or CI handoff
+
 Core scripts:
 | Script | Purpose |
 | --- | --- |
@@ -239,6 +243,7 @@ Core scripts:
 | `npm run test:practical` | Run high-value regression + contract smoke pack |
 | `npm test` | Run `typecheck + unit + conformance` |
 | `npm run test:cov` | Run unit tests with coverage output |
+| `npm run verify:runtime-test-policy` | Verify root-only `ts-node` policy for runtime tests |
 | `npm run quality` | Run the full CI quality gate |
 | `npm run quality:check` | Run static quality checks (typecheck + policy checks) |
 | `npm run quality:deadcode` | Fail on unused exports |

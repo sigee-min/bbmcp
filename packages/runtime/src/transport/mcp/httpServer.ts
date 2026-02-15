@@ -178,7 +178,7 @@ type McpHttpServerOptions = {
 const readPathname = (rawUrl: string): string => {
   try {
     return new URL(rawUrl, 'http://localhost').pathname;
-  } catch {
+  } catch (_error) {
     const normalized = String(rawUrl || '/');
     const idx = normalized.indexOf('?');
     return idx >= 0 ? normalized.slice(0, idx) : normalized;
@@ -266,5 +266,4 @@ export const createMcpHttpServer = (http: HttpModule, router: McpRouter, log: Lo
       kind: plan.kind
     });
   });
-
 

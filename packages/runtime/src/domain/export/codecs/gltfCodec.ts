@@ -259,6 +259,16 @@ type BuiltSampler = {
   path: 'translation' | 'rotation' | 'scale';
 };
 
+type GltfNode = {
+  name: string;
+  translation?: Vec3;
+  rotation?: Vec4;
+  scale?: Vec3;
+  children?: number[];
+  mesh?: number;
+  skin?: number;
+};
+
 const channelOrder = (channel: 'pos' | 'rot' | 'scale'): number => {
   if (channel === 'pos') return 0;
   if (channel === 'rot') return 1;
@@ -401,7 +411,7 @@ export class GltfCodec implements ExportCodecStrategy {
       childrenByIndex[p]!.push(idx);
     });
 
-    const nodes = bones.map((bone, idx) => ({
+    const nodes: GltfNode[] = bones.map((bone, idx) => ({
       name: bone.name,
       translation: boneLocalTranslation(idx),
       rotation: boneBaseRotationQuat(idx),
@@ -414,7 +424,7 @@ export class GltfCodec implements ExportCodecStrategy {
       name: model.name,
       mesh: 0,
       skin: 0
-    } as any);
+    });
 
     const rootNodes: number[] = [];
     bones.forEach((_, idx) => {
@@ -712,7 +722,7 @@ export class GltfCodec implements ExportCodecStrategy {
     const vertexCount = Math.floor(positions.length / 3);
 
     // Animations.
-    const epsilon = normalizeTimeEpsilon((model.timePolicy as any)?.timeEpsilon);
+    const epsilon = normalizeTimeEpsilon(model.timePolicy.timeEpsilon);
     const samplersByAnimation: BuiltSampler[][] = [];
     const animations: any[] = [];
     let anyTriggers = false;

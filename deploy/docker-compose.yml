@@ -39,6 +39,8 @@ services:
     container_name: ashfox-worker
     environment:
       - ASHFOX_WORKER_HEARTBEAT_MS=5000
+      - ASHFOX_WORKER_POLL_MS=1200
+      - ASHFOX_WORKER_NATIVE_PIPELINE=1
     depends_on:
       - redis
       - postgres

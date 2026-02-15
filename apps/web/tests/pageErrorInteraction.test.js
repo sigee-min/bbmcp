@@ -6,7 +6,7 @@ const { createRoot } = require('react-dom/client');
 const { JSDOM } = require('jsdom');
 
 const HomePage = require('../src/app/page').default;
-const { listProjects } = require('../src/lib/mockProjectStore');
+const { getNativePipelineStore } = require('../src/lib/nativePipelineStore');
 
 class MockEventSource {
   static instances = [];
@@ -78,10 +78,9 @@ const findProjectButtonByName = (root, projectName) => {
 module.exports = async () => {
   const originalFetch = globalThis.fetch;
   const originalEventSource = globalThis.EventSource;
-  const projectPayload = {
-    ok: true,
-    projects: listProjects()
-  };
+  const store = getNativePipelineStore();
+  store.reset();
+  const projectPayload = { ok: true, projects: store.listProjects() };
 
   globalThis.fetch = async (requestUrl) => {
     assert.equal(String(requestUrl), '/api/projects');

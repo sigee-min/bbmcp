@@ -6,7 +6,7 @@ const { createRoot } = require('react-dom/client');
 const { JSDOM } = require('jsdom');
 
 const HomePage = require('../src/app/page').default;
-const { listProjects } = require('../src/lib/mockProjectStore');
+const { getNativePipelineStore } = require('../src/lib/nativePipelineStore');
 
 class MockEventSource {
   static instances = [];
@@ -93,6 +93,9 @@ module.exports = async () => {
     });
     return timerId;
   };
+
+  const store = getNativePipelineStore();
+  store.reset();
   globalThis.clearTimeout = (timerId) => {
     scheduledTimers.delete(timerId);
   };
@@ -102,7 +105,7 @@ module.exports = async () => {
     return new Response(
       JSON.stringify({
         ok: true,
-        projects: listProjects()
+        projects: store.listProjects()
       }),
       {
         status: 200,

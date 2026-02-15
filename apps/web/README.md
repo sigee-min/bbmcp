@@ -1,11 +1,17 @@
 # Ashfox Web App
 
-Next.js scaffold for a combined dashboard + API server deployment.
+Next.js dashboard + API server for native pipeline visibility.
 
 Current scope:
 - Dashboard shell (`/`)
 - Health API (`/api/health`)
-- MCP API placeholder (`/api/mcp`)
+- MCP proxy API (`/api/mcp`) forwarding to `ASHFOX_GATEWAY_URL`
+- Projects API (`/api/projects`)
+- Project jobs API (`/api/projects/[projectId]/jobs`)
+- Project stream SSE API (`/api/projects/[projectId]/stream`)
+
+Environment variables:
+- `ASHFOX_GATEWAY_URL` (default `http://127.0.0.1:8790/mcp`)
 
 Run locally:
 

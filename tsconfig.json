@@ -12,6 +12,8 @@
       "@ashfox/backend-blockbench/*": ["packages/backend-blockbench/src/*"],
       "@ashfox/backend-engine": ["packages/backend-engine/src/index.ts"],
       "@ashfox/backend-engine/*": ["packages/backend-engine/src/*"],
+      "@ashfox/native-pipeline": ["packages/native-pipeline/src/index.ts"],
+      "@ashfox/native-pipeline/*": ["packages/native-pipeline/src/*"],
       "@ashfox/contracts/types": ["packages/contracts/src/types/index.ts"],
       "@ashfox/contracts/types/*": ["packages/contracts/src/types/*"],
       "@ashfox/contracts/mcpSchemas/*": ["packages/contracts/src/mcpSchemas/*"],
@@ -35,6 +37,7 @@
     "packages/backend-core/src/**/*",
     "packages/backend-blockbench/src/**/*",
     "packages/backend-engine/src/**/*",
+    "packages/native-pipeline/src/**/*",
     "apps/plugin-desktop/src/**/*",
     "apps/ashfox/src/**/*",
     "apps/mcp-gateway/src/**/*",
@@ -42,4 +45,3 @@
     "packages/contracts/src/**/*"
   ]
 }
-

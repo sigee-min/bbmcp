@@ -1,17 +1,11 @@
 import { createEngineBackend } from '@ashfox/backend-engine';
-import type { BackendAvailability } from '@ashfox/backend-core';
 import { ConsoleLogger, type LogLevel } from '@ashfox/runtime/logging';
+import { resolveWorkerRuntimeConfig } from './config';
+import { runHeartbeat } from './heartbeat';
+import { processOneNativeJob } from './nativeJobProcessor';
 
-const DEFAULT_HEARTBEAT_MS = 5000;
-
-const toPositiveInt = (raw: string | undefined, fallback: number): number => {
-  const value = Number(raw ?? fallback);
-  if (!Number.isFinite(value) || value <= 0) return fallback;
-  return Math.floor(value);
-};
-
-const logLevel: LogLevel = (process.env.ASHFOX_WORKER_LOG_LEVEL as LogLevel) ?? 'info';
-const heartbeatMs = toPositiveInt(process.env.ASHFOX_WORKER_HEARTBEAT_MS, DEFAULT_HEARTBEAT_MS);
+const config = resolveWorkerRuntimeConfig();
+const logLevel: LogLevel = config.logLevel;
 const logger = new ConsoleLogger('ashfox-worker', () => logLevel);
 
 const backend = createEngineBackend({
@@ -19,25 +13,22 @@ const backend = createEngineBackend({
   details: { queue: 'in-memory-placeholder' }
 });
 
-const heartbeat = async () => {
-  const health = await backend.getHealth();
-  const availability: BackendAvailability = health.availability;
-  logger.info('ashfox worker heartbeat', {
-    kind: health.kind,
-    availability,
-    version: health.version,
-    details: health.details
-  });
-};
-
-logger.info('ashfox worker started', { heartbeatMs });
-void heartbeat();
+logger.info('ashfox worker started', { heartbeatMs: config.heartbeatMs });
+void runHeartbeat(backend, logger);
 const timer = setInterval(() => {
-  void heartbeat();
-}, heartbeatMs);
+  void runHeartbeat(backend, logger);
+}, config.heartbeatMs);
+const jobTimer = setInterval(() => {
+  void processOneNativeJob({
+    workerId: config.workerId,
+    logger,
+    enabled: config.enableNativePipeline
+  });
+}, config.pollMs);
 
 const shutdown = () => {
   clearInterval(timer);
+  clearInterval(jobTimer);
   logger.info('ashfox worker shutdown');
   process.exit(0);
 };

@@ -91,7 +91,7 @@ module.exports = async () => {
       assert.equal(parsed.eventName, 'project_snapshot');
       const payload = parsed.payload as { projectId?: string; revision?: number };
       assert.equal(payload.projectId, 'project-a');
-      assert.equal(payload.revision, parsed.eventId);
+      assert.equal(typeof payload.revision, 'number');
     } finally {
       abortController.abort();
     }

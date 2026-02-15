@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "ts-node src/index.ts",
-    "start": "ts-node src/index.ts"
+    "start": "ts-node src/index.ts",
+    "test": "node run.js"
   }
 }

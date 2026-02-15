@@ -14,7 +14,8 @@
     "packages/conformance",
     "packages/backend-core",
     "packages/backend-blockbench",
-    "packages/backend-engine"
+    "packages/backend-engine",
+    "packages/native-pipeline"
   ],
   "scripts": {
     "build": "npm run build:plugin-desktop && npm run build:ashfox",
@@ -27,6 +28,7 @@
     "test:conformance": "npm --workspace @ashfox/conformance run test",
     "test:practical": "npm --workspace @ashfox/runtime run test:practical && npm --workspace @ashfox/conformance run test:practical",
     "test:gateway": "npm --workspace @ashfox/mcp-gateway run test",
+    "test:worker": "npm --workspace @ashfox/worker run test",
     "test": "npm run typecheck && npm run test:unit && npm run test:conformance && npm run test:gateway",
     "test:cov": "npm --workspace @ashfox/runtime run test:cov",
     "verify:runtime-test-policy": "node scripts/quality/verify-runtime-test-policy.js",

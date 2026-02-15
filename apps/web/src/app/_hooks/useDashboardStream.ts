@@ -74,7 +74,8 @@ export const useDashboardStream = ({
       setState((prev) => {
         const next = applyProjectStreamPayload(prev, parsedPayload);
         if (next !== prev) {
-          contextRef.current.lastEventId = next.lastAppliedRevision;
+          const parsedEventId = Number.parseInt(event.lastEventId, 10);
+          contextRef.current.lastEventId = Number.isFinite(parsedEventId) ? parsedEventId : next.lastAppliedRevision;
         }
         return next;
       });

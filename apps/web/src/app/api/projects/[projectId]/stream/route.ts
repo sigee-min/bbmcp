@@ -1,19 +1,12 @@
-import { buildStreamPayload, getProject } from '../../../../../lib/mockProjectStore';
+import { getNativePipelineStore } from '../../../../../lib/nativePipelineStore';
+import { createProjectStream } from './projectStream';
+import {
+  normalizeLastEventId,
+  streamResponseHeaders,
+  toIntegerOrNull
+} from './sse';
 
 export const dynamic = 'force-dynamic';
-
-const encoder = new TextEncoder();
-
-const toIntegerOrNull = (value: string | null): number | null => {
-  if (!value) {
-    return null;
-  }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const formatSseMessage = (eventName: string, eventId: number, data: unknown): string =>
-  `id: ${eventId}\nevent: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
 
 export async function GET(
   request: Request,
@@ -23,8 +16,9 @@ export async function GET(
     }>;
   }
 ) {
+  const store = getNativePipelineStore();
   const { projectId } = await context.params;
-  const project = getProject(projectId);
+  const project = store.getProject(projectId);
 
   if (!project) {
     return new Response(
@@ -45,54 +39,10 @@ export async function GET(
   const url = new URL(request.url);
   const lastEventIdFromQuery = toIntegerOrNull(url.searchParams.get('lastEventId'));
   const lastEventIdFromHeader = toIntegerOrNull(request.headers.get('last-event-id'));
-  const lastEventId = lastEventIdFromHeader ?? lastEventIdFromQuery;
-
-  const initialRevision = lastEventId === null ? project.revision : Math.max(project.revision, lastEventId + 1);
-  let currentRevision = initialRevision - 1;
-
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      const pushEvent = () => {
-        currentRevision += 1;
-        const payload = buildStreamPayload(projectId, currentRevision);
-        if (!payload) {
-          controller.enqueue(
-            encoder.encode(
-              formatSseMessage('stream_error', currentRevision, {
-                code: 'stream_unavailable',
-                projectId
-              })
-            )
-          );
-          return;
-        }
-        controller.enqueue(encoder.encode(formatSseMessage('project_snapshot', currentRevision, payload)));
-      };
-
-      pushEvent();
-      const eventTimer = setInterval(pushEvent, 4500);
-      const keepAliveTimer = setInterval(() => {
-        controller.enqueue(encoder.encode(': keepalive\n\n'));
-      }, 15000);
-
-      request.signal.addEventListener(
-        'abort',
-        () => {
-          clearInterval(eventTimer);
-          clearInterval(keepAliveTimer);
-          controller.close();
-        },
-        { once: true }
-      );
-    }
-  });
+  const cursor = normalizeLastEventId(lastEventIdFromHeader ?? lastEventIdFromQuery);
+  const stream = createProjectStream({ request, store, projectId, cursor });
 
   return new Response(stream, {
-    headers: {
-      'content-type': 'text/event-stream; charset=utf-8',
-      'cache-control': 'no-cache, no-transform',
-      connection: 'keep-alive',
-      'x-accel-buffering': 'no'
-    }
+    headers: streamResponseHeaders
   });
 }

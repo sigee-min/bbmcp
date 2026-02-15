@@ -5,7 +5,6 @@ Next.js dashboard + API server for native pipeline visibility.
 Current scope:
 - Dashboard shell (`/`)
 - Health API (`/api/health`)
-- MCP proxy API (`/api/mcp`) forwarding to `ASHFOX_GATEWAY_URL`
 - Projects API (`/api/projects`)
 - Project jobs API (`/api/projects/[projectId]/jobs`)
 - Project stream SSE API (`/api/projects/[projectId]/stream`)

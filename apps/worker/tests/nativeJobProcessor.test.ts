@@ -97,4 +97,61 @@ module.exports = async () => {
     );
     assert.equal(failCalled, false);
   }
+
+  {
+    const claimedJob: MutableJob = {
+      id: 'job-2',
+      projectId: 'project-b',
+      kind: 'texture.preflight',
+      status: 'running',
+      createdAt: new Date().toISOString()
+    };
+    let failCalled = false;
+    const store = {
+      claimNextJob: () => claimedJob,
+      completeJob: () => {
+        throw new Error('complete failed');
+      },
+      failJob: (jobId: string, message: string) => {
+        failCalled = true;
+        assert.equal(jobId, 'job-2');
+        assert.equal(message, 'complete failed');
+        return { ...claimedJob, status: 'failed', error: message };
+      }
+    } as unknown as NativePipelineStore;
+
+    await processOneNativeJob({
+      workerId: 'worker-2',
+      logger,
+      enabled: true,
+      store
+    });
+    assert.equal(failCalled, true);
+  }
+
+  {
+    const claimedJob: MutableJob = {
+      id: 'job-3',
+      projectId: 'project-c',
+      kind: 'gltf.convert',
+      status: 'running',
+      createdAt: new Date().toISOString()
+    };
+    const store = {
+      claimNextJob: () => claimedJob,
+      completeJob: () => {
+        throw new Error('complete failed hard');
+      },
+      failJob: () => {
+        throw new Error('fail mark failed');
+      }
+    } as unknown as NativePipelineStore;
+
+    await processOneNativeJob({
+      workerId: 'worker-3',
+      logger,
+      enabled: true,
+      store
+    });
+  }
 };

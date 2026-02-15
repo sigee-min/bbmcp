@@ -4,26 +4,48 @@ import { resolveWorkerRuntimeConfig } from './config';
 import { runHeartbeat } from './heartbeat';
 import { processOneNativeJob } from './nativeJobProcessor';
 
+const WORKER_VERSION = '0.0.2';
+
 const config = resolveWorkerRuntimeConfig();
 const logLevel: LogLevel = config.logLevel;
 const logger = new ConsoleLogger('ashfox-worker', () => logLevel);
 
 const backend = createEngineBackend({
-  version: '0.0.0-scaffold',
-  details: { queue: 'in-memory-placeholder' }
+  version: WORKER_VERSION,
+  details: { queue: 'in-memory' }
 });
 
+const runHeartbeatSafely = async (): Promise<void> => {
+  try {
+    await runHeartbeat(backend, logger);
+  } catch (error) {
+    logger.error('ashfox worker heartbeat failed', {
+      message: error instanceof Error ? error.message : String(error)
+    });
+  }
+};
+
+const processNativeJobSafely = async (): Promise<void> => {
+  try {
+    await processOneNativeJob({
+      workerId: config.workerId,
+      logger,
+      enabled: config.enableNativePipeline
+    });
+  } catch (error) {
+    logger.error('ashfox worker job loop failed', {
+      message: error instanceof Error ? error.message : String(error)
+    });
+  }
+};
+
 logger.info('ashfox worker started', { heartbeatMs: config.heartbeatMs });
-void runHeartbeat(backend, logger);
+void runHeartbeatSafely();
 const timer = setInterval(() => {
-  void runHeartbeat(backend, logger);
+  void runHeartbeatSafely();
 }, config.heartbeatMs);
 const jobTimer = setInterval(() => {
-  void processOneNativeJob({
-    workerId: config.workerId,
-    logger,
-    enabled: config.enableNativePipeline
-  });
+  void processNativeJobSafely();
 }, config.pollMs);
 
 const shutdown = () => {

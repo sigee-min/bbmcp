@@ -11,6 +11,7 @@ const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 8790;
 const DEFAULT_PATH = '/mcp';
 const DEFAULT_BACKEND: BackendKind = 'engine';
+const GATEWAY_VERSION = '0.0.2';
 
 const toPort = (raw: string | undefined): number => {
   const numeric = Number(raw ?? DEFAULT_PORT);
@@ -57,14 +58,14 @@ const main = async (): Promise<void> => {
   const registry = new BackendRegistry();
   registry.register(
     createEngineBackend({
-      version: '0.0.0-scaffold',
+      version: GATEWAY_VERSION,
       details: { mode: 'standalone' },
       persistence
     })
   );
   registry.register(
     createBlockbenchBackend({
-      version: '0.0.0-scaffold',
+      version: GATEWAY_VERSION,
       details: { mode: 'requires_plugin_bridge' }
     })
   );

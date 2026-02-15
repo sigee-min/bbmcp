@@ -41,7 +41,17 @@ export const processOneNativeJob = async ({ workerId, logger, enabled, store: in
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    store.failJob(job.id, message);
+    try {
+      store.failJob(job.id, message);
+    } catch (failError) {
+      const failMessage = failError instanceof Error ? failError.message : String(failError);
+      logger.error('ashfox worker failed to mark native job failure', {
+        workerId,
+        jobId: job.id,
+        projectId: job.projectId,
+        message: failMessage
+      });
+    }
     logger.error('ashfox worker failed native job', {
       workerId,
       jobId: job.id,

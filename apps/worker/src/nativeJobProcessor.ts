@@ -1,17 +1,13 @@
 import type { Logger } from '@ashfox/runtime/logging';
-import { getNativePipelineStore, type NativeJob } from '@ashfox/native-pipeline';
+import { getNativePipelineStore, type NativeJob, type NativePipelineStorePort } from '@ashfox/native-pipeline';
 
-type NativePipelineStorePort = {
-  claimNextJob(workerId: string): NativeJob | null;
-  completeJob(jobId: string, result?: Record<string, unknown>): NativeJob | null;
-  failJob(jobId: string, error: string): NativeJob | null;
-};
+type NativePipelineWorkerStorePort = Pick<NativePipelineStorePort, 'claimNextJob' | 'completeJob' | 'failJob'>;
 
 type ProcessNativeJobArgs = {
   workerId: string;
   logger: Logger;
   enabled: boolean;
-  store?: NativePipelineStorePort;
+  store?: NativePipelineWorkerStorePort;
   processor?: NativeJobProcessor;
 };
 
@@ -40,7 +36,7 @@ export const processOneNativeJob = async ({
 
   const store = injectedStore ?? getNativePipelineStore();
   const activeProcessor = processor ?? defaultProcessor;
-  const job = store.claimNextJob(workerId);
+  const job = await store.claimNextJob(workerId);
   if (!job) return;
 
   logger.info('ashfox worker claimed native job', {
@@ -59,7 +55,7 @@ export const processOneNativeJob = async ({
       ...(processorResult ? { output: processorResult } : {}),
       finishedAt: new Date().toISOString()
     };
-    store.completeJob(job.id, result);
+    await store.completeJob(job.id, result);
     logger.info('ashfox worker completed native job', {
       workerId,
       jobId: job.id,
@@ -68,7 +64,7 @@ export const processOneNativeJob = async ({
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     try {
-      store.failJob(job.id, message);
+      await store.failJob(job.id, message);
     } catch (failError) {
       const failMessage = failError instanceof Error ? failError.message : String(failError);
       logger.error('ashfox worker failed to mark native job failure', {

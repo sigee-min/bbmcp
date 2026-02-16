@@ -25,12 +25,12 @@ module.exports = async () => {
   {
     let claimed = false;
     const store = {
-      claimNextJob: () => {
+      claimNextJob: async () => {
         claimed = true;
         return null;
       },
-      completeJob: () => null,
-      failJob: () => null
+      completeJob: async () => null,
+      failJob: async () => null
     } satisfies NativePipelineStorePort;
 
     await processOneNativeJob({
@@ -56,8 +56,8 @@ module.exports = async () => {
     };
     let completeCalled = false;
     const store = {
-      claimNextJob: () => claimedJob,
-      completeJob: (jobId: string, result?: Record<string, unknown>) => {
+      claimNextJob: async () => claimedJob,
+      completeJob: async (jobId: string, result?: Record<string, unknown>) => {
         completeCalled = true;
         assert.equal(jobId, 'job-1');
         assert.equal(result?.kind, 'gltf.convert');
@@ -68,7 +68,7 @@ module.exports = async () => {
         });
         return { ...claimedJob, status: 'completed', result };
       },
-      failJob: () => {
+      failJob: async () => {
         throw new Error('failJob should not be called in success case');
       }
     } satisfies NativePipelineStorePort;
@@ -86,11 +86,11 @@ module.exports = async () => {
     const error = new Error('claim error');
     let failCalled = false;
     const store = {
-      claimNextJob: () => {
+      claimNextJob: async () => {
         throw error;
       },
-      completeJob: () => null,
-      failJob: () => {
+      completeJob: async () => null,
+      failJob: async () => {
         failCalled = true;
         return null;
       }
@@ -122,11 +122,11 @@ module.exports = async () => {
     };
     let failCalled = false;
     const store = {
-      claimNextJob: () => claimedJob,
-      completeJob: () => {
+      claimNextJob: async () => claimedJob,
+      completeJob: async () => {
         throw new Error('complete failed');
       },
-      failJob: (jobId: string, message: string) => {
+      failJob: async (jobId: string, message: string) => {
         failCalled = true;
         assert.equal(jobId, 'job-2');
         assert.equal(message, 'complete failed');
@@ -155,11 +155,11 @@ module.exports = async () => {
       createdAt: new Date().toISOString()
     };
     const store = {
-      claimNextJob: () => claimedJob,
-      completeJob: () => {
+      claimNextJob: async () => claimedJob,
+      completeJob: async () => {
         throw new Error('complete failed hard');
       },
-      failJob: () => {
+      failJob: async () => {
         throw new Error('fail mark failed');
       }
     } satisfies NativePipelineStorePort;
@@ -186,13 +186,13 @@ module.exports = async () => {
     let processorCalled = false;
     let outputChecked = false;
     const store = {
-      claimNextJob: () => claimedJob,
-      completeJob: (_jobId: string, result?: Record<string, unknown>) => {
+      claimNextJob: async () => claimedJob,
+      completeJob: async (_jobId: string, result?: Record<string, unknown>) => {
         outputChecked = true;
         assert.deepEqual(result?.output, { ok: true, mode: 'custom' });
         return { ...claimedJob, status: 'completed', result };
       },
-      failJob: () => null
+      failJob: async () => null
     } satisfies NativePipelineStorePort;
 
     await processOneNativeJob({

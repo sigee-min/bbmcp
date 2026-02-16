@@ -9,10 +9,13 @@ const WORKER_VERSION = '0.0.2';
 const config = resolveWorkerRuntimeConfig();
 const logLevel: LogLevel = config.logLevel;
 const logger = new ConsoleLogger('ashfox-worker', () => logLevel);
+const queueBackend = String(process.env.ASHFOX_NATIVE_PIPELINE_BACKEND ?? 'persistence').trim().toLowerCase() === 'memory'
+  ? 'memory'
+  : 'persistence';
 
 const backend = createEngineBackend({
   version: WORKER_VERSION,
-  details: { queue: 'in-memory' }
+  details: { queue: queueBackend }
 });
 
 const runHeartbeatSafely = async (): Promise<void> => {

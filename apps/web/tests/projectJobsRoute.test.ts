@@ -37,7 +37,58 @@ module.exports = async () => {
       new Request('http://localhost/api/projects/project-a/jobs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
+        body: '{bad json'
+      }),
+      {
+        params: Promise.resolve({ projectId: 'project-a' })
+      }
+    );
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { code?: string; message?: string };
+    assert.equal(body.code, 'invalid_payload');
+    assert.equal(body.message, 'JSON body is required');
+  }
+
+  {
+    const response = await POST(
+      new Request('http://localhost/api/projects/project-a/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({})
+      }),
+      {
+        params: Promise.resolve({ projectId: 'project-a' })
+      }
+    );
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { code?: string; message?: string };
+    assert.equal(body.code, 'invalid_payload');
+    assert.equal(body.message, 'kind is required');
+  }
+
+  {
+    const response = await POST(
+      new Request('http://localhost/api/projects/project-a/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ kind: 'gltf.convert', maxAttempts: 0 })
+      }),
+      {
+        params: Promise.resolve({ projectId: 'project-a' })
+      }
+    );
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { code?: string; message?: string };
+    assert.equal(body.code, 'invalid_payload');
+    assert.equal(body.message, 'maxAttempts must be a positive integer');
+  }
+
+  {
+    const response = await POST(
+      new Request('http://localhost/api/projects/project-a/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'gltf.convert', maxAttempts: 1.5 })
       }),
       {
         params: Promise.resolve({ projectId: 'project-a' })
@@ -64,6 +115,23 @@ module.exports = async () => {
     const body = (await response.json()) as { code?: string; message?: string };
     assert.equal(body.code, 'invalid_payload');
     assert.equal(body.message, 'leaseMs must be a positive integer');
+  }
+
+  {
+    const response = await POST(
+      new Request('http://localhost/api/projects/project-a/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'gltf.convert', payload: ['bad'] })
+      }),
+      {
+        params: Promise.resolve({ projectId: 'project-a' })
+      }
+    );
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { code?: string; message?: string };
+    assert.equal(body.code, 'invalid_payload');
+    assert.equal(body.message, 'payload must be an object');
   }
 
   {

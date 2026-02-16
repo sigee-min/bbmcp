@@ -23,9 +23,8 @@ type ParsedPositiveInt =
 const parseOptionalPositiveInt = (value: unknown): ParsedPositiveInt => {
   if (value === undefined) return { ok: true };
   if (typeof value !== 'number' || !Number.isFinite(value)) return { ok: false };
-  const rounded = Math.trunc(value);
-  if (rounded <= 0) return { ok: false };
-  return { ok: true, value: rounded };
+  if (!Number.isInteger(value) || value <= 0) return { ok: false };
+  return { ok: true, value };
 };
 
 export async function GET(
@@ -116,10 +115,21 @@ export async function POST(
     );
   }
 
+  if (body.payload !== undefined && !isRecord(body.payload)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: 'invalid_payload',
+        message: 'payload must be an object'
+      },
+      { status: 400 }
+    );
+  }
+
   const job = store.submitJob({
     projectId,
     kind: body.kind,
-    payload: isRecord(body.payload) ? body.payload : undefined,
+    payload: body.payload,
     maxAttempts: parsedMaxAttempts.value,
     leaseMs: parsedLeaseMs.value
   });

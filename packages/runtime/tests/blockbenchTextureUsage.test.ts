@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 
 import { buildTextureUsageResult } from '../src/adapters/blockbench/BlockbenchTextureUsage';
 
+type TextureUsageDeps = Parameters<typeof buildTextureUsageResult>[1];
+
 {
   const res = buildTextureUsageResult(
     { textureName: 'missing' },
     {
-      textures: [{ id: 'tex1', name: 'atlas' }] as unknown as Parameters<typeof buildTextureUsageResult>[1]['textures'],
-      cubes: [] as unknown as Parameters<typeof buildTextureUsageResult>[1]['cubes']
+      textures: [{ id: 'tex1', name: 'atlas' }] as TextureUsageDeps['textures'],
+      cubes: [] as TextureUsageDeps['cubes']
     }
   );
   assert.equal(Boolean(res.error), true);
@@ -21,7 +23,7 @@ import { buildTextureUsageResult } from '../src/adapters/blockbench/BlockbenchTe
       textures: [
         { id: 'tex1', name: 'atlas', width: 16, height: 16 },
         { uuid: 'tex2', name: 'extra', width: 32, height: 32 }
-      ] as unknown as Parameters<typeof buildTextureUsageResult>[1]['textures'],
+      ] as TextureUsageDeps['textures'],
       cubes: [
         {
           id: 'cube1',
@@ -32,7 +34,7 @@ import { buildTextureUsageResult } from '../src/adapters/blockbench/BlockbenchTe
             west: { texture: 'unknown-ref', uv: [0, 8, 8, 16] }
           }
         }
-      ] as unknown as Parameters<typeof buildTextureUsageResult>[1]['cubes']
+      ] as TextureUsageDeps['cubes']
     }
   );
   assert.equal(Boolean(res.error), false);
@@ -54,7 +56,7 @@ import { buildTextureUsageResult } from '../src/adapters/blockbench/BlockbenchTe
       textures: [
         { id: 'tex1', uuid: 'alias-tex1', name: 'atlas', width: 16, height: 16 },
         { id: 'tex2', name: 'extra', width: 32, height: 32 }
-      ] as unknown as Parameters<typeof buildTextureUsageResult>[1]['textures'],
+      ] as TextureUsageDeps['textures'],
       cubes: [
         {
           id: 'cube1',
@@ -64,7 +66,7 @@ import { buildTextureUsageResult } from '../src/adapters/blockbench/BlockbenchTe
             east: { texture: 'tex2', uv: [0, 0, 8, 8] }
           }
         }
-      ] as unknown as Parameters<typeof buildTextureUsageResult>[1]['cubes']
+      ] as TextureUsageDeps['cubes']
     }
   );
   assert.equal(Boolean(res.error), false);
@@ -77,7 +79,7 @@ import { buildTextureUsageResult } from '../src/adapters/blockbench/BlockbenchTe
   const res = buildTextureUsageResult(
     {},
     {
-      textures: [{ id: 'tex1', name: 'atlas' }] as unknown as Parameters<typeof buildTextureUsageResult>[1]['textures'],
+      textures: [{ id: 'tex1', name: 'atlas' }] as TextureUsageDeps['textures'],
       cubes: [
         {
           id: 'cube1',
@@ -94,7 +96,7 @@ import { buildTextureUsageResult } from '../src/adapters/blockbench/BlockbenchTe
             north: { texture: 'tex1', uv: [0, 0, 8, 8] }
           }
         }
-      ] as unknown as Parameters<typeof buildTextureUsageResult>[1]['cubes']
+      ] as TextureUsageDeps['cubes']
     }
   );
   assert.equal(Boolean(res.error), false);

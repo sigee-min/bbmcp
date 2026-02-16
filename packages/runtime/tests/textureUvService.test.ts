@@ -40,7 +40,7 @@ const createHarness = (options: HarnessOptions = {}) => {
       calls.push(params);
       return options.setFaceUvError ?? null;
     }
-  } as unknown as EditorPort;
+  } as never;
 
   const service = new TextureUvService({
     editor,

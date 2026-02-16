@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 
 import type { EditorPort } from '../src/ports/editor';
+import type { ToolError } from '../src/types';
 import { ProjectSession } from '../src/session';
 import { TextureAssignmentService } from '../src/usecases/textureService/TextureAssignmentService';
 
 type SetupOptions = {
-  ensureActiveError?: { code: string; message: string } | null;
-  ensureRevisionError?: { code: string; message: string } | null;
-  editorAssignError?: { code: string; message: string } | null;
+  ensureActiveError?: ToolError | null;
+  ensureRevisionError?: ToolError | null;
+  editorAssignError?: ToolError | null;
 };
 
 const createServiceSetup = (options: SetupOptions = {}) => {
@@ -24,7 +25,7 @@ const createServiceSetup = (options: SetupOptions = {}) => {
       calls.push(payload);
       return options.editorAssignError ?? null;
     }
-  } as unknown as EditorPort;
+  } as never;
 
   const service = new TextureAssignmentService({
     editor,
@@ -77,7 +78,7 @@ const createServiceSetup = (options: SetupOptions = {}) => {
   const res = service.assignTexture({
     textureName: 'atlas',
     cubeNames: ['body'],
-    faces: ['north', 'invalid_face' as unknown as 'north']
+    faces: ['north', 'invalid_face' as 'north']
   });
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(res.error.code, 'invalid_payload');

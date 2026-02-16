@@ -154,16 +154,23 @@ const decodeDataUriBytes = (uri: string): Uint8Array => {
   return Buffer.from(base64, 'base64');
 };
 
+type GltfUriRef = { uri?: string };
+
+type GltfUriDoc = {
+  buffers?: GltfUriRef[];
+  images?: GltfUriRef[];
+};
+
 const sanitizeGltfUrisForJsonCompare = (value: unknown): unknown => {
-  const clone = JSON.parse(JSON.stringify(value)) as any;
+  const clone = JSON.parse(JSON.stringify(value)) as GltfUriDoc & Record<string, unknown>;
   if (clone && typeof clone === 'object') {
     if (Array.isArray(clone.buffers)) {
-      clone.buffers.forEach((buf: any) => {
+      clone.buffers.forEach((buf) => {
         if (buf && typeof buf === 'object' && 'uri' in buf) buf.uri = '__IGNORED_DATA_URI__';
       });
     }
     if (Array.isArray(clone.images)) {
-      clone.images.forEach((img: any) => {
+      clone.images.forEach((img) => {
         if (img && typeof img === 'object' && 'uri' in img) img.uri = '__IGNORED_DATA_URI__';
       });
     }
@@ -330,7 +337,7 @@ const runGltfFixture = async (fixtureId: string, fixtureDir: string) => {
 
   assert.equal(editorState.state.writes.length, 1, `${fixtureId}: expected 1 output file`);
   assert.equal(path.basename(editorState.state.writes[0]!.path), destPath, `${fixtureId}: output file name mismatch`);
-  const actualGltf = JSON.parse(editorState.state.writes[0]!.contents);
+  const actualGltf = JSON.parse(editorState.state.writes[0]!.contents) as GltfUriDoc & Record<string, unknown>;
 
   const expectedGltf = readJson(path.join(expectedDir, destPath));
   assertJsonEqual(
@@ -346,13 +353,15 @@ const runGltfFixture = async (fixtureId: string, fixtureDir: string) => {
 
   const actualBufferUri = actualGltf?.buffers?.[0]?.uri;
   assert.equal(typeof actualBufferUri, 'string', `${fixtureId}: missing buffers[0].uri`);
+  if (typeof actualBufferUri !== 'string') return;
   const actualBufferSha = sha256Bytes(decodeDataUriBytes(actualBufferUri));
   assert.equal(actualBufferSha, expectedSha.buffer0_sha256, `${fixtureId}: buffer0_sha256 mismatch`);
 
   const actualImages = Array.isArray(actualGltf?.images) ? actualGltf.images : [];
-  actualImages.forEach((img: any, index: number) => {
+  actualImages.forEach((img, index) => {
     const uri = img?.uri;
     assert.equal(typeof uri, 'string', `${fixtureId}: missing images[${index}].uri`);
+    if (typeof uri !== 'string') return;
     const key = `image${index}_sha256`;
     assert.ok(typeof expectedSha[key] === 'string', `${fixtureId}: missing expected ${key}`);
     assert.equal(sha256Bytes(decodeDataUriBytes(uri)), expectedSha[key]!, `${fixtureId}: ${key} mismatch`);

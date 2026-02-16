@@ -1,3 +1,4 @@
+import type { ProjectSnapshotStorePort, QueueStorePort, StreamEventStorePort } from '@ashfox/backend-core';
 import { appendProjectSnapshotEvent, getProjectEventsSince as readProjectEventsSince } from './eventRepository';
 import {
   claimNextJob as claimNativeJob,
@@ -11,17 +12,17 @@ import { ensureProject, getProject as readProject, listProjects as readProjects,
 import { createNativePipelineState, resetNativePipelineState } from './state';
 import type { NativeJob, NativeJobSubmitInput, NativeProjectEvent, NativeProjectSnapshot } from './types';
 
-export interface NativePipelineStorePort {
+export type NativePipelineQueueStorePort = QueueStorePort<NativeJob, NativeJobSubmitInput>;
+
+export type NativePipelineProjectStorePort = ProjectSnapshotStorePort<NativeProjectSnapshot>;
+
+export type NativePipelineStreamStorePort = StreamEventStorePort<NativeProjectEvent>;
+
+export interface NativePipelineStorePort
+  extends NativePipelineQueueStorePort,
+    NativePipelineProjectStorePort,
+    NativePipelineStreamStorePort {
   reset(): Promise<void>;
-  listProjects(query?: string): Promise<NativeProjectSnapshot[]>;
-  getProject(projectId: string): Promise<NativeProjectSnapshot | null>;
-  listProjectJobs(projectId: string): Promise<NativeJob[]>;
-  getJob(jobId: string): Promise<NativeJob | null>;
-  submitJob(input: NativeJobSubmitInput): Promise<NativeJob>;
-  claimNextJob(workerId: string): Promise<NativeJob | null>;
-  completeJob(jobId: string, result?: Record<string, unknown>): Promise<NativeJob | null>;
-  failJob(jobId: string, error: string): Promise<NativeJob | null>;
-  getProjectEventsSince(projectId: string, lastSeq: number): Promise<NativeProjectEvent[]>;
 }
 
 export class NativePipelineStore implements NativePipelineStorePort {

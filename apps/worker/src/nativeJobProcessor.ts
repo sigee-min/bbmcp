@@ -1,7 +1,7 @@
 import type { Logger } from '@ashfox/runtime/logging';
-import { getNativePipelineStore, type NativeJob, type NativePipelineStorePort } from '@ashfox/native-pipeline';
+import { getNativePipelineStore, type NativeJob, type NativePipelineQueueStorePort } from '@ashfox/native-pipeline';
 
-type NativePipelineWorkerStorePort = Pick<NativePipelineStorePort, 'claimNextJob' | 'completeJob' | 'failJob'>;
+type NativePipelineWorkerStorePort = Pick<NativePipelineQueueStorePort, 'claimNextJob' | 'completeJob' | 'failJob'>;
 
 type ProcessNativeJobArgs = {
   workerId: string;

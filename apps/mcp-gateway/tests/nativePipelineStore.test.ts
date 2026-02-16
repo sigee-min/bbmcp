@@ -144,5 +144,23 @@ registerAsync(
     assert.equal(recoveredClaim?.id, expiring.id);
     assert.equal(recoveredClaim?.workerId, 'worker-8');
     assert.equal(recoveredClaim?.attemptCount, 2);
+
+    const concurrencyCandidate = await store.submitJob({
+      projectId: 'project-a',
+      kind: 'claim.race',
+      maxAttempts: 2,
+      leaseMs: 5000
+    });
+    const [firstRaceClaim, secondRaceClaim] = await Promise.all([
+      store.claimNextJob('worker-race-1'),
+      store.claimNextJob('worker-race-2')
+    ]);
+    const claims = [firstRaceClaim, secondRaceClaim].filter((entry) => entry?.id === concurrencyCandidate.id);
+    assert.equal(claims.length, 1);
+    assert.equal(claims[0]?.status, 'running');
+    const winner = claims[0]?.workerId;
+    assert.equal(winner === 'worker-race-1' || winner === 'worker-race-2', true);
+    const completedRace = await store.completeJob(concurrencyCandidate.id, { ok: true, winner });
+    assert.equal(completedRace?.status, 'completed');
   })()
 );

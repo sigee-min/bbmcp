@@ -269,6 +269,94 @@ type GltfNode = {
   skin?: number;
 };
 
+type GltfAnimationSampler = {
+  input: number;
+  output: number;
+  interpolation: BuiltSampler['interpolation'];
+};
+
+type GltfAnimationChannel = {
+  sampler: number;
+  target: {
+    node: number;
+    path: BuiltSampler['path'];
+  };
+};
+
+type GltfAnimation = {
+  name: string;
+  samplers: GltfAnimationSampler[];
+  channels: GltfAnimationChannel[];
+  extras: {
+    ashfox: {
+      loop: boolean;
+      length: number;
+      fps?: number;
+    };
+  };
+};
+
+type GltfBufferView = {
+  buffer: number;
+  byteOffset: number;
+  byteLength: number;
+};
+
+type GltfAccessor = {
+  bufferView: number;
+  componentType: 5123 | 5126;
+  count: number;
+  type: 'SCALAR' | 'VEC2' | 'VEC3' | 'VEC4' | 'MAT4';
+};
+
+type GltfMaterial = {
+  pbrMetallicRoughness:
+    | {
+        baseColorTexture: { index: number };
+        metallicFactor: number;
+        roughnessFactor: number;
+      }
+    | {
+        baseColorFactor: [number, number, number, number];
+        metallicFactor: number;
+        roughnessFactor: number;
+      };
+  doubleSided: true;
+};
+
+type GltfDocument = {
+  asset: { version: string; generator: string };
+  scene: number;
+  scenes: Array<{ nodes: number[] }>;
+  nodes: GltfNode[];
+  meshes: Array<{
+    primitives: Array<{
+      attributes: {
+        POSITION: number;
+        NORMAL: number;
+        TEXCOORD_0: number;
+        JOINTS_0: number;
+        WEIGHTS_0: number;
+      };
+      mode: number;
+      material: number;
+    }>;
+  }>;
+  skins: Array<{
+    joints: number[];
+    skeleton: number;
+    inverseBindMatrices: number;
+  }>;
+  buffers: Array<{ byteLength: number; uri: string }>;
+  bufferViews: GltfBufferView[];
+  accessors: GltfAccessor[];
+  materials: GltfMaterial[];
+  animations: GltfAnimation[];
+  samplers?: Array<{ magFilter: number; minFilter: number; wrapS: number; wrapT: number }>;
+  images?: Array<{ uri: string }>;
+  textures?: Array<{ sampler: number; source: number }>;
+};
+
 const channelOrder = (channel: 'pos' | 'rot' | 'scale'): number => {
   if (channel === 'pos') return 0;
   if (channel === 'rot') return 1;
@@ -724,7 +812,7 @@ export class GltfCodec implements ExportCodecStrategy {
     // Animations.
     const epsilon = normalizeTimeEpsilon(model.timePolicy.timeEpsilon);
     const samplersByAnimation: BuiltSampler[][] = [];
-    const animations: any[] = [];
+    const animations: GltfAnimation[] = [];
     let anyTriggers = false;
     model.animations.forEach((clip) => {
       if (clip.triggers.length > 0) anyTriggers = true;
@@ -808,8 +896,8 @@ export class GltfCodec implements ExportCodecStrategy {
         });
       });
 
-      const samplers: any[] = [];
-      const channels: any[] = [];
+      const samplers: GltfAnimationSampler[] = [];
+      const channels: GltfAnimationChannel[] = [];
       builtSamplers.forEach((sampler, idx) => {
         // Accessor indices are assigned later during packing.
         samplers.push({
@@ -871,8 +959,8 @@ export class GltfCodec implements ExportCodecStrategy {
     }
 
     // Pack buffer.
-    const bufferViews: any[] = [];
-    const accessors: any[] = [];
+    const bufferViews: GltfBufferView[] = [];
+    const accessors: GltfAccessor[] = [];
     const writer = new ByteWriter();
 
     const pushSection = (data: Uint8Array): { offset: number; length: number } => {
@@ -970,10 +1058,10 @@ export class GltfCodec implements ExportCodecStrategy {
 
     const primaryTexture = model.textures[0];
     const textureDataUri = primaryTexture?.dataUri;
-    const hasTexture = Boolean(textureDataUri);
+    const hasTexture = typeof textureDataUri === 'string' && textureDataUri.length > 0;
     if (!hasTexture) warnings.add('GLT-WARN-TEXTURE_DATA_MISSING');
 
-    const material: any = hasTexture
+    const material: GltfMaterial = hasTexture
       ? {
           pbrMetallicRoughness: {
             baseColorTexture: { index: 0 },
@@ -991,7 +1079,7 @@ export class GltfCodec implements ExportCodecStrategy {
           doubleSided: true
         };
 
-    const gltf: any = {
+    const gltf: GltfDocument = {
       asset: { version: '2.0', generator: 'ashfox gltf_codec v1' },
       scene: 0,
       scenes: [{ nodes: rootNodes }],

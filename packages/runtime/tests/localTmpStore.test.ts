@@ -61,7 +61,7 @@ const VALID_DATA_URI = 'data:image/png;base64,AAAA';
 
 {
   const tmpRoot = makeTmpRoot();
-  const fsMutable = fs as unknown as { writeFileSync: typeof fs.writeFileSync };
+  const fsMutable = fs as { writeFileSync: typeof fs.writeFileSync };
   const originalWrite = fsMutable.writeFileSync;
   fsMutable.writeFileSync = (() => {
     throw new Error('write denied');
@@ -80,7 +80,7 @@ const VALID_DATA_URI = 'data:image/png;base64,AAAA';
 
 {
   const tmpRoot = makeTmpRoot();
-  const mutableBuffer = Buffer as unknown as { from: typeof Buffer.from };
+  const mutableBuffer = Buffer as { from: typeof Buffer.from };
   const originalBufferFrom = mutableBuffer.from;
   mutableBuffer.from = ((value: string, encoding?: BufferEncoding) => {
     if (encoding === 'base64') throw new Error('decode fail');

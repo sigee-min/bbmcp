@@ -29,13 +29,10 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
 // Geometry adapter should refresh viewport once after a successful mutation.
 {
   let previewRenderCalls = 0;
-  const adapter = new BlockbenchGeometryAdapter(noopLog) as unknown as {
-    cubes: { updateCube: (params: unknown) => unknown };
-    updateCube: (params: unknown) => unknown;
-  };
-  adapter.cubes = {
+  const adapter = new BlockbenchGeometryAdapter(noopLog);
+  Reflect.set(adapter as object, 'cubes', {
     updateCube: () => null
-  };
+  });
   withGlobals(
     {
       Preview: {
@@ -58,13 +55,10 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
 // Geometry adapter should skip viewport refresh on mutation errors.
 {
   let previewRenderCalls = 0;
-  const adapter = new BlockbenchGeometryAdapter(noopLog) as unknown as {
-    cubes: { updateCube: (params: unknown) => unknown };
-    updateCube: (params: unknown) => unknown;
-  };
-  adapter.cubes = {
+  const adapter = new BlockbenchGeometryAdapter(noopLog);
+  Reflect.set(adapter as object, 'cubes', {
     updateCube: () => ({ code: 'invalid_payload', message: 'bad request' })
-  };
+  });
   withGlobals(
     {
       Preview: {
@@ -140,4 +134,3 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
   );
   assert.equal(previewRenderCalls, 0);
 }
-

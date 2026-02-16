@@ -12,7 +12,7 @@ const logger: Logger = {
 };
 
 {
-  const editor = new BlockbenchEditor(logger) as unknown as Record<string, unknown>;
+  const typedEditor = new BlockbenchEditor(logger);
   const calls: string[] = [];
 
   const projectResult = { code: 'io_error', message: 'x' };
@@ -21,7 +21,7 @@ const logger: Logger = {
   const animationResult = { code: 'unknown', message: 'x' };
   const previewResult = { error: { code: 'invalid_payload', message: 'x' } };
 
-  editor.project = {
+  Reflect.set(typedEditor as object, 'project', {
     createProject: () => {
       calls.push('project.createProject');
       return projectResult;
@@ -46,8 +46,8 @@ const logger: Logger = {
       calls.push('project.setProjectUvPixelsPerBlock');
       return projectResult;
     }
-  };
-  editor.textures = {
+  });
+  Reflect.set(typedEditor as object, 'textures', {
     importTexture: () => {
       calls.push('textures.importTexture');
       return textureResult;
@@ -68,8 +68,8 @@ const logger: Logger = {
       calls.push('textures.listTextures');
       return [{ name: 'atlas', width: 16, height: 16 }];
     }
-  };
-  editor.geometry = {
+  });
+  Reflect.set(typedEditor as object, 'geometry', {
     assignTexture: () => {
       calls.push('geometry.assignTexture');
       return geometryResult;
@@ -106,8 +106,8 @@ const logger: Logger = {
       calls.push('geometry.getTextureUsage');
       return { error: geometryResult };
     }
-  };
-  editor.animation = {
+  });
+  Reflect.set(typedEditor as object, 'animation', {
     createAnimation: () => {
       calls.push('animation.createAnimation');
       return animationResult;
@@ -128,15 +128,13 @@ const logger: Logger = {
       calls.push('animation.setTriggerKeyframes');
       return animationResult;
     }
-  };
-  editor.preview = {
+  });
+  Reflect.set(typedEditor as object, 'preview', {
     renderPreview: () => {
       calls.push('preview.renderPreview');
       return previewResult;
     }
-  };
-
-  const typedEditor = editor as unknown as BlockbenchEditor;
+  });
 
   assert.equal(typedEditor.createProject('a', 'b'), projectResult);
   assert.equal(typedEditor.closeProject(), projectResult);
@@ -147,7 +145,7 @@ const logger: Logger = {
   assert.deepEqual(typedEditor.listTextures(), [{ name: 'atlas', width: 16, height: 16 }]);
   assert.equal(typedEditor.assignTexture({ textureName: 'x' }), geometryResult);
   assert.equal(typedEditor.setFaceUv({ cubeName: 'c', faces: { north: [0, 0, 1, 1] } }), geometryResult);
-  assert.equal(typedEditor.addBone({ name: 'b' }), geometryResult);
+  assert.equal(typedEditor.addBone({ name: 'b', pivot: [0, 0, 0] }), geometryResult);
   assert.equal(typedEditor.updateBone({ name: 'b' }), geometryResult);
   assert.equal(typedEditor.deleteBone({ name: 'b' }), geometryResult);
   assert.equal(typedEditor.addCube({ name: 'c', from: [0, 0, 0], to: [1, 1, 1] }), geometryResult);

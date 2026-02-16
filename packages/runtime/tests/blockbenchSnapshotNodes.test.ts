@@ -19,7 +19,7 @@ const createStateBuffers = () => {
         children: [],
         from: [0, 0, 0],
         to: [1, 1, 1]
-      } as unknown as Parameters<typeof walkNodes>[0][number]
+      } as Parameters<typeof walkNodes>[0][number]
     ],
     undefined,
     bones,
@@ -39,7 +39,7 @@ const createStateBuffers = () => {
       {
         name: 'body',
         children: [{ name: 'body_main', from: [0, 0, 0], to: [2, 2, 2] }]
-      } as unknown as Parameters<typeof walkNodes>[0][number]
+      } as Parameters<typeof walkNodes>[0][number]
     ],
     undefined,
     bones,
@@ -67,7 +67,7 @@ const createStateBuffers = () => {
             uv_offset: { x: 3, y: 4 }
           }
         ]
-      } as unknown as Parameters<typeof walkNodes>[0][number]
+      } as Parameters<typeof walkNodes>[0][number]
     ],
     undefined,
     bones,

@@ -13,7 +13,7 @@ type TestGlobals = {
   Dialog?: { open?: TestDialog };
 };
 
-const getGlobals = (): TestGlobals => globalThis as unknown as TestGlobals;
+const getGlobals = (): TestGlobals => globalThis as TestGlobals;
 
 const withGlobals = (overrides: TestGlobals, run: () => void) => {
   const globals = getGlobals();

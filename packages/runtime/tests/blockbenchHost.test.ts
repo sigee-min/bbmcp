@@ -6,7 +6,7 @@ type TestGlobals = {
   Plugins?: unknown;
 };
 
-const getGlobals = (): TestGlobals => globalThis as unknown as TestGlobals;
+const getGlobals = (): TestGlobals => globalThis as TestGlobals;
 
 const withGlobals = (overrides: TestGlobals, run: () => void) => {
   const globals = getGlobals();
@@ -30,13 +30,12 @@ const withGlobals = (overrides: TestGlobals, run: () => void) => {
 {
   const host = new BlockbenchHost();
   let capturedDelay = -1;
-  let capturedRun: (() => void) | null = null;
   let reloadCalls = 0;
   const originalSetTimeout = globalThis.setTimeout;
-  (globalThis as unknown as { setTimeout: typeof setTimeout }).setTimeout = ((fn: () => void, delay?: number) => {
-    capturedRun = fn;
+  (globalThis as { setTimeout: typeof setTimeout }).setTimeout = ((fn: () => void, delay?: number) => {
     capturedDelay = Number(delay ?? 0);
-    return 0 as unknown as ReturnType<typeof setTimeout>;
+    fn();
+    return originalSetTimeout(() => undefined, 0);
   }) as typeof setTimeout;
   try {
     withGlobals(
@@ -53,11 +52,9 @@ const withGlobals = (overrides: TestGlobals, run: () => void) => {
       }
     );
   } finally {
-    (globalThis as unknown as { setTimeout: typeof setTimeout }).setTimeout = originalSetTimeout;
+    (globalThis as { setTimeout: typeof setTimeout }).setTimeout = originalSetTimeout;
   }
   assert.equal(capturedDelay, 100);
-  assert.ok(capturedRun);
-  capturedRun?.();
   assert.equal(reloadCalls, 1);
 }
 
@@ -65,9 +62,9 @@ const withGlobals = (overrides: TestGlobals, run: () => void) => {
   const host = new BlockbenchHost();
   let capturedDelay = -1;
   const originalSetTimeout = globalThis.setTimeout;
-  (globalThis as unknown as { setTimeout: typeof setTimeout }).setTimeout = ((fn: () => void, delay?: number) => {
+  (globalThis as { setTimeout: typeof setTimeout }).setTimeout = ((fn: () => void, delay?: number) => {
     capturedDelay = Number(delay ?? 0);
-    return 0 as unknown as ReturnType<typeof setTimeout>;
+    return originalSetTimeout(() => undefined, 0);
   }) as typeof setTimeout;
   try {
     withGlobals(
@@ -82,8 +79,7 @@ const withGlobals = (overrides: TestGlobals, run: () => void) => {
       }
     );
   } finally {
-    (globalThis as unknown as { setTimeout: typeof setTimeout }).setTimeout = originalSetTimeout;
+    (globalThis as { setTimeout: typeof setTimeout }).setTimeout = originalSetTimeout;
   }
   assert.equal(capturedDelay, 10_000);
 }
-

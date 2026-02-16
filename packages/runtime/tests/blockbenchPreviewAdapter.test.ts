@@ -11,7 +11,7 @@ type TestGlobals = {
   Animator?: unknown;
 };
 
-const getGlobals = (): TestGlobals => globalThis as unknown as TestGlobals;
+const getGlobals = (): TestGlobals => globalThis as TestGlobals;
 
 const withGlobals = (overrides: TestGlobals, run: () => void) => {
   const globals = getGlobals();
@@ -227,4 +227,3 @@ const createCanvas = (dataUrl = 'data:image/png;base64,QQ==', width = 16, height
     }
   );
 }
-

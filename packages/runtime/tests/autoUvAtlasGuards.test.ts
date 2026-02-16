@@ -7,8 +7,7 @@ import { DEFAULT_ANIMATION_TIME_POLICY } from '../src/domain/animation/timePolic
 import { DEFAULT_UV_POLICY } from '../src/domain/uv/policy';
 import { runAutoUvAtlas } from '../src/usecases/textureTools/autoUvAtlas';
 import type { TextureToolContext } from '../src/usecases/textureTools/context';
-
-type TaggedImage = { tag: string };
+import { createEditorStub, createMockImage } from './fakes';
 
 const capabilities: Capabilities = {
   pluginVersion: 'test',
@@ -31,6 +30,16 @@ const createOpaque = (width: number, height: number): Uint8ClampedArray => {
 const createTransparent = (width: number, height: number): Uint8ClampedArray =>
   new Uint8ClampedArray(width * height * 4);
 
+const imageTagMap = new WeakMap<CanvasImageSource, string>();
+
+const createTaggedImage = (tag: string): CanvasImageSource => {
+  const image = createMockImage(`data:image/png;base64,${tag === 'after' ? 'BBBB' : 'AAAA'}`);
+  imageTagMap.set(image, tag);
+  return image;
+};
+
+const readTaggedImageTag = (image: CanvasImageSource): string | undefined => imageTagMap.get(image);
+
 // Duplicate cube names should still be mapped and applied by cubeId.
 {
   const width = 16;
@@ -50,33 +59,31 @@ const createTransparent = (width: number, height: number): Uint8ClampedArray =>
     ]
   };
 
-  let currentImage: TaggedImage = { tag: 'before' };
+  let currentImage = createTaggedImage('before');
   const faceUvCalls: Array<{ cubeId?: string; cubeName?: string; faces: Record<string, [number, number, number, number]> }> = [];
 
-  const editor = {
-    getTextureUsage: () => ({ result: usage }),
-    getProjectTextureResolution: () => ({ width, height }),
-    setProjectTextureResolution: () => null,
+  const editor: EditorPort = {
+    ...createEditorStub({ textureUsage: usage, textureResolution: { width, height } }),
     readTexture: () => ({
       result: {
         id: 'tex1',
         name: 'tex',
         width,
         height,
-        image: currentImage as unknown as CanvasImageSource
+        image: currentImage
       }
     }),
     setFaceUv: (params: { cubeId?: string; cubeName?: string; faces: Record<string, [number, number, number, number]> }) => {
       faceUvCalls.push(params);
       return null;
     }
-  } as unknown as EditorPort;
+  };
 
   const textureRenderer: TextureRendererPort = {
     readPixels: () => ({ result: { width, height, data: createOpaque(width, height) } }),
     renderPixels: () => ({
       result: {
-        image: { tag: 'after' } as unknown as CanvasImageSource,
+        image: createTaggedImage('after'),
         width,
         height
       }
@@ -106,7 +113,7 @@ const createTransparent = (width: number, height: number): Uint8ClampedArray =>
     getUvPolicyConfig: () => DEFAULT_UV_POLICY,
     importTexture: (_payload) => ({ ok: true, value: { id: 'tex1', name: 'tex' } }),
     updateTexture: (payload) => {
-      currentImage = payload.image as unknown as TaggedImage;
+      currentImage = payload.image;
       return { ok: true, value: { id: 'tex1', name: 'tex' } };
     }
   };
@@ -136,37 +143,34 @@ const createTransparent = (width: number, height: number): Uint8ClampedArray =>
       }
     ]
   };
-  let currentImage: TaggedImage = { tag: 'before' };
+  let currentImage = createTaggedImage('before');
   let updateCalls = 0;
   let rollbackCalls = 0;
 
-  const editor = {
-    getTextureUsage: () => ({ result: usage }),
-    getProjectTextureResolution: () => ({ width, height }),
-    setProjectTextureResolution: () => null,
+  const editor: EditorPort = {
+    ...createEditorStub({ textureUsage: usage, textureResolution: { width, height } }),
     readTexture: () => ({
       result: {
         id: 'tex1',
         name: 'minecraft_dragon',
         width,
         height,
-        image: currentImage as unknown as CanvasImageSource
+        image: currentImage
       }
     }),
     setFaceUv: () => null
-  } as unknown as EditorPort;
+  };
 
   const textureRenderer: TextureRendererPort = {
     readPixels: ({ image }) => {
-      const tagged = image as unknown as TaggedImage;
-      if (tagged.tag === 'after') {
+      if (readTaggedImageTag(image) === 'after') {
         return { result: { width, height, data: createTransparent(width, height) } };
       }
       return { result: { width, height, data: createOpaque(width, height) } };
     },
     renderPixels: () => ({
       result: {
-        image: { tag: 'after' } as unknown as CanvasImageSource,
+        image: createTaggedImage('after'),
         width,
         height
       }
@@ -194,7 +198,7 @@ const createTransparent = (width: number, height: number): Uint8ClampedArray =>
     importTexture: (_payload) => ({ ok: true, value: { id: 'tex1', name: 'minecraft_dragon' } }),
     updateTexture: (payload) => {
       updateCalls += 1;
-      currentImage = payload.image as unknown as TaggedImage;
+      currentImage = payload.image;
       if (updateCalls > 1) rollbackCalls += 1;
       return { ok: true, value: { id: 'tex1', name: 'minecraft_dragon' } };
     }

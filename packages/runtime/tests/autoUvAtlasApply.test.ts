@@ -4,8 +4,17 @@ import type { TextureUsage } from '../src/domain/model';
 import type { AtlasPlan } from '../src/domain/uv/atlas';
 import { applyAutoUvAtlasPlan, toReprojectTextureRenderer } from '../src/usecases/textureTools/autoUvAtlasApply';
 import type { TextureToolContext } from '../src/usecases/textureTools/context';
+import { createMockImage } from './fakes';
 
-type TaggedImage = { tag: string };
+const imageTagMap = new WeakMap<CanvasImageSource, string>();
+
+const createTaggedImage = (tag: string): CanvasImageSource => {
+  const image = createMockImage(`data:image/png;base64,${tag === 'after' ? 'BBBB' : 'AAAA'}`);
+  imageTagMap.set(image, tag);
+  return image;
+};
+
+const readTaggedImageTag = (image: CanvasImageSource): string | undefined => imageTagMap.get(image);
 
 const baseUsage: TextureUsage = {
   textures: [
@@ -56,7 +65,7 @@ const createHarness = (options?: {
   const plan = options?.plan ?? basePlan;
   const width = 16;
   const height = 16;
-  let currentImage: TaggedImage = { tag: 'before' };
+  let currentImage = createTaggedImage('before');
   let updateCalls = 0;
   let rollbackCalls = 0;
   let setFaceUvCalls = 0;
@@ -69,7 +78,7 @@ const createHarness = (options?: {
           name: 'atlas',
           image:
             options?.readTextureImage === undefined
-              ? (currentImage as unknown as CanvasImageSource)
+              ? currentImage
               : options.readTextureImage ?? undefined,
           width: options?.readTextureSize?.width ?? width,
           height: options?.readTextureSize?.height ?? height
@@ -81,9 +90,9 @@ const createHarness = (options?: {
         return null;
       }
     } as never,
-    updateTexture: (payload) => {
+    updateTexture: (payload: Parameters<NonNullable<TextureToolContext['updateTexture']>>[0]) => {
       updateCalls += 1;
-      currentImage = payload.image as unknown as TaggedImage;
+      currentImage = payload.image;
       if (options?.updateFail) return { ok: false, error: { code: 'invalid_state', message: 'update failed' } };
       if (options?.updateNoChange) return { ok: false, error: { code: 'no_change', message: 'same' } };
       if (updateCalls > 1) rollbackCalls += 1;
@@ -105,15 +114,14 @@ const createHarness = (options?: {
   const renderer = toReprojectTextureRenderer({
     readPixels: ({ image }) => {
       if (options?.readPixelsError) return { error: { code: 'invalid_state', message: 'read failed' } };
-      const tagged = image as unknown as TaggedImage;
-      if (options?.rollbackDrop && tagged.tag === 'after') {
+      if (options?.rollbackDrop && readTaggedImageTag(image) === 'after') {
         return { result: { width, height, data: createTransparent(width, height) } };
       }
       return { result: { width, height, data: createOpaque(width, height) } };
     },
     renderPixels: () => {
       if (options?.renderError) return { error: { code: 'invalid_state', message: 'render failed' } };
-      return { result: { image: { tag: 'after' } as unknown as CanvasImageSource, width, height } };
+      return { result: { image: createTaggedImage('after'), width, height } };
     }
   });
   assert.ok(renderer);

@@ -8,6 +8,7 @@ import {
   TEXTURE_RENDERER_NO_IMAGE,
   TEXTURE_RENDERER_UNAVAILABLE
 } from '../src/shared/messages';
+import { createMockImage } from './fakes';
 
 const normalizeMessage = (value: string): string => value.replace(/[.]$/, '');
 
@@ -20,7 +21,7 @@ const capabilities = {
 
 const createHarness = (options?: {
   activeError?: ToolError | null;
-  textures?: Array<{ id?: string; name: string }>;
+  textures?: Array<{ id?: string; name: string; width?: number; height?: number }>;
   renderError?: ToolError;
   renderWithoutResult?: boolean;
   importError?: ToolError;
@@ -32,7 +33,12 @@ const createHarness = (options?: {
     ensureActive: () => options?.activeError ?? null,
     capabilities,
     editor: {
-      listTextures: () => options?.textures ?? [],
+      listTextures: () =>
+        (options?.textures ?? []).map((texture) => ({
+          ...texture,
+          width: texture.width ?? 16,
+          height: texture.height ?? 16
+        })),
       getProjectTextureResolution: () => ({ width: 16, height: 16 })
     },
     textureRenderer: {
@@ -41,7 +47,7 @@ const createHarness = (options?: {
         capturedData = new Uint8ClampedArray(data);
         if (options?.renderError) return { error: options.renderError };
         if (options?.renderWithoutResult) return {};
-        return { result: { image: { tag: 'img' } as unknown as CanvasImageSource } };
+        return { result: { image: createMockImage('data:image/png;base64,IMAG'), width: 16, height: 16 } };
       }
     },
     importTexture: () => {
@@ -60,7 +66,7 @@ const createHarness = (options?: {
 
 {
   const { ctx } = createHarness();
-  const res = runCreateBlankTexture({ ...ctx, textureRenderer: undefined }, { name: 'atlas' });
+  const res = runCreateBlankTexture({ ...ctx, textureRenderer: undefined } as never, { name: 'atlas' });
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(normalizeMessage(res.error.message), normalizeMessage(TEXTURE_RENDERER_UNAVAILABLE));
 }
@@ -69,7 +75,7 @@ const createHarness = (options?: {
   const { ctx, getImportCalls, getRenderCalls } = createHarness({
     textures: [{ id: 'tex_a', name: 'atlas' }]
   });
-  const res = runCreateBlankTexture(ctx, { name: 'atlas', allowExisting: true });
+  const res = runCreateBlankTexture(ctx as never, { name: 'atlas', allowExisting: true });
   assert.equal(res.ok, true);
   if (res.ok) {
     assert.equal(res.value.id, 'tex_a');
@@ -83,7 +89,7 @@ const createHarness = (options?: {
   const { ctx } = createHarness({
     textures: [{ name: 'atlas' }]
   });
-  const res = runCreateBlankTexture(ctx, { name: 'atlas' });
+  const res = runCreateBlankTexture(ctx as never, { name: 'atlas' });
   assert.equal(res.ok, false);
   if (!res.ok) {
     assert.equal(normalizeMessage(res.error.message), normalizeMessage(TEXTURE_ALREADY_EXISTS('atlas')));
@@ -92,7 +98,7 @@ const createHarness = (options?: {
 
 {
   const { ctx } = createHarness();
-  const res = runCreateBlankTexture(ctx, { name: 'atlas', width: 64, height: 64 });
+  const res = runCreateBlankTexture(ctx as never, { name: 'atlas', width: 64, height: 64 });
   assert.equal(res.ok, false);
   if (!res.ok) {
     assert.equal(res.error.code, 'invalid_payload');
@@ -103,7 +109,7 @@ const createHarness = (options?: {
 
 {
   const { ctx, getCapturedData, getImportCalls, getRenderCalls } = createHarness();
-  const res = runCreateBlankTexture(ctx, {
+  const res = runCreateBlankTexture(ctx as never, {
     name: 'atlas',
     width: 2,
     height: 2,
@@ -124,14 +130,14 @@ const createHarness = (options?: {
 
 {
   const { ctx } = createHarness({ renderWithoutResult: true });
-  const res = runCreateBlankTexture(ctx, { name: 'atlas' });
+  const res = runCreateBlankTexture(ctx as never, { name: 'atlas' });
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(normalizeMessage(res.error.message), normalizeMessage(TEXTURE_RENDERER_NO_IMAGE));
 }
 
 {
   const { ctx } = createHarness({ importError: { code: 'invalid_state', message: 'import failed' } });
-  const res = runCreateBlankTexture(ctx, { name: 'atlas' });
+  const res = runCreateBlankTexture(ctx as never, { name: 'atlas' });
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(normalizeMessage(res.error.message), 'import failed');
 }

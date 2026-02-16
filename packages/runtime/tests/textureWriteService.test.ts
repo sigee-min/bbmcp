@@ -2,16 +2,17 @@ import assert from 'node:assert/strict';
 
 import { hashCanvasImage } from '../src/shared/textureData';
 import type { EditorPort, TextureStat } from '../src/ports/editor';
+import type { ToolError } from '../src/types';
 import { ProjectSession } from '../src/session';
 import { TextureWriteService } from '../src/usecases/textureService/TextureWriteService';
 import { createMockImage } from './fakes';
 
 type SetupOptions = {
-  ensureActiveError?: { code: string; message: string } | null;
-  ensureRevisionError?: { code: string; message: string } | null;
-  editorImportError?: { code: string; message: string } | null;
-  editorUpdateError?: { code: string; message: string } | null;
-  editorDeleteError?: { code: string; message: string } | null;
+  ensureActiveError?: ToolError | null;
+  ensureRevisionError?: ToolError | null;
+  editorImportError?: ToolError | null;
+  editorUpdateError?: ToolError | null;
+  editorDeleteError?: ToolError | null;
 };
 
 const createServiceSetup = (options: SetupOptions = {}) => {
@@ -66,7 +67,7 @@ const createServiceSetup = (options: SetupOptions = {}) => {
       return null;
     },
     listTextures: () => textures
-  } as unknown as EditorPort;
+  } as never;
 
   const service = new TextureWriteService({
     session,

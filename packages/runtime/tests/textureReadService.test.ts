@@ -4,6 +4,7 @@ import type { EditorPort } from '../src/ports/editor';
 import type { TmpStorePort } from '../src/ports/tmpStore';
 import { TMP_STORE_UNAVAILABLE } from '../src/shared/messages';
 import { TextureReadService } from '../src/usecases/textureService/TextureReadService';
+import { createEditorStub } from './fakes';
 
 type HarnessOptions = {
   dataUri?: string;
@@ -12,7 +13,8 @@ type HarnessOptions = {
 };
 
 const createHarness = (options: HarnessOptions = {}) => {
-  const editor = {
+  const editor: EditorPort = {
+    ...createEditorStub(),
     listTextures: () => [{ id: 'tex1', name: 'atlas', width: 16, height: 16 }],
     readTexture: () => {
       if (options.readError) return { error: options.readError };
@@ -27,7 +29,7 @@ const createHarness = (options: HarnessOptions = {}) => {
         }
       };
     }
-  } as unknown as EditorPort;
+  };
 
   return new TextureReadService({
     editor,

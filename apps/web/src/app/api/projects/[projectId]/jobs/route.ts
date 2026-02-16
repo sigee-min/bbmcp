@@ -7,6 +7,14 @@ export const dynamic = 'force-dynamic';
 type SubmitJobBody = {
   kind?: unknown;
   payload?: unknown;
+  maxAttempts?: unknown;
+  leaseMs?: unknown;
+};
+
+const toOptionalPositiveInt = (value: unknown): number | undefined => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  const rounded = Math.trunc(value);
+  return rounded > 0 ? rounded : undefined;
 };
 
 export async function GET(
@@ -76,7 +84,9 @@ export async function POST(
   const job = store.submitJob({
     projectId,
     kind: body.kind,
-    payload: isRecord(body.payload) ? body.payload : undefined
+    payload: isRecord(body.payload) ? body.payload : undefined,
+    maxAttempts: toOptionalPositiveInt(body.maxAttempts),
+    leaseMs: toOptionalPositiveInt(body.leaseMs)
   });
 
   return NextResponse.json({ ok: true, job }, { status: 202 });

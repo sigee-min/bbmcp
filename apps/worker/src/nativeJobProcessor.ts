@@ -1,11 +1,17 @@
 import type { Logger } from '@ashfox/runtime/logging';
-import { getNativePipelineStore, type NativePipelineStore } from '@ashfox/native-pipeline';
+import { getNativePipelineStore, type NativeJob } from '@ashfox/native-pipeline';
+
+type NativePipelineStorePort = {
+  claimNextJob(workerId: string): NativeJob | null;
+  completeJob(jobId: string, result?: Record<string, unknown>): NativeJob | null;
+  failJob(jobId: string, error: string): NativeJob | null;
+};
 
 type ProcessNativeJobArgs = {
   workerId: string;
   logger: Logger;
   enabled: boolean;
-  store?: NativePipelineStore;
+  store?: NativePipelineStorePort;
 };
 
 const simulateJobWork = async (): Promise<void> => {

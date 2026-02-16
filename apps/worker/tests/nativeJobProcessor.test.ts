@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 
-import type { NativeJob, NativePipelineStore } from '@ashfox/native-pipeline';
+import type { NativeJob } from '@ashfox/native-pipeline';
 import type { Logger } from '@ashfox/runtime/logging';
 import { processOneNativeJob } from '../src/nativeJobProcessor';
+
+type NativePipelineStorePort = NonNullable<Parameters<typeof processOneNativeJob>[0]['store']>;
 
 type MutableJob = NativeJob & {
   result?: Record<string, unknown>;
@@ -29,7 +31,7 @@ module.exports = async () => {
       },
       completeJob: () => null,
       failJob: () => null
-    } as unknown as NativePipelineStore;
+    } satisfies NativePipelineStorePort;
 
     await processOneNativeJob({
       workerId: 'worker-1',
@@ -60,7 +62,7 @@ module.exports = async () => {
       failJob: () => {
         throw new Error('failJob should not be called in success case');
       }
-    } as unknown as NativePipelineStore;
+    } satisfies NativePipelineStorePort;
 
     await processOneNativeJob({
       workerId: 'worker-1',
@@ -83,7 +85,7 @@ module.exports = async () => {
         failCalled = true;
         return null;
       }
-    } as unknown as NativePipelineStore;
+    } satisfies NativePipelineStorePort;
 
     await assert.rejects(
       () =>
@@ -118,7 +120,7 @@ module.exports = async () => {
         assert.equal(message, 'complete failed');
         return { ...claimedJob, status: 'failed', error: message };
       }
-    } as unknown as NativePipelineStore;
+    } satisfies NativePipelineStorePort;
 
     await processOneNativeJob({
       workerId: 'worker-2',
@@ -145,7 +147,7 @@ module.exports = async () => {
       failJob: () => {
         throw new Error('fail mark failed');
       }
-    } as unknown as NativePipelineStore;
+    } satisfies NativePipelineStorePort;
 
     await processOneNativeJob({
       workerId: 'worker-3',

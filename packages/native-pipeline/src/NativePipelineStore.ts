@@ -11,35 +11,48 @@ import { ensureProject, getProject as readProject, listProjects as readProjects,
 import { createNativePipelineState, resetNativePipelineState } from './state';
 import type { NativeJob, NativeJobSubmitInput, NativeProjectEvent, NativeProjectSnapshot } from './types';
 
-export class NativePipelineStore {
+export interface NativePipelineStorePort {
+  reset(): Promise<void>;
+  listProjects(query?: string): Promise<NativeProjectSnapshot[]>;
+  getProject(projectId: string): Promise<NativeProjectSnapshot | null>;
+  listProjectJobs(projectId: string): Promise<NativeJob[]>;
+  getJob(jobId: string): Promise<NativeJob | null>;
+  submitJob(input: NativeJobSubmitInput): Promise<NativeJob>;
+  claimNextJob(workerId: string): Promise<NativeJob | null>;
+  completeJob(jobId: string, result?: Record<string, unknown>): Promise<NativeJob | null>;
+  failJob(jobId: string, error: string): Promise<NativeJob | null>;
+  getProjectEventsSince(projectId: string, lastSeq: number): Promise<NativeProjectEvent[]>;
+}
+
+export class NativePipelineStore implements NativePipelineStorePort {
   private readonly state = createNativePipelineState();
 
   constructor() {
     this.seedDefaults();
   }
 
-  reset(): void {
+  async reset(): Promise<void> {
     resetNativePipelineState(this.state);
     this.seedDefaults();
   }
 
-  listProjects(query?: string): NativeProjectSnapshot[] {
+  async listProjects(query?: string): Promise<NativeProjectSnapshot[]> {
     return readProjects(this.state, query);
   }
 
-  getProject(projectId: string): NativeProjectSnapshot | null {
+  async getProject(projectId: string): Promise<NativeProjectSnapshot | null> {
     return readProject(this.state, projectId);
   }
 
-  listProjectJobs(projectId: string): NativeJob[] {
+  async listProjectJobs(projectId: string): Promise<NativeJob[]> {
     return readProjectJobs(this.state, projectId);
   }
 
-  getJob(jobId: string): NativeJob | null {
+  async getJob(jobId: string): Promise<NativeJob | null> {
     return readJob(this.state, jobId);
   }
 
-  submitJob(input: NativeJobSubmitInput): NativeJob {
+  async submitJob(input: NativeJobSubmitInput): Promise<NativeJob> {
     return submitNativeJob(
       this.state,
       input,
@@ -48,19 +61,19 @@ export class NativePipelineStore {
     );
   }
 
-  claimNextJob(workerId: string): NativeJob | null {
+  async claimNextJob(workerId: string): Promise<NativeJob | null> {
     return claimNativeJob(this.state, workerId, this.emitProjectSnapshot);
   }
 
-  completeJob(jobId: string, result?: Record<string, unknown>): NativeJob | null {
+  async completeJob(jobId: string, result?: Record<string, unknown>): Promise<NativeJob | null> {
     return completeNativeJob(this.state, jobId, result, this.emitProjectSnapshot);
   }
 
-  failJob(jobId: string, error: string): NativeJob | null {
+  async failJob(jobId: string, error: string): Promise<NativeJob | null> {
     return failNativeJob(this.state, jobId, error, this.emitProjectSnapshot);
   }
 
-  getProjectEventsSince(projectId: string, lastSeq: number): NativeProjectEvent[] {
+  async getProjectEventsSince(projectId: string, lastSeq: number): Promise<NativeProjectEvent[]> {
     return readProjectEventsSince(this.state, projectId, lastSeq);
   }
 

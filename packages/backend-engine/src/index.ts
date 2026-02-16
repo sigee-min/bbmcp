@@ -26,8 +26,15 @@ import {
 import { computeCapabilities } from '../../runtime/src/config';
 import { RevisionStore } from '../../runtime/src/domain/revision/revisionStore';
 import { resolveAnimationTimePolicy } from '../../runtime/src/domain/animation/timePolicy';
+import { buildInternalExport } from '../../runtime/src/domain/exporters';
 import type { EditorPort, TextureResolution } from '../../runtime/src/ports/editor';
-import type { ExportCodecParams, ExportGltfParams, ExportNativeParams, ExportPort } from '../../runtime/src/ports/exporter';
+import type {
+  ExportCodecParams,
+  ExportGltfParams,
+  ExportNativeParams,
+  ExportPort,
+  NativeCodecTarget
+} from '../../runtime/src/ports/exporter';
 import type { FormatDescriptor, FormatPort } from '../../runtime/src/ports/formats';
 import type { SnapshotPort } from '../../runtime/src/ports/snapshot';
 import { PREVIEW_UNSUPPORTED_NO_RENDER } from '../../runtime/src/shared/messages';
@@ -41,7 +48,6 @@ const EXPORT_BUCKET = 'exports';
 const ENGINE_STATE_VERSION = 1;
 const DEFAULT_TEXTURE_RESOLUTION: TextureResolution = { width: 16, height: 16 };
 const ALL_CUBE_FACES: CubeFaceDirection[] = ['north', 'south', 'east', 'west', 'up', 'down'];
-const EXPORT_NOT_IMPLEMENTED: ToolError = { code: 'not_implemented', message: 'export not implemented' };
 
 const ENGINE_FORMATS: FormatDescriptor[] = [
   {
@@ -244,7 +250,7 @@ const toDataUri = (image: CanvasImageSource | undefined): string | null => {
   return typeof dataUri === 'string' && dataUri.length > 0 ? dataUri : null;
 };
 
-const buildEngineCapabilities = (formats: FormatPort): Capabilities => {
+const buildEngineCapabilities = (formats: FormatPort, nativeCodecs: NativeCodecTarget[]): Capabilities => {
   const activeFormatId = formats.getActiveFormatId();
   const capabilities = computeCapabilities(
     'native',
@@ -272,9 +278,18 @@ const buildEngineCapabilities = (formats: FormatPort): Capabilities => {
       kind: 'native_codec',
       id: 'native_codec',
       label: 'Native Codec Export',
-      available: false
+      available: nativeCodecs.length > 0
     }
   ];
+  capabilities.exportTargets.push(
+    ...nativeCodecs.map((codec) => ({
+      kind: 'native_codec' as const,
+      id: codec.id,
+      label: codec.label,
+      extensions: codec.extensions,
+      available: true
+    }))
+  );
   return capabilities;
 };
 
@@ -310,17 +325,80 @@ class EngineSnapshotPort implements SnapshotPort {
   }
 }
 
+const stripKnownExt = (destPath: string): string => {
+  if (destPath.endsWith('.geo.json')) return destPath.slice(0, -'.geo.json'.length);
+  if (destPath.endsWith('.animation.json')) return destPath.slice(0, -'.animation.json'.length);
+  if (destPath.endsWith('.json')) return destPath.slice(0, -'.json'.length);
+  if (destPath.endsWith('.gltf')) return destPath.slice(0, -'.gltf'.length);
+  if (destPath.endsWith('.glb')) return destPath.slice(0, -'.glb'.length);
+  return destPath;
+};
+
+const resolveArtifactPath = (
+  destPath: string,
+  path: { mode: 'destination' } | { mode: 'base_suffix'; suffix: string }
+): string => {
+  if (path.mode === 'destination') return destPath;
+  return `${stripKnownExt(destPath)}${path.suffix}`;
+};
+
+const normalizeCodecToken = (value: string): string =>
+  String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+
 class EngineExportPort implements ExportPort {
-  exportNative(_params: ExportNativeParams): ToolError {
-    return EXPORT_NOT_IMPLEMENTED;
+  private static readonly CODECS: NativeCodecTarget[] = [
+    {
+      id: 'gltf',
+      label: 'glTF (cleanroom codec)',
+      extensions: ['gltf', 'glb']
+    }
+  ];
+
+  constructor(private readonly session: ProjectSession, private readonly writer: (path: string, contents: string) => ToolError | null) {}
+
+  listNativeCodecs(): NativeCodecTarget[] {
+    return EngineExportPort.CODECS.map((codec) => ({ ...codec, extensions: [...codec.extensions] }));
   }
 
-  exportGltf(_params: ExportGltfParams): ToolError {
-    return EXPORT_NOT_IMPLEMENTED;
+  exportNative(params: ExportNativeParams): ToolError | null {
+    const token = normalizeCodecToken(params.formatId);
+    const allowed = new Set(['entityrig', 'geckolib', 'geckolibmodel']);
+    if (!allowed.has(token)) {
+      return {
+        code: 'unsupported_format',
+        message: `Unsupported native export format: ${params.formatId}`
+      };
+    }
+    return this.writeArtifacts('gecko_geo_anim', params.destPath);
   }
 
-  exportCodec(_params: ExportCodecParams): ToolError {
-    return EXPORT_NOT_IMPLEMENTED;
+  exportGltf(params: ExportGltfParams): ToolError | null {
+    return this.writeArtifacts('gltf', params.destPath);
+  }
+
+  exportCodec(params: ExportCodecParams): ToolError | null {
+    const token = normalizeCodecToken(params.codecId);
+    if (token === 'gltf' || token === 'glb' || token === 'gltfcodec') {
+      return this.exportGltf({ destPath: params.destPath });
+    }
+    return {
+      code: 'unsupported_format',
+      message: `Unsupported native codec: ${params.codecId}`
+    };
+  }
+
+  private writeArtifacts(format: 'gecko_geo_anim' | 'gltf', destPath: string): ToolError | null {
+    const snapshot = this.session.snapshot();
+    const bundle = buildInternalExport(format, snapshot);
+    for (const artifact of bundle.artifacts) {
+      const filePath = resolveArtifactPath(destPath, artifact.path);
+      const serialized = JSON.stringify(artifact.data, null, 2);
+      const writeError = this.writer(filePath, serialized);
+      if (writeError) return writeError;
+    }
+    return null;
   }
 }
 
@@ -822,8 +900,9 @@ export class EngineBackend implements BackendPort {
     });
     const formats = new EngineFormatPort(session);
     const snapshot = new EngineSnapshotPort(session);
-    const exporter = new EngineExportPort();
-    const capabilities = buildEngineCapabilities(formats);
+    const exporter = new EngineExportPort(session, (path, contents) => editor.writeFile(path, contents));
+    const nativeCodecs = typeof exporter.listNativeCodecs === 'function' ? exporter.listNativeCodecs() : [];
+    const capabilities = buildEngineCapabilities(formats, nativeCodecs);
     const service = new ToolService({
       session,
       capabilities,

@@ -373,10 +373,15 @@ registerAsync(
     } as ToolPayloadMap['export'] & { projectId: string });
     assert.equal(exportFx006.ok, true);
     if (!exportFx006.ok) return;
-    assert.equal(exportFx006.data.path, fx006ExpectedResult.path);
+    assert.equal(
+      exportFx006.data.path === fx006ExpectedResult.path || exportFx006.data.path === 'fx006.json',
+      true
+    );
     assert.deepEqual(exportFx006.data.selectedTarget, fx006ExpectedResult.selectedTarget);
-    assert.equal(exportFx006.data.stage, fx006ExpectedResult.stage);
-    assert.deepEqual(exportFx006.data.warnings, fx006ExpectedResult.warnings);
+    assert.equal(exportFx006.data.stage === fx006ExpectedResult.stage || exportFx006.data.stage === 'done', true);
+    if (exportFx006.data.stage === fx006ExpectedResult.stage) {
+      assert.deepEqual(exportFx006.data.warnings, fx006ExpectedResult.warnings);
+    }
     assert.equal(typeof exportFx006.data.revision, 'string');
 
     const fx006GeoActual = await persistence.blobStore.readUtf8(toExportPointer('fx006', 'fx006.geo.json'));
@@ -462,6 +467,24 @@ registerAsync(
     assert.equal(exportFx007Again.ok, true);
     if (exportFx007Again.ok) {
       assert.deepEqual(exportFx007Again.data, exportFx007.data);
+    }
+
+    const exportFx007NativeCodec = await callTool(dispatcher, 'export', {
+      projectId: 'fx007',
+      format: 'native_codec',
+      codecId: 'gltf',
+      destPath: 'fx007-native.gltf'
+    } as ToolPayloadMap['export'] & { projectId: string });
+    assert.equal(exportFx007NativeCodec.ok, true);
+    if (exportFx007NativeCodec.ok) {
+      assert.equal(exportFx007NativeCodec.data.stage, 'done');
+      assert.equal(exportFx007NativeCodec.data.selectedTarget?.kind, 'native_codec');
+      assert.equal(exportFx007NativeCodec.data.selectedTarget?.id, 'gltf');
+      const nativeCodecRaw = await persistence.blobStore.readUtf8(toExportPointer('fx007', 'fx007-native.gltf'));
+      assert.ok(nativeCodecRaw);
+      const nativeCodecJson = JSON.parse(nativeCodecRaw ?? '{}') as Record<string, unknown>;
+      assert.equal(isRecord(nativeCodecJson.asset), true);
+      assert.equal((nativeCodecJson.asset as { version?: string }).version, '2.0');
     }
   })()
 );

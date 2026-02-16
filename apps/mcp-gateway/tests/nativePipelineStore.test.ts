@@ -67,6 +67,9 @@ registerAsync(
     assert.equal(queuedAgain?.status, 'queued');
     assert.equal(typeof queuedAgain?.nextRetryAt, 'string');
 
+    const blockedRetry = store.claimNextJob('worker-4');
+    assert.equal(blockedRetry, null);
+
     const originalNow = Date.now;
     if (queuedAgain?.nextRetryAt) {
       const retryAt = Date.parse(queuedAgain.nextRetryAt);
@@ -78,7 +81,7 @@ registerAsync(
 
     let secondClaim: ReturnType<typeof store.claimNextJob>;
     try {
-      secondClaim = store.claimNextJob('worker-4');
+      secondClaim = store.claimNextJob('worker-5');
     } finally {
       Date.now = originalNow;
     }
@@ -87,5 +90,47 @@ registerAsync(
     const finalFailure = store.failJob(retryable.id, 'still failing');
     assert.equal(finalFailure?.status, 'failed');
     assert.equal(finalFailure?.deadLetter, true);
+
+    const constrained = store.submitJob({
+      projectId: 'project-a',
+      kind: 'lease.clamp',
+      maxAttempts: 999,
+      leaseMs: 1
+    });
+    assert.equal(constrained.maxAttempts, 10);
+    assert.equal(constrained.leaseMs, 5000);
+    const constrainedClaim = store.claimNextJob('worker-6');
+    assert.equal(constrainedClaim?.id, constrained.id);
+    const constrainedComplete = store.completeJob(constrained.id, { ok: true });
+    assert.equal(constrainedComplete?.status, 'completed');
+
+    const expiring = store.submitJob({
+      projectId: 'project-a',
+      kind: 'lease.expiry',
+      maxAttempts: 3,
+      leaseMs: 5000
+    });
+    const firstLeaseClaim = store.claimNextJob('worker-7');
+    assert.equal(firstLeaseClaim?.id, expiring.id);
+    assert.equal(firstLeaseClaim?.attemptCount, 1);
+    assert.equal(typeof firstLeaseClaim?.leaseExpiresAt, 'string');
+
+    const leaseNow = Date.now;
+    if (firstLeaseClaim?.leaseExpiresAt) {
+      const leaseExpiresAt = Date.parse(firstLeaseClaim.leaseExpiresAt);
+      if (Number.isFinite(leaseExpiresAt)) {
+        Date.now = () => leaseExpiresAt + 1;
+      }
+    }
+
+    let recoveredClaim: ReturnType<typeof store.claimNextJob>;
+    try {
+      recoveredClaim = store.claimNextJob('worker-8');
+    } finally {
+      Date.now = leaseNow;
+    }
+    assert.equal(recoveredClaim?.id, expiring.id);
+    assert.equal(recoveredClaim?.workerId, 'worker-8');
+    assert.equal(recoveredClaim?.attemptCount, 2);
   })()
 );

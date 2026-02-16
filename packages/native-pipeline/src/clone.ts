@@ -34,13 +34,20 @@ export const cloneJob = (job: NativeJob): NativeJob => ({
   id: job.id,
   projectId: job.projectId,
   kind: job.kind,
+  ...(job.payload ? { payload: { ...job.payload } } : {}),
   status: job.status,
+  attemptCount: job.attemptCount,
+  maxAttempts: job.maxAttempts,
+  leaseMs: job.leaseMs,
   createdAt: job.createdAt,
   ...(job.startedAt ? { startedAt: job.startedAt } : {}),
+  ...(job.leaseExpiresAt ? { leaseExpiresAt: job.leaseExpiresAt } : {}),
+  ...(job.nextRetryAt ? { nextRetryAt: job.nextRetryAt } : {}),
   ...(job.completedAt ? { completedAt: job.completedAt } : {}),
   ...(job.workerId ? { workerId: job.workerId } : {}),
   ...(job.result ? { result: { ...job.result } } : {}),
-  ...(job.error ? { error: job.error } : {})
+  ...(job.error ? { error: job.error } : {}),
+  ...(job.deadLetter ? { deadLetter: true } : {})
 });
 
 export const cloneEvent = (event: NativeProjectEvent): NativeProjectEvent => ({

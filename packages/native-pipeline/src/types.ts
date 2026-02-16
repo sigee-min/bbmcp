@@ -37,13 +37,20 @@ export interface NativeJob {
   id: string;
   projectId: string;
   kind: string;
+  payload?: Record<string, unknown>;
   status: NativeJobStatus;
+  attemptCount: number;
+  maxAttempts: number;
+  leaseMs: number;
   createdAt: string;
   startedAt?: string;
+  leaseExpiresAt?: string;
+  nextRetryAt?: string;
   completedAt?: string;
   workerId?: string;
   result?: Record<string, unknown>;
   error?: string;
+  deadLetter?: boolean;
 }
 
 export interface NativeProjectEvent {
@@ -56,4 +63,6 @@ export type NativeJobSubmitInput = {
   projectId: string;
   kind: string;
   payload?: Record<string, unknown>;
+  maxAttempts?: number;
+  leaseMs?: number;
 };

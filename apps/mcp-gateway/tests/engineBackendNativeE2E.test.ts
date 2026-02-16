@@ -409,7 +409,39 @@ registerAsync(
     assert.equal(previewFx006.ok, false);
     if (!previewFx006.ok) {
       assert.equal(previewFx006.error.code, fx006PreviewErr.code);
-      assert.equal(previewFx006.error.message.includes(fx006PreviewErr.message), true);
+      assert.equal(
+        previewFx006.error.message.includes(fx006PreviewErr.message) ||
+          previewFx006.error.message.includes('disabled in native production profile'),
+        true
+      );
+    }
+
+    const reloadPluginsFx006 = await callTool(dispatcher, 'reload_plugins', {
+      projectId: 'fx006'
+    } as ToolPayloadMap['reload_plugins'] & { projectId: string });
+    assert.equal(reloadPluginsFx006.ok, false);
+    if (!reloadPluginsFx006.ok) {
+      assert.equal(reloadPluginsFx006.error.code, 'invalid_state');
+      assert.equal(reloadPluginsFx006.error.message.includes('disabled in native production profile'), true);
+    }
+
+    const traceLogFx006 = await callTool(dispatcher, 'export_trace_log', {
+      projectId: 'fx006',
+      destPath: 'trace.ndjson'
+    } as ToolPayloadMap['export_trace_log'] & { projectId: string });
+    assert.equal(traceLogFx006.ok, false);
+    if (!traceLogFx006.ok) {
+      assert.equal(traceLogFx006.error.code, 'invalid_state');
+      assert.equal(traceLogFx006.error.message.includes('disabled in native production profile'), true);
+    }
+
+    const paintFacesFx006 = await callTool(dispatcher, 'paint_faces', {
+      projectId: 'fx006'
+    } as ToolPayloadMap['paint_faces'] & { projectId: string });
+    assert.equal(paintFacesFx006.ok, false);
+    if (!paintFacesFx006.ok) {
+      assert.equal(paintFacesFx006.error.code, 'invalid_state');
+      assert.equal(paintFacesFx006.error.message.includes('disabled in native production profile'), true);
     }
 
     const fx007Dir = path.join(oracleFixturesRoot, 'FX-007');
@@ -485,6 +517,18 @@ registerAsync(
       const nativeCodecJson = JSON.parse(nativeCodecRaw ?? '{}') as Record<string, unknown>;
       assert.equal(isRecord(nativeCodecJson.asset), true);
       assert.equal((nativeCodecJson.asset as { version?: string }).version, '2.0');
+    }
+
+    const exportFx007UnknownCodec = await callTool(dispatcher, 'export', {
+      projectId: 'fx007',
+      format: 'native_codec',
+      codecId: 'unknown-codec',
+      destPath: 'fx007-unknown.gltf'
+    } as ToolPayloadMap['export'] & { projectId: string });
+    assert.equal(exportFx007UnknownCodec.ok, false);
+    if (!exportFx007UnknownCodec.ok) {
+      assert.equal(exportFx007UnknownCodec.error.code, 'unsupported_format');
+      assert.equal(exportFx007UnknownCodec.error.message.includes('Native codec'), true);
     }
   })()
 );

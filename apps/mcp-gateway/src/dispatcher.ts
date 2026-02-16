@@ -12,6 +12,12 @@ import {
 const DEFAULT_PROJECT_ID = 'default-project';
 const DEFAULT_TENANT_ID = 'default-tenant';
 const DEFAULT_ACTOR_ID = 'mcp-gateway';
+const ENGINE_NATIVE_PROD_BLOCKED_TOOLS = new Set<ToolName>([
+  'render_preview',
+  'reload_plugins',
+  'export_trace_log',
+  'paint_faces'
+]);
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
   if (!value || typeof value !== 'object') return null;
@@ -50,25 +56,28 @@ export interface GatewayDispatcherOptions {
   registry: BackendRegistry;
   lockManager?: ProjectLockManager;
   defaultBackend: BackendKind;
+  nativeProdGuard?: boolean;
 }
 
 export class GatewayDispatcher implements Dispatcher {
   private readonly registry: BackendRegistry;
   private readonly lockManager: ProjectLockManager;
   private readonly defaultBackend: BackendKind;
+  private readonly nativeProdGuard: boolean;
 
   constructor(options: GatewayDispatcherOptions) {
     this.registry = options.registry;
     this.lockManager = options.lockManager ?? new ProjectLockManager();
     this.defaultBackend = options.defaultBackend;
+    this.nativeProdGuard = options.nativeProdGuard !== false;
   }
 
   async handle<TName extends ToolName>(
     name: TName,
     payload: ToolPayloadMap[TName]
   ): Promise<ToolResponse<ToolResultMap[TName]>> {
-    const backend = this.resolveBackend(payload);
-    if (!backend) {
+    const selection = this.resolveBackend(payload);
+    if (!selection) {
       return backendToolError(
         'invalid_state',
         `Requested backend is unavailable. Registered backends: ${this.registry.listKinds().join(', ') || 'none'}.`,
@@ -76,6 +85,15 @@ export class GatewayDispatcher implements Dispatcher {
         { defaultBackend: this.defaultBackend }
       ) as ToolResponse<ToolResultMap[TName]>;
     }
+    if (this.nativeProdGuard && selection.kind === 'engine' && ENGINE_NATIVE_PROD_BLOCKED_TOOLS.has(name)) {
+      return backendToolError(
+        'invalid_state',
+        `Tool '${name}' is disabled in native production profile.`,
+        'Use supported native workflows (for example export/get_project_state), or disable guard explicitly for non-prod usage.',
+        { backend: selection.kind, tool: name, nativeProdGuard: true }
+      ) as ToolResponse<ToolResultMap[TName]>;
+    }
+    const backend = selection.backend;
     const projectId = readProjectIdFromPayload(payload);
     const session: BackendSessionRef = {
       tenantId: DEFAULT_TENANT_ID,
@@ -90,8 +108,10 @@ export class GatewayDispatcher implements Dispatcher {
     return this.lockManager.run(projectId, run);
   }
 
-  private resolveBackend(payload: unknown): BackendPort | null {
+  private resolveBackend(payload: unknown): { kind: BackendKind; backend: BackendPort } | null {
     const requested = readBackendKindFromPayload(payload) ?? this.defaultBackend;
-    return this.registry.resolve(requested);
+    const backend = this.registry.resolve(requested);
+    if (!backend) return null;
+    return { kind: requested, backend };
   }
 }

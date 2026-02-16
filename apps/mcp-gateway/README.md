@@ -12,6 +12,7 @@ Environment variables:
 - `ASHFOX_PORT` (default `8790`)
 - `ASHFOX_PATH` (default `/mcp`)
 - `ASHFOX_GATEWAY_BACKEND` (`engine` | `blockbench`, default `engine`)
+- `ASHFOX_NATIVE_PROD_GUARD` (default `true`; blocks non-native-safe tools such as `render_preview` / `reload_plugins` / `export_trace_log` / `paint_faces` when backend is `engine`)
 - `ASHFOX_PERSISTENCE_FAIL_FAST` (default `true`; if `false`, start even when persistence readiness is degraded)
 - `ASHFOX_PERSISTENCE_PRESET` (`local` | `selfhost` | `ashfox` | `appwrite`, default `local`)
 - `ASHFOX_DB_PROVIDER` (`sqlite` | `postgres` | `ashfox` | `appwrite`) overrides preset DB selection
@@ -74,3 +75,26 @@ Preset sample env files:
 - `deploy/env/presets/selfhost.env.example`
 - `deploy/env/presets/ashfox.env.example`
 - `deploy/env/presets/appwrite.env.example`
+
+## Native Production Triage Baseline
+
+Use the following quick checks during incidents:
+
+1. Query web health (`/api/health`) and confirm:
+   - `queueBackend` matches expected mode (`persistence` in production)
+   - `persistencePreset` matches deployment preset (`local`/`selfhost`/`ashfox`/`appwrite`)
+2. Query gateway health via MCP `list_capabilities`/backend health and confirm persistence readiness is not degraded.
+
+Common error-code triage:
+
+- `invalid_state`
+  - Typical cause: native-prod guard blocked unsupported tool path or required state/persistence is unavailable.
+  - Next action: confirm tool is allowed for native profile; check `ASHFOX_NATIVE_PROD_GUARD`, backend mode, persistence health.
+
+- `unsupported_format`
+  - Typical cause: requested export format/codec is unavailable for current capabilities.
+  - Next action: inspect available export targets/codecs from `list_capabilities`; retry with supported target (for example `gltf` or known `native_codec`).
+
+- `not_implemented`
+  - Typical cause: non-native adapter path (often Blockbench-related) reached in an unsupported runtime.
+  - Next action: verify backend selection and call path; in production prefer native-safe flows and keep guard enabled.

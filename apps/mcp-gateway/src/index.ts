@@ -26,9 +26,9 @@ const resolveBackendKind = (raw: string | undefined): BackendKind => {
   return DEFAULT_BACKEND;
 };
 
-const resolveFailFast = (raw: string | undefined): boolean => {
+const resolveBooleanFlag = (raw: string | undefined, fallback: boolean): boolean => {
   const normalized = String(raw ?? '').trim().toLowerCase();
-  if (!normalized) return true;
+  if (!normalized) return fallback;
   if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off') return false;
   return true;
 };
@@ -50,7 +50,7 @@ const logger = new ConsoleLogger('ashfox-gateway', () => logLevel);
 const main = async (): Promise<void> => {
   const metrics = new InMemoryMetricsRegistry();
   const persistence = createGatewayPersistence(process.env, {
-    failFast: resolveFailFast(process.env.ASHFOX_PERSISTENCE_FAIL_FAST)
+    failFast: resolveBooleanFlag(process.env.ASHFOX_PERSISTENCE_FAIL_FAST, true)
   });
   metrics.setPersistenceReady('database', persistence.health.database.ready);
   metrics.setPersistenceReady('storage', persistence.health.storage.ready);
@@ -72,7 +72,8 @@ const main = async (): Promise<void> => {
 
   const dispatcher = new GatewayDispatcher({
     registry,
-    defaultBackend: resolveBackendKind(process.env.ASHFOX_GATEWAY_BACKEND)
+    defaultBackend: resolveBackendKind(process.env.ASHFOX_GATEWAY_BACKEND),
+    nativeProdGuard: resolveBooleanFlag(process.env.ASHFOX_NATIVE_PROD_GUARD, true)
   });
 
   const config: ServerConfig = {
@@ -94,6 +95,7 @@ const main = async (): Promise<void> => {
     port: config.port,
     path: config.path,
     backend: resolveBackendKind(process.env.ASHFOX_GATEWAY_BACKEND),
+    nativeProdGuard: resolveBooleanFlag(process.env.ASHFOX_NATIVE_PROD_GUARD, true),
     persistence: persistence.health
   });
 

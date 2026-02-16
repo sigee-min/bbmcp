@@ -103,6 +103,21 @@ registerAsync(
     assert.equal(finalFailure?.status, 'failed');
     assert.equal(finalFailure?.deadLetter, true);
 
+    const retryLeaseNow = Date.now;
+    if (finalFailure?.leaseExpiresAt) {
+      const leaseExpiresAt = Date.parse(finalFailure.leaseExpiresAt);
+      if (Number.isFinite(leaseExpiresAt)) {
+        Date.now = () => leaseExpiresAt + 60_000;
+      }
+    }
+    let deadLetterReclaimAttempt: Awaited<ReturnType<typeof store.claimNextJob>>;
+    try {
+      deadLetterReclaimAttempt = await store.claimNextJob('worker-dead-letter-reclaim');
+    } finally {
+      Date.now = retryLeaseNow;
+    }
+    assert.equal(deadLetterReclaimAttempt?.id === retryable.id, false);
+
     const constrained = await store.submitJob({
       projectId: 'project-a',
       kind: 'lease.clamp',

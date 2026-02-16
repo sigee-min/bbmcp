@@ -487,7 +487,12 @@ class EngineEditorAdapter implements EditorPort {
     }
     const asset = this.resolveTextureAsset(target.id, target.name);
     if (!asset?.dataUri) {
-      return { error: { code: 'not_implemented', message: 'Texture data is unavailable in native backend.' } };
+      return {
+        error: {
+          code: 'invalid_state',
+          message: 'Texture data is unavailable in native backend persistence.'
+        }
+      };
     }
     return {
       result: {
@@ -584,7 +589,7 @@ class EngineEditorAdapter implements EditorPort {
   renderPreview(_params: RenderPreviewPayload): { result?: RenderPreviewResult; error?: ToolError } {
     return {
       error: {
-        code: 'not_implemented',
+        code: 'invalid_state',
         message: PREVIEW_UNSUPPORTED_NO_RENDER
       }
     };

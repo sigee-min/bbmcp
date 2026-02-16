@@ -58,7 +58,7 @@ const createService = (options: {
     isAutoRetryRevisionEnabled: () => options.autoRetry,
     isRevisionRequired: () => options.requiresRevision,
     getProjectState: () => options.stateResult
-  }) as unknown as {
+  }) as {
     isAutoRetryRevisionEnabled: () => boolean;
     isRevisionRequired: () => boolean;
     getProjectState: () => unknown;

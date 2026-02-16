@@ -50,7 +50,7 @@ const createContext = (options?: {
             }
           : null
     }
-  } as unknown as ProjectDeleteContext;
+  } as never;
   return { ctx, resetCount: () => resetCount };
 };
 

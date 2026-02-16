@@ -59,7 +59,7 @@ const buildContext = (options?: {
             }
           : null
     }
-  } as unknown as ProjectDeleteContext;
+  } as never;
   return {
     ctx,
     resetCalls: () => resetCount,

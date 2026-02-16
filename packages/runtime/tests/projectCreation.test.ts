@@ -59,7 +59,7 @@ const createContext = (options: CreateCtxOptions = {}) => {
       formatOverrides: undefined,
       autoDiscardUnsaved: options.autoDiscardUnsaved
     }
-  } as unknown as ProjectCreateContext;
+  } as never;
   return { ctx, createCalls: () => createCalls, payloads };
 };
 

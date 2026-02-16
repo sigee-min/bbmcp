@@ -37,7 +37,7 @@ const createContext = (options?: { supportedProtocols?: string[] }): RpcContext 
 registerAsync(
   (async () => {
     {
-      const outcome = await handleMessage(createContext(), { method: 'ping' } as unknown as never, null, 1);
+      const outcome = await handleMessage(createContext(), { method: 'ping' } as never, null, 1);
       assert.equal(outcome.type, 'response');
       if (outcome.type !== 'response') return;
       assert.equal(outcome.status, 400);

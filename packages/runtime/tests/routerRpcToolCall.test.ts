@@ -19,7 +19,7 @@ const createContext = (options?: {
       map: new Map([['demo_tool', { name: 'demo_tool', title: 'Demo', description: 'demo' }]]),
       hash: 'demo',
       count: 1
-    } as unknown as ToolRegistry);
+    } as ToolRegistry);
   return {
     executor: options?.executor ?? {
       callTool: async () => ({ ok: true, data: { ok: true } })

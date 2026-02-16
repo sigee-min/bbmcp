@@ -9,6 +9,7 @@ import { DEFAULT_UV_POLICY } from '../src/domain/uv/policy';
 import { toDomainTextureUsage } from '../src/usecases/domainMappers';
 import type { TextureToolContext } from '../src/usecases/textureTools/context';
 import { runPaintTexture } from '../src/usecases/textureTools/texturePaint';
+import { createEditorStub, createMockImage } from './fakes';
 
 const capabilities = {
   pluginVersion: 'test',
@@ -58,7 +59,7 @@ const usageIdFor = (usage: TextureUsageResult, resolution = { width: 16, height:
   computeTextureUsageId(toDomainTextureUsage(usage), resolution);
 
 const createHarness = (options: HarnessOptions = {}) => {
-  const image = { tag: 'image' } as unknown as CanvasImageSource;
+  const image = createMockImage('data:image/png;base64,IMG0');
   const usage = options.usage ?? createUsage();
   const projectResolution = options.projectResolution ?? { width: 16, height: 16 };
   const calls = {
@@ -67,13 +68,25 @@ const createHarness = (options: HarnessOptions = {}) => {
     renderCount: 0
   };
 
-  const editor = {
+  const editor: EditorPort = {
+    ...createEditorStub({ textureUsage: usage, textureResolution: projectResolution }),
     getTextureUsage: () => {
       if (options.usageError) return { error: options.usageError };
       return { result: usage };
-    },
-    getProjectTextureResolution: () => projectResolution
-  } as unknown as EditorPort;
+    }
+  };
+
+  const snapshotCubes =
+    options.snapshotCubes?.map((cube) => ({ ...cube, bone: cube.bone ?? 'root' })) ??
+    [
+      {
+        id: 'cube1',
+        name: 'cube',
+        bone: 'root',
+        from: [0, 0, 0] as [number, number, number],
+        to: [16, 16, 16] as [number, number, number]
+      }
+    ];
 
   const snapshot = {
     id: 'p1',
@@ -83,17 +96,7 @@ const createHarness = (options: HarnessOptions = {}) => {
     dirty: false,
     uvPixelsPerBlock: undefined,
     bones: [{ name: 'root', pivot: [0, 0, 0] as [number, number, number] }],
-    cubes:
-      options.snapshotCubes ??
-      [
-        {
-          id: 'cube1',
-          name: 'cube',
-          bone: 'root',
-          from: [0, 0, 0] as [number, number, number],
-          to: [16, 16, 16] as [number, number, number]
-        }
-      ],
+    cubes: snapshotCubes,
     textures:
       options.snapshotTextures ??
       [
@@ -112,7 +115,7 @@ const createHarness = (options: HarnessOptions = {}) => {
   const ctx: TextureToolContext = {
     ensureActive: () => null,
     ensureRevisionMatch: () => null,
-    getSnapshot: () => snapshot,
+    getSnapshot: () => snapshot as ReturnType<TextureToolContext['getSnapshot']>,
     editor,
     textureRenderer: options.noRenderer
       ? undefined
@@ -170,7 +173,7 @@ const updatePayload = (override: Partial<PaintTexturePayload> = {}): PaintTextur
 
 {
   const { ctx } = createHarness();
-  const res = runPaintTexture(ctx, createPayload({ mode: 'bad' as unknown as 'create' }));
+  const res = runPaintTexture(ctx, createPayload({ mode: 'bad' as 'create' }));
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(res.error.code, 'invalid_payload');
 }
@@ -232,7 +235,7 @@ const updatePayload = (override: Partial<PaintTexturePayload> = {}): PaintTextur
   const res = runPaintTexture(
     ctx,
     createPayload({
-      uvPaint: { scope: 'bad' as unknown as 'rects' }
+      uvPaint: { scope: 'bad' as 'rects' }
     })
   );
   assert.equal(res.ok, false);
@@ -241,7 +244,7 @@ const updatePayload = (override: Partial<PaintTexturePayload> = {}): PaintTextur
 
 {
   const { ctx } = createHarness();
-  const res = runPaintTexture(ctx, createPayload({ ops: {} as unknown as PaintTexturePayload['ops'] }));
+  const res = runPaintTexture(ctx, createPayload({ ops: {} as PaintTexturePayload['ops'] }));
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(res.error.code, 'invalid_payload');
 }
@@ -256,7 +259,8 @@ const updatePayload = (override: Partial<PaintTexturePayload> = {}): PaintTextur
 
 {
   const { ctx } = createHarness();
-  const res = runPaintTexture(ctx, createPayload({ ops: [{ op: 'oops' } as unknown as typeof fillOp] }));
+  const invalidOps = JSON.parse('[{"op":"oops"}]') as PaintTexturePayload['ops'];
+  const res = runPaintTexture(ctx, createPayload({ ops: invalidOps }));
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(res.error.code, 'invalid_payload');
 }
@@ -347,7 +351,7 @@ const updatePayload = (override: Partial<PaintTexturePayload> = {}): PaintTextur
 }
 
 {
-  const usage = {
+  const usage: TextureUsageResult = {
     textures: [
       {
         id: 'tex2',

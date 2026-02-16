@@ -104,11 +104,12 @@ const collectColors = (data: Uint8ClampedArray): Set<string> => {
 
 {
   const data = new Uint8ClampedArray(width * height * 4);
+  const invalidOps = JSON.parse('[{"op":"unknown","color":"#ffffff"}]') as Parameters<typeof applyTextureOps>[3];
   const res = applyTextureOps(
     data,
     width,
     height,
-    [{ op: 'unknown', color: '#ffffff' } as unknown as { op: 'fill_rect'; color: string }],
+    invalidOps,
     parseHexColor
   );
   assert.equal(res.ok, false);

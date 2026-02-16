@@ -18,9 +18,6 @@ import {
     updateLayerChanges: () => {
       layerCalls += 1;
     }
-  } as unknown as {
-    updateChangesAfterEdit: () => void;
-    updateLayerChanges: () => void;
   });
   assert.equal(afterEditCalls, 1);
   assert.equal(layerCalls, 0);
@@ -32,26 +29,26 @@ import {
     updateLayerChanges: (force?: boolean) => {
       layerForce = force;
     }
-  } as unknown as { updateLayerChanges: (force?: boolean) => void });
+  });
   assert.equal(layerForce, true);
 }
 
 {
   const tex = {} as { internal?: boolean; keep_size?: boolean };
-  applyTextureDefaults(tex as unknown as never);
+  applyTextureDefaults(tex);
   assert.equal(tex.internal, true);
   assert.equal(tex.keep_size, true);
 
   tex.internal = false;
   tex.keep_size = false;
-  applyTextureDefaults(tex as unknown as never);
+  applyTextureDefaults(tex);
   assert.equal(tex.internal, false);
   assert.equal(tex.keep_size, false);
 }
 
 {
   const tex = { width: 8, height: 8 } as { width: number; height: number };
-  assert.equal(applyTextureDimensions(tex as unknown as never, 0, 16), false);
+  assert.equal(applyTextureDimensions(tex, 0, 16), false);
   assert.equal(tex.width, 8);
   assert.equal(tex.height, 8);
 }
@@ -65,7 +62,7 @@ import {
       calls.push([w, h]);
     }
   } as { width: number; height: number; setSize: (w: number, h: number) => void };
-  const changed = applyTextureDimensions(tex as unknown as never, 16, 24);
+  const changed = applyTextureDimensions(tex, 16, 24);
   assert.equal(changed, true);
   assert.deepEqual(calls, [[16, 24]]);
   assert.equal(tex.width, 16);
@@ -81,7 +78,7 @@ import {
       calls.push([w, h]);
     }
   } as { width: number; height: number; resize: (w: number, h: number) => void };
-  const changed = applyTextureDimensions(tex as unknown as never, 16, 24);
+  const changed = applyTextureDimensions(tex, 16, 24);
   assert.equal(changed, true);
   assert.deepEqual(calls, [[16, 24]]);
   assert.equal(tex.width, 16);
@@ -89,12 +86,13 @@ import {
 }
 
 {
+  const canvas: Partial<HTMLCanvasElement> = { width: 4, height: 4 };
   const tex = {
     width: 4,
     height: 4,
-    canvas: { width: 4, height: 4 }
-  } as { width: number; height: number; canvas: { width: number; height: number } };
-  const changed = applyTextureDimensions(tex as unknown as never, 16, 16);
+    canvas: canvas as HTMLCanvasElement
+  } as { width: number; height: number; canvas: HTMLCanvasElement };
+  const changed = applyTextureDimensions(tex, 16, 16);
   assert.equal(changed, true);
   assert.equal(tex.width, 16);
   assert.equal(tex.height, 16);
@@ -104,7 +102,7 @@ import {
 
 {
   const calls: string[] = [];
-  const ctx = {
+  const ctx: Partial<CanvasRenderingContext2D> = {
     clearRect: () => {
       calls.push('clear');
     },
@@ -112,11 +110,15 @@ import {
       calls.push('draw');
     }
   };
-  const tex = {
-    canvas: { width: 16, height: 16, getContext: () => ctx },
-    ctx
+  const canvas: Partial<HTMLCanvasElement> = {
+    width: 16,
+    height: 16
   };
-  const ok = applyTextureImage(tex as unknown as never, {} as CanvasImageSource);
+  const tex = {
+    canvas: canvas as HTMLCanvasElement,
+    ctx: ctx as CanvasRenderingContext2D
+  };
+  const ok = applyTextureImage(tex, {} as CanvasImageSource);
   assert.equal(ok, true);
   assert.deepEqual(calls, ['clear', 'draw']);
 }
@@ -145,13 +147,13 @@ import {
       assert.deepEqual(calls, ['clear', 'draw']);
     }
   };
-  const ok = applyTextureImage(tex as unknown as never, {} as CanvasImageSource);
+  const ok = applyTextureImage(tex, {} as CanvasImageSource);
   assert.equal(ok, true);
   assert.equal(sawNoUndo, true);
 }
 
 {
-  const ok = applyTextureImage({} as unknown as never, {} as CanvasImageSource);
+  const ok = applyTextureImage({}, {} as CanvasImageSource);
   assert.equal(ok, false);
 }
 
@@ -165,7 +167,7 @@ import {
       });
     }
   } as { extend: (patch: Record<string, unknown>) => void; namespace?: string };
-  applyTextureMeta(tex as unknown as never, {
+  applyTextureMeta(tex, {
     namespace: 'minecraft',
     renderMode: 'normal',
     frameTime: 2
@@ -175,7 +177,7 @@ import {
 
 {
   const tex = {} as { render_mode?: string; frame_time?: number; visible?: boolean };
-  applyTextureMeta(tex as unknown as never, {
+  applyTextureMeta(tex, {
     renderMode: 'solid',
     frameTime: 4,
     visible: false
@@ -185,7 +187,6 @@ import {
 
 {
   const tex = { keep_size: true } as { keep_size: boolean };
-  applyTextureMeta(tex as unknown as never, {});
+  applyTextureMeta(tex, {});
   assert.deepEqual(tex, { keep_size: true });
 }
-

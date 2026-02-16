@@ -65,6 +65,10 @@ const main = () => {
       pattern: /\bas any\b/
     },
     {
+      id: 'type-any',
+      pattern: /:\s*any\b/
+    },
+    {
       id: 'as-unknown-as',
       pattern: /\bas unknown as\b/,
       // No allowlist: remove unsafe double assertions.

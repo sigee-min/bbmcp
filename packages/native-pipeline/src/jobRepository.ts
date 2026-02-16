@@ -13,6 +13,9 @@ const MAX_RETRY_BACKOFF_MS = 5_000;
 type ResolveProject = (projectId: string) => NativeProjectSnapshot;
 type EmitSnapshot = (project: NativeProjectSnapshot) => void;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
 const clampInteger = (value: unknown, fallback: number, min: number, max: number): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
   const rounded = Math.trunc(value);
@@ -69,7 +72,7 @@ export const submitJob = (
     id: allocateNativeJobId(state),
     projectId: project.projectId,
     kind: input.kind,
-    ...(input.payload ? { payload: { ...input.payload } } : {}),
+    ...(isRecord(input.payload) ? { payload: { ...input.payload } } : {}),
     status: 'queued',
     attemptCount: 0,
     maxAttempts: clampInteger(input.maxAttempts, DEFAULT_MAX_ATTEMPTS, 1, MAX_ATTEMPTS_LIMIT),
@@ -104,7 +107,7 @@ export const claimNextJob = (
     if (job.nextRetryAt) {
       const retryAt = Date.parse(job.nextRetryAt);
       if (Number.isFinite(retryAt) && retryAt > Date.now()) {
-        state.queuedJobIds.push(job.id);
+        enqueueUnique(state, job.id);
         continue;
       }
       delete job.nextRetryAt;

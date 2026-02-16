@@ -54,6 +54,18 @@ registerAsync(
     assert.equal(listedJobs.some((candidate) => candidate.id === job.id), true);
     assert.equal(listedJobs.some((candidate) => candidate.id === failedJob.id), true);
 
+    const nonObjectPayload = JSON.parse('"bad"') as Record<string, unknown>;
+    const payloadGuarded = store.submitJob({
+      projectId: 'project-a',
+      kind: 'payload.guard',
+      payload: nonObjectPayload
+    });
+    assert.equal(payloadGuarded.payload, undefined);
+    const runningPayloadGuarded = store.claimNextJob('worker-payload');
+    assert.equal(runningPayloadGuarded?.id, payloadGuarded.id);
+    const completedPayloadGuarded = store.completeJob(payloadGuarded.id, { ok: true });
+    assert.equal(completedPayloadGuarded?.status, 'completed');
+
     const retryable = store.submitJob({
       projectId: 'project-a',
       kind: 'retry.convert',

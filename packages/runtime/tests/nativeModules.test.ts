@@ -5,7 +5,7 @@ import { loadNativeModule } from '../src/shared/nativeModules';
 type NativeLoader = (name: string, options?: { message?: string; detail?: string; optional?: boolean }) => unknown;
 
 {
-  const globals = globalThis as unknown as { requireNativeModule?: NativeLoader };
+  const globals = globalThis as { requireNativeModule?: NativeLoader };
   const original = globals.requireNativeModule;
   let capturedName = '';
   let capturedOptional: boolean | undefined;
@@ -25,7 +25,7 @@ type NativeLoader = (name: string, options?: { message?: string; detail?: string
 }
 
 {
-  const globals = globalThis as unknown as { requireNativeModule?: NativeLoader };
+  const globals = globalThis as { requireNativeModule?: NativeLoader };
   const original = globals.requireNativeModule;
   globals.requireNativeModule = () => {
     throw new Error('bridge fail');
@@ -39,7 +39,7 @@ type NativeLoader = (name: string, options?: { message?: string; detail?: string
 }
 
 {
-  const globals = globalThis as unknown as { requireNativeModule?: NativeLoader };
+  const globals = globalThis as { requireNativeModule?: NativeLoader };
   const original = globals.requireNativeModule;
   globals.requireNativeModule = () => null;
   try {

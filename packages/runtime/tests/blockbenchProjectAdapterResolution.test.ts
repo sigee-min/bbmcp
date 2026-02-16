@@ -19,7 +19,7 @@ const logger: Logger = {
   error: () => undefined
 };
 
-const getGlobals = (): TestGlobals => globalThis as unknown as TestGlobals;
+const getGlobals = (): TestGlobals => globalThis as TestGlobals;
 
 const withGlobals = (overrides: TestGlobals, run: () => void) => {
   const globals = getGlobals();
@@ -65,7 +65,7 @@ const withGlobals = (overrides: TestGlobals, run: () => void) => {
 {
   withGlobals(
     {
-      Project: null as unknown as object
+      Project: null
     },
     () => {
       const adapter = new BlockbenchProjectAdapter(logger);
@@ -144,4 +144,3 @@ const withGlobals = (overrides: TestGlobals, run: () => void) => {
     }
   );
 }
-

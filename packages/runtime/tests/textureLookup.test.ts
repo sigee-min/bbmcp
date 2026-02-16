@@ -4,7 +4,7 @@ import { findTextureRef, listTextureStats } from '../src/adapters/blockbench/tex
 
 type Globals = { Texture?: unknown };
 
-const readGlobals = (): Globals => globalThis as unknown as Globals;
+const readGlobals = (): Globals => globalThis as Globals;
 
 const withGlobals = (overrides: Globals, run: () => void) => {
   const globals = readGlobals();

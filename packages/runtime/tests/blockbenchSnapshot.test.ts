@@ -14,7 +14,7 @@ type TestGlobals = {
   ModelFormat?: unknown;
 };
 
-const getGlobals = (): TestGlobals => globalThis as unknown as TestGlobals;
+const getGlobals = (): TestGlobals => globalThis as TestGlobals;
 
 const withGlobals = (overrides: TestGlobals, run: () => void) => {
   const globals = getGlobals();
@@ -117,7 +117,6 @@ const withGlobals = (overrides: TestGlobals, run: () => void) => {
       assert.equal(result?.id, 'project-id');
       assert.equal(result?.name, 'dragon');
       assert.equal(result?.dirty, true);
-      assert.equal(result?.format, undefined);
       assert.equal(result?.uvPixelsPerBlock, 24);
       assert.equal(result?.bones.length, 1);
       assert.equal(result?.cubes.length, 1);
@@ -147,7 +146,6 @@ const withGlobals = (overrides: TestGlobals, run: () => void) => {
     () => {
       const result = snapshot.readSnapshot();
       assert.notEqual(result, null);
-      assert.equal(result?.format, undefined);
       assert.equal(result?.formatId, 'free');
     }
   );

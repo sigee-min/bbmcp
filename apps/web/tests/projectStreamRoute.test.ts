@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { GET } from '../src/app/api/projects/[projectId]/stream/route';
+import { getNativePipelineStore } from '../src/lib/nativePipelineStore';
 
 const decoder = new TextDecoder();
 
@@ -72,6 +73,9 @@ const getProjectStream = async (
 };
 
 module.exports = async () => {
+  const store = getNativePipelineStore();
+  store.reset();
+
   {
     const response = await GET(new Request('http://localhost/api/projects/missing-project/stream'), {
       params: Promise.resolve({ projectId: 'missing-project' })

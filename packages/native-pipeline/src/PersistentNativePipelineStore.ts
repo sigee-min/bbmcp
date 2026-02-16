@@ -1,5 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { PersistedProjectRecord, ProjectRepository, ProjectRepositoryScope } from '@ashfox/backend-core';
+import type {
+  PersistedProjectRecord,
+  ProjectRepository,
+  ProjectRepositoryScope,
+  ProjectRepositoryWithRevisionGuard
+} from '@ashfox/backend-core';
 import { cloneEvent, cloneJob, cloneProject } from './clone';
 import { appendProjectSnapshotEvent, getProjectEventsSince as readProjectEventsSince } from './eventRepository';
 import {
@@ -50,6 +55,9 @@ type LockState = {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const canGuardRevisions = (repository: ProjectRepository): repository is ProjectRepository & ProjectRepositoryWithRevisionGuard =>
+  typeof (repository as { saveIfRevision?: unknown }).saveIfRevision === 'function';
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -437,6 +445,9 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
         const seeded = createNativePipelineState();
         seedProjects(seeded, (project) => appendProjectSnapshotEvent(seeded, project));
         await this.persistState(seeded, existingRecord ?? null);
+      }).catch((error) => {
+        this.initializationPromise = null;
+        throw error;
       });
     }
     await this.initializationPromise;
@@ -479,13 +490,26 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
     const serializedJson = JSON.stringify(serialized);
     const revision = createHash('sha256').update(serializedJson).digest('hex');
     const now = nowIso();
-    await this.repository.save({
+    const nextRecord: PersistedProjectRecord = {
       scope: this.stateScope,
       revision,
       state: serialized,
       createdAt: existingRecord?.createdAt ?? now,
       updatedAt: now
-    });
+    };
+    const expectedRevision = existingRecord?.revision ?? null;
+    const applied = await this.saveRecord(nextRecord, expectedRevision);
+    if (!applied) {
+      throw new Error('Persistent native pipeline state conflict detected while saving.');
+    }
+  }
+
+  private async saveRecord(record: PersistedProjectRecord, expectedRevision: string | null): Promise<boolean> {
+    if (canGuardRevisions(this.repository)) {
+      return this.repository.saveIfRevision(record, expectedRevision);
+    }
+    await this.repository.save(record);
+    return true;
   }
 
   private async withLock<TResult>(operation: () => Promise<TResult>): Promise<TResult> {
@@ -506,7 +530,7 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
       const canAttempt = !currentLock || !isLockActive(currentLock);
       if (canAttempt) {
         const now = nowIso();
-        await this.repository.save({
+        const lockRecord: PersistedProjectRecord = {
           scope: this.lockScope,
           revision: owner,
           state: {
@@ -515,7 +539,13 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
           },
           createdAt: currentRecord?.createdAt ?? now,
           updatedAt: now
-        });
+        };
+        const expectedRevision = currentRecord?.revision ?? null;
+        const applied = await this.saveRecord(lockRecord, expectedRevision);
+        if (!applied) {
+          await sleep(this.lockRetryMs);
+          continue;
+        }
 
         const confirmedRecord = await this.repository.find(this.lockScope);
         const confirmedLock = parseLockState(confirmedRecord?.state);
@@ -533,6 +563,23 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
       const currentRecord = await this.repository.find(this.lockScope);
       const currentLock = parseLockState(currentRecord?.state);
       if (!currentLock || currentLock.owner !== owner) return;
+      if (canGuardRevisions(this.repository) && currentRecord) {
+        const now = nowIso();
+        await this.repository.saveIfRevision(
+          {
+            scope: this.lockScope,
+            revision: `${owner}:released:${now}`,
+            state: {
+              owner,
+              expiresAt: now
+            },
+            createdAt: currentRecord.createdAt,
+            updatedAt: now
+          },
+          currentRecord.revision
+        );
+        return;
+      }
       await this.repository.remove(this.lockScope);
     } catch {
       return;

@@ -11,10 +11,21 @@ type SubmitJobBody = {
   leaseMs?: unknown;
 };
 
-const toOptionalPositiveInt = (value: unknown): number | undefined => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+type ParsedPositiveInt =
+  | {
+      ok: true;
+      value?: number;
+    }
+  | {
+      ok: false;
+    };
+
+const parseOptionalPositiveInt = (value: unknown): ParsedPositiveInt => {
+  if (value === undefined) return { ok: true };
+  if (typeof value !== 'number' || !Number.isFinite(value)) return { ok: false };
   const rounded = Math.trunc(value);
-  return rounded > 0 ? rounded : undefined;
+  if (rounded <= 0) return { ok: false };
+  return { ok: true, value: rounded };
 };
 
 export async function GET(
@@ -81,12 +92,36 @@ export async function POST(
     );
   }
 
+  const parsedMaxAttempts = parseOptionalPositiveInt(body.maxAttempts);
+  if (!parsedMaxAttempts.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: 'invalid_payload',
+        message: 'maxAttempts must be a positive integer'
+      },
+      { status: 400 }
+    );
+  }
+
+  const parsedLeaseMs = parseOptionalPositiveInt(body.leaseMs);
+  if (!parsedLeaseMs.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: 'invalid_payload',
+        message: 'leaseMs must be a positive integer'
+      },
+      { status: 400 }
+    );
+  }
+
   const job = store.submitJob({
     projectId,
     kind: body.kind,
     payload: isRecord(body.payload) ? body.payload : undefined,
-    maxAttempts: toOptionalPositiveInt(body.maxAttempts),
-    leaseMs: toOptionalPositiveInt(body.leaseMs)
+    maxAttempts: parsedMaxAttempts.value,
+    leaseMs: parsedLeaseMs.value
   });
 
   return NextResponse.json({ ok: true, job }, { status: 202 });

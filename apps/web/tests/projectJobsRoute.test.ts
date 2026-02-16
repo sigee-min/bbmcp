@@ -15,16 +15,55 @@ module.exports = async () => {
       new Request('http://localhost/api/projects/project-a/jobs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ kind: 'gltf.convert' })
+        body: JSON.stringify({ kind: 'gltf.convert', maxAttempts: 5, leaseMs: 12000 })
       }),
       {
         params: Promise.resolve({ projectId: 'project-a' })
       }
     );
     assert.equal(response.status, 202);
-    const body = (await response.json()) as { ok?: boolean; job?: { kind?: string } };
+    const body = (await response.json()) as {
+      ok?: boolean;
+      job?: { kind?: string; maxAttempts?: number; leaseMs?: number };
+    };
     assert.equal(body.ok, true);
     assert.equal(body.job?.kind, 'gltf.convert');
+    assert.equal(body.job?.maxAttempts, 5);
+    assert.equal(body.job?.leaseMs, 12000);
+  }
+
+  {
+    const response = await POST(
+      new Request('http://localhost/api/projects/project-a/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'gltf.convert', maxAttempts: 0 })
+      }),
+      {
+        params: Promise.resolve({ projectId: 'project-a' })
+      }
+    );
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { code?: string; message?: string };
+    assert.equal(body.code, 'invalid_payload');
+    assert.equal(body.message, 'maxAttempts must be a positive integer');
+  }
+
+  {
+    const response = await POST(
+      new Request('http://localhost/api/projects/project-a/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'gltf.convert', leaseMs: '5000' })
+      }),
+      {
+        params: Promise.resolve({ projectId: 'project-a' })
+      }
+    );
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { code?: string; message?: string };
+    assert.equal(body.code, 'invalid_payload');
+    assert.equal(body.message, 'leaseMs must be a positive integer');
   }
 
   {

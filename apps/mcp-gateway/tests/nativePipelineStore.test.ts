@@ -7,14 +7,14 @@ registerAsync(
   (async () => {
     const store = new NativePipelineStore();
 
-    const allProjects = store.listProjects();
+    const allProjects = await store.listProjects();
     assert.ok(allProjects.length >= 3);
 
-    const filtered = store.listProjects('lynx');
+    const filtered = await store.listProjects('lynx');
     assert.equal(filtered.length, 1);
     assert.equal(filtered[0]?.name, 'Desert Lynx');
 
-    const job = store.submitJob({
+    const job = await store.submitJob({
       projectId: 'project-a',
       kind: 'gltf.convert'
     });
@@ -23,63 +23,63 @@ registerAsync(
     assert.equal(job.maxAttempts, 3);
     assert.equal(job.leaseMs, 30000);
 
-    const claimed = store.claimNextJob('worker-1');
+    const claimed = await store.claimNextJob('worker-1');
     assert.equal(claimed?.id, job.id);
     assert.equal(claimed?.status, 'running');
     assert.equal(claimed?.workerId, 'worker-1');
     assert.equal(claimed?.attemptCount, 1);
     assert.equal(typeof claimed?.leaseExpiresAt, 'string');
 
-    const completed = store.completeJob(job.id, { ok: true });
+    const completed = await store.completeJob(job.id, { ok: true });
     assert.equal(completed?.status, 'completed');
     assert.deepEqual(completed?.result, { ok: true });
 
-    const events = store.getProjectEventsSince('project-a', 0);
+    const events = await store.getProjectEventsSince('project-a', 0);
     assert.ok(events.length >= 1);
     assert.equal(events.at(-1)?.event, 'project_snapshot');
 
-    const failedJob = store.submitJob({
+    const failedJob = await store.submitJob({
       projectId: 'project-a',
       kind: 'texture.preflight',
       maxAttempts: 1
     });
-    const runningFailedJob = store.claimNextJob('worker-2');
+    const runningFailedJob = await store.claimNextJob('worker-2');
     assert.equal(runningFailedJob?.id, failedJob.id);
-    const failed = store.failJob(failedJob.id, 'boom');
+    const failed = await store.failJob(failedJob.id, 'boom');
     assert.equal(failed?.status, 'failed');
     assert.equal(failed?.error, 'boom');
     assert.equal(failed?.deadLetter, true);
 
-    const listedJobs = store.listProjectJobs('project-a');
+    const listedJobs = await store.listProjectJobs('project-a');
     assert.equal(listedJobs.some((candidate) => candidate.id === job.id), true);
     assert.equal(listedJobs.some((candidate) => candidate.id === failedJob.id), true);
 
     const nonObjectPayload = JSON.parse('"bad"') as Record<string, unknown>;
-    const payloadGuarded = store.submitJob({
+    const payloadGuarded = await store.submitJob({
       projectId: 'project-a',
       kind: 'payload.guard',
       payload: nonObjectPayload
     });
     assert.equal(payloadGuarded.payload, undefined);
-    const runningPayloadGuarded = store.claimNextJob('worker-payload');
+    const runningPayloadGuarded = await store.claimNextJob('worker-payload');
     assert.equal(runningPayloadGuarded?.id, payloadGuarded.id);
-    const completedPayloadGuarded = store.completeJob(payloadGuarded.id, { ok: true });
+    const completedPayloadGuarded = await store.completeJob(payloadGuarded.id, { ok: true });
     assert.equal(completedPayloadGuarded?.status, 'completed');
 
-    const retryable = store.submitJob({
+    const retryable = await store.submitJob({
       projectId: 'project-a',
       kind: 'retry.convert',
       maxAttempts: 2,
       leaseMs: 5000
     });
-    const runningRetryable = store.claimNextJob('worker-3');
+    const runningRetryable = await store.claimNextJob('worker-3');
     assert.equal(runningRetryable?.id, retryable.id);
     assert.equal(runningRetryable?.attemptCount, 1);
-    const queuedAgain = store.failJob(retryable.id, 'temporary');
+    const queuedAgain = await store.failJob(retryable.id, 'temporary');
     assert.equal(queuedAgain?.status, 'queued');
     assert.equal(typeof queuedAgain?.nextRetryAt, 'string');
 
-    const blockedRetry = store.claimNextJob('worker-4');
+    const blockedRetry = await store.claimNextJob('worker-4');
     assert.equal(blockedRetry, null);
 
     const originalNow = Date.now;
@@ -91,19 +91,19 @@ registerAsync(
       }
     }
 
-    let secondClaim: ReturnType<typeof store.claimNextJob>;
+    let secondClaim: Awaited<ReturnType<typeof store.claimNextJob>>;
     try {
-      secondClaim = store.claimNextJob('worker-5');
+      secondClaim = await store.claimNextJob('worker-5');
     } finally {
       Date.now = originalNow;
     }
     assert.equal(secondClaim?.id, retryable.id);
     assert.equal(secondClaim?.attemptCount, 2);
-    const finalFailure = store.failJob(retryable.id, 'still failing');
+    const finalFailure = await store.failJob(retryable.id, 'still failing');
     assert.equal(finalFailure?.status, 'failed');
     assert.equal(finalFailure?.deadLetter, true);
 
-    const constrained = store.submitJob({
+    const constrained = await store.submitJob({
       projectId: 'project-a',
       kind: 'lease.clamp',
       maxAttempts: 999,
@@ -111,18 +111,18 @@ registerAsync(
     });
     assert.equal(constrained.maxAttempts, 10);
     assert.equal(constrained.leaseMs, 5000);
-    const constrainedClaim = store.claimNextJob('worker-6');
+    const constrainedClaim = await store.claimNextJob('worker-6');
     assert.equal(constrainedClaim?.id, constrained.id);
-    const constrainedComplete = store.completeJob(constrained.id, { ok: true });
+    const constrainedComplete = await store.completeJob(constrained.id, { ok: true });
     assert.equal(constrainedComplete?.status, 'completed');
 
-    const expiring = store.submitJob({
+    const expiring = await store.submitJob({
       projectId: 'project-a',
       kind: 'lease.expiry',
       maxAttempts: 3,
       leaseMs: 5000
     });
-    const firstLeaseClaim = store.claimNextJob('worker-7');
+    const firstLeaseClaim = await store.claimNextJob('worker-7');
     assert.equal(firstLeaseClaim?.id, expiring.id);
     assert.equal(firstLeaseClaim?.attemptCount, 1);
     assert.equal(typeof firstLeaseClaim?.leaseExpiresAt, 'string');
@@ -135,9 +135,9 @@ registerAsync(
       }
     }
 
-    let recoveredClaim: ReturnType<typeof store.claimNextJob>;
+    let recoveredClaim: Awaited<ReturnType<typeof store.claimNextJob>>;
     try {
-      recoveredClaim = store.claimNextJob('worker-8');
+      recoveredClaim = await store.claimNextJob('worker-8');
     } finally {
       Date.now = leaseNow;
     }

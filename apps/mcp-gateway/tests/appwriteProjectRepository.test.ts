@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import type { PersistedProjectRecord } from '@ashfox/backend-core';
 import type { AppwriteDatabaseConfig } from '../src/persistence/config';
 import { AppwriteProjectRepository } from '../src/persistence/infrastructure/AppwriteProjectRepository';
@@ -9,6 +10,12 @@ type StoredDocument = {
   data: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+};
+
+const toLockDocumentId = (tenantId: string, projectId: string): string => {
+  const key = `${tenantId}::${projectId}`;
+  const digest = createHash('sha256').update(key).digest('hex');
+  return `l${digest.slice(0, 35)}`;
 };
 
 registerAsync(
@@ -207,5 +214,73 @@ registerAsync(
     assert.equal(guardedCreateSuccess, true);
     const recreated = await repository.find(scope);
     assert.equal(recreated?.revision, 'rev-created');
+
+    const lockScope = { tenantId: 'tenant-lock', projectId: 'project-lock' };
+    const lockDocumentId = toLockDocumentId(lockScope.tenantId, lockScope.projectId);
+    documents.set(lockDocumentId, {
+      id: lockDocumentId,
+      data: {
+        tenantId: `__lock__:${lockScope.tenantId}`,
+        projectId: lockScope.projectId,
+        revision: 'existing-lock',
+        stateJson: JSON.stringify({ owner: 'existing-lock-owner', expiresAt: '2000-01-01T00:00:00.000Z' }),
+        createdAt: '2000-01-01T00:00:00.000Z',
+        updatedAt: '2000-01-01T00:00:00.000Z'
+      },
+      createdAt: '2000-01-01T00:00:00.000Z',
+      updatedAt: '2000-01-01T00:00:00.000Z'
+    });
+
+    const staleLockWrite = await repository.saveIfRevision(
+      {
+        scope: lockScope,
+        revision: 'rev-stale-lock',
+        state: { ok: 'stale-lock-recovered' },
+        createdAt: '2026-02-09T00:00:00.000Z',
+        updatedAt: '2026-02-09T00:00:00.000Z'
+      },
+      null
+    );
+    assert.equal(staleLockWrite, true);
+    const staleLockRecord = await repository.find(lockScope);
+    assert.equal(staleLockRecord?.revision, 'rev-stale-lock');
+
+    const activeLockScope = { tenantId: 'tenant-active-lock', projectId: 'project-active-lock' };
+    const activeLockDocumentId = toLockDocumentId(activeLockScope.tenantId, activeLockScope.projectId);
+    documents.set(activeLockDocumentId, {
+      id: activeLockDocumentId,
+      data: {
+        tenantId: `__lock__:${activeLockScope.tenantId}`,
+        projectId: activeLockScope.projectId,
+        revision: 'active-lock',
+        stateJson: JSON.stringify({ owner: 'active-lock-owner', expiresAt: '2999-01-01T00:00:00.000Z' }),
+        createdAt: '2026-02-09T00:00:00.000Z',
+        updatedAt: '2026-02-09T00:00:00.000Z'
+      },
+      createdAt: '2026-02-09T00:00:00.000Z',
+      updatedAt: '2026-02-09T00:00:00.000Z'
+    });
+
+    const lockBoundRepository = new AppwriteProjectRepository(config, {
+      fetchImpl: fakeFetch,
+      lockTimeoutMs: 20,
+      lockRetryMs: 1,
+      sleepImpl: async () => Promise.resolve()
+    });
+
+    await assert.rejects(
+      () =>
+        lockBoundRepository.saveIfRevision(
+          {
+            scope: activeLockScope,
+            revision: 'rev-active-lock',
+            state: { ok: 'should-timeout' },
+            createdAt: '2026-02-09T00:00:00.000Z',
+            updatedAt: '2026-02-09T00:00:00.000Z'
+          },
+          null
+        ),
+      /lock acquisition timed out/i
+    );
   })()
 );

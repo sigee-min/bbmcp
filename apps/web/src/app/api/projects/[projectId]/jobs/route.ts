@@ -90,6 +90,7 @@ export async function POST(
       { status: 400 }
     );
   }
+  const normalizedKind = body.kind.trim();
 
   const parsedMaxAttempts = parseOptionalPositiveInt(body.maxAttempts);
   if (!parsedMaxAttempts.ok) {
@@ -128,7 +129,7 @@ export async function POST(
 
   const job = store.submitJob({
     projectId,
-    kind: body.kind,
+    kind: normalizedKind,
     payload: body.payload,
     maxAttempts: parsedMaxAttempts.value,
     leaseMs: parsedLeaseMs.value

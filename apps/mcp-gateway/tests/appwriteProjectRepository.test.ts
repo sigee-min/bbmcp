@@ -156,8 +156,56 @@ registerAsync(
     assert.equal(updated?.createdAt, '2026-02-09T00:00:00.000Z');
     assert.equal(updated?.updatedAt, '2026-02-09T01:00:00.000Z');
 
+    const mismatchResult = await repository.saveIfRevision(
+      {
+        ...initial,
+        revision: 'rev-3',
+        state: { ok: 'mismatch' },
+        updatedAt: '2026-02-09T02:00:00.000Z'
+      },
+      'wrong-revision'
+    );
+    assert.equal(mismatchResult, false);
+
+    const guardedUpdateResult = await repository.saveIfRevision(
+      {
+        ...initial,
+        revision: 'rev-3',
+        state: { ok: 'guarded-update' },
+        updatedAt: '2026-02-09T03:00:00.000Z'
+      },
+      'rev-2'
+    );
+    assert.equal(guardedUpdateResult, true);
+    const guardedUpdated = await repository.find(scope);
+    assert.equal(guardedUpdated?.revision, 'rev-3');
+
+    const guardedCreateFail = await repository.saveIfRevision(
+      {
+        ...initial,
+        revision: 'rev-4',
+        state: { ok: 'already-exists' },
+        updatedAt: '2026-02-09T04:00:00.000Z'
+      },
+      null
+    );
+    assert.equal(guardedCreateFail, false);
+
     await repository.remove(scope);
     const removed = await repository.find(scope);
     assert.equal(removed, null);
+
+    const guardedCreateSuccess = await repository.saveIfRevision(
+      {
+        ...initial,
+        revision: 'rev-created',
+        state: { ok: 'created' },
+        updatedAt: '2026-02-09T05:00:00.000Z'
+      },
+      null
+    );
+    assert.equal(guardedCreateSuccess, true);
+    const recreated = await repository.find(scope);
+    assert.equal(recreated?.revision, 'rev-created');
   })()
 );

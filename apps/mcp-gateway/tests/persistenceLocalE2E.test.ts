@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { ProjectRepositoryWithRevisionGuard } from '@ashfox/backend-core';
 import { closeGatewayPersistence, createGatewayPersistence } from '../src/persistence/createPersistence';
 import { registerAsync } from './helpers';
 
@@ -14,6 +15,13 @@ const hasNodeSqlite = (): boolean => {
     return false;
   }
 };
+
+const isRevisionGuardRepository = (
+  repository: unknown
+): repository is ProjectRepositoryWithRevisionGuard =>
+  Boolean(repository) &&
+  typeof repository === 'object' &&
+  typeof (repository as { saveIfRevision?: unknown }).saveIfRevision === 'function';
 
 registerAsync(
   (async () => {
@@ -47,6 +55,34 @@ registerAsync(
       assert.ok(found);
       assert.equal(found?.revision, 'rev-1');
       assert.deepEqual(found?.state, { mesh: { cubes: 3 } });
+
+      if (isRevisionGuardRepository(persistence.projectRepository)) {
+        const mismatch = await persistence.projectRepository.saveIfRevision(
+          {
+            ...record,
+            revision: 'rev-mismatch',
+            state: { mesh: { cubes: 5 } },
+            updatedAt: '2026-02-09T00:10:00.000Z'
+          },
+          'wrong-revision'
+        );
+        assert.equal(mismatch, false);
+
+        const guardedUpdate = await persistence.projectRepository.saveIfRevision(
+          {
+            ...record,
+            revision: 'rev-2',
+            state: { mesh: { cubes: 4 } },
+            updatedAt: '2026-02-09T00:20:00.000Z'
+          },
+          'rev-1'
+        );
+        assert.equal(guardedUpdate, true);
+
+        const guardedFound = await persistence.projectRepository.find(scope);
+        assert.equal(guardedFound?.revision, 'rev-2');
+        assert.deepEqual(guardedFound?.state, { mesh: { cubes: 4 } });
+      }
 
       await persistence.blobStore.put({
         bucket: 'models',

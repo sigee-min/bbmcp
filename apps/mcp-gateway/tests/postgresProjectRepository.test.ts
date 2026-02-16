@@ -22,6 +22,10 @@ class FakePostgresPool implements PostgresPool {
     return `${tenantId}::${projectId}`;
   }
 
+  private toResultRows<TResult extends Record<string, unknown>>(rows: Record<string, unknown>[]): { rows: TResult[] } {
+    return { rows: rows as TResult[] };
+  }
+
   async query<TResult extends Record<string, unknown> = Record<string, unknown>>(
     text: string,
     params: unknown[] = []
@@ -39,8 +43,8 @@ class FakePostgresPool implements PostgresPool {
       return { rows: [] };
     }
     if (normalized.startsWith('select version from') && normalized.includes('ashfox_schema_migrations')) {
-      const rows = Array.from(this.migrations.keys()).map((version) => ({ version } as TResult));
-      return { rows };
+      const rows = Array.from(this.migrations.keys()).map((version) => ({ version }));
+      return this.toResultRows<TResult>(rows);
     }
     if (normalized.startsWith('insert into') && normalized.includes('ashfox_schema_migrations')) {
       const version = Number(params[0]);
@@ -57,7 +61,23 @@ class FakePostgresPool implements PostgresPool {
       const tenantId = String(params[0]);
       const projectId = String(params[1]);
       const found = this.records.get(this.key(tenantId, projectId));
-      return { rows: found ? [found as TResult] : [] };
+      return this.toResultRows<TResult>(found ? [found] : []);
+    }
+    if (normalized.startsWith('insert into') && normalized.includes('do nothing') && normalized.includes('returning 1 as applied')) {
+      const [tenantId, projectId, revision, stateJson, createdAt, updatedAt] = params as string[];
+      const key = this.key(tenantId, projectId);
+      if (this.records.has(key)) {
+        return { rows: [] };
+      }
+      this.records.set(key, {
+        tenant_id: tenantId,
+        project_id: projectId,
+        revision,
+        state: JSON.parse(stateJson) as unknown,
+        created_at: createdAt,
+        updated_at: updatedAt
+      });
+      return this.toResultRows<TResult>([{ applied: 1 }]);
     }
     if (normalized.startsWith('insert into') && normalized.includes('on conflict (tenant_id, project_id)')) {
       const [tenantId, projectId, revision, stateJson, createdAt, updatedAt] = params as string[];
@@ -79,6 +99,18 @@ class FakePostgresPool implements PostgresPool {
         });
       }
       return { rows: [] };
+    }
+    if (normalized.startsWith('update') && normalized.includes('and revision = $6') && normalized.includes('returning 1 as applied')) {
+      const [tenantId, projectId, revision, stateJson, updatedAt, expectedRevision] = params as string[];
+      const key = this.key(tenantId, projectId);
+      const existing = this.records.get(key);
+      if (!existing || existing.revision !== expectedRevision) {
+        return { rows: [] };
+      }
+      existing.revision = revision;
+      existing.state = JSON.parse(stateJson) as unknown;
+      existing.updated_at = updatedAt;
+      return this.toResultRows<TResult>([{ applied: 1 }]);
     }
     if (normalized.startsWith('delete from') && normalized.includes('where tenant_id = $1')) {
       const tenantId = String(params[0]);
@@ -136,9 +168,57 @@ registerAsync(
     assert.equal(secondRead?.createdAt, '2026-02-09T00:00:00.000Z');
     assert.equal(secondRead?.updatedAt, '2026-02-09T01:00:00.000Z');
 
+    const mismatchResult = await repository.saveIfRevision(
+      {
+        ...record,
+        revision: 'rev-3',
+        state: { ok: 'mismatch' },
+        updatedAt: '2026-02-09T02:00:00.000Z'
+      },
+      'wrong-revision'
+    );
+    assert.equal(mismatchResult, false);
+
+    const guardedUpdateResult = await repository.saveIfRevision(
+      {
+        ...record,
+        revision: 'rev-3',
+        state: { ok: 'guarded' },
+        updatedAt: '2026-02-09T03:00:00.000Z'
+      },
+      'rev-2'
+    );
+    assert.equal(guardedUpdateResult, true);
+    const guardedRead = await repository.find(record.scope);
+    assert.equal(guardedRead?.revision, 'rev-3');
+
+    const guardedCreateFail = await repository.saveIfRevision(
+      {
+        ...record,
+        revision: 'rev-4',
+        state: { ok: 'already-exists' },
+        updatedAt: '2026-02-09T04:00:00.000Z'
+      },
+      null
+    );
+    assert.equal(guardedCreateFail, false);
+
     await repository.remove(record.scope);
     const afterDelete = await repository.find(record.scope);
     assert.equal(afterDelete, null);
+
+    const guardedCreateSuccess = await repository.saveIfRevision(
+      {
+        ...record,
+        revision: 'rev-created',
+        state: { ok: 'created' },
+        updatedAt: '2026-02-09T05:00:00.000Z'
+      },
+      null
+    );
+    assert.equal(guardedCreateSuccess, true);
+    const recreated = await repository.find(record.scope);
+    assert.equal(recreated?.revision, 'rev-created');
 
     await repository.close();
     assert.equal(fakePool.closed, true);

@@ -47,7 +47,11 @@ module.exports = async () => {
       id: 'job-1',
       projectId: 'project-a',
       kind: 'gltf.convert',
+      payload: { codecId: 'gltf' },
       status: 'running',
+      attemptCount: 1,
+      maxAttempts: 3,
+      leaseMs: 30000,
       createdAt: new Date().toISOString()
     };
     let completeCalled = false;
@@ -57,6 +61,11 @@ module.exports = async () => {
         completeCalled = true;
         assert.equal(jobId, 'job-1');
         assert.equal(result?.kind, 'gltf.convert');
+        assert.equal(result?.attemptCount, 1);
+        assert.deepEqual(result?.output, {
+          kind: 'gltf.convert',
+          payload: { codecId: 'gltf' }
+        });
         return { ...claimedJob, status: 'completed', result };
       },
       failJob: () => {
@@ -106,6 +115,9 @@ module.exports = async () => {
       projectId: 'project-b',
       kind: 'texture.preflight',
       status: 'running',
+      attemptCount: 1,
+      maxAttempts: 3,
+      leaseMs: 30000,
       createdAt: new Date().toISOString()
     };
     let failCalled = false;
@@ -137,6 +149,9 @@ module.exports = async () => {
       projectId: 'project-c',
       kind: 'gltf.convert',
       status: 'running',
+      attemptCount: 2,
+      maxAttempts: 3,
+      leaseMs: 30000,
       createdAt: new Date().toISOString()
     };
     const store = {
@@ -155,5 +170,44 @@ module.exports = async () => {
       enabled: true,
       store
     });
+  }
+
+  {
+    const claimedJob: MutableJob = {
+      id: 'job-4',
+      projectId: 'project-z',
+      kind: 'custom.convert',
+      status: 'running',
+      attemptCount: 1,
+      maxAttempts: 2,
+      leaseMs: 10000,
+      createdAt: new Date().toISOString()
+    };
+    let processorCalled = false;
+    let outputChecked = false;
+    const store = {
+      claimNextJob: () => claimedJob,
+      completeJob: (_jobId: string, result?: Record<string, unknown>) => {
+        outputChecked = true;
+        assert.deepEqual(result?.output, { ok: true, mode: 'custom' });
+        return { ...claimedJob, status: 'completed', result };
+      },
+      failJob: () => null
+    } satisfies NativePipelineStorePort;
+
+    await processOneNativeJob({
+      workerId: 'worker-4',
+      logger,
+      enabled: true,
+      store,
+      processor: async (job) => {
+        processorCalled = true;
+        assert.equal(job.id, 'job-4');
+        return { ok: true, mode: 'custom' };
+      }
+    });
+
+    assert.equal(processorCalled, true);
+    assert.equal(outputChecked, true);
   }
 };

@@ -12,16 +12,34 @@ type ProcessNativeJobArgs = {
   logger: Logger;
   enabled: boolean;
   store?: NativePipelineStorePort;
+  processor?: NativeJobProcessor;
 };
+
+type NativeJobProcessor = (job: NativeJob) => Promise<Record<string, unknown> | void>;
 
 const simulateJobWork = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 50));
 };
 
-export const processOneNativeJob = async ({ workerId, logger, enabled, store: injectedStore }: ProcessNativeJobArgs): Promise<void> => {
+const defaultProcessor: NativeJobProcessor = async (job) => {
+  await simulateJobWork();
+  return {
+    kind: job.kind,
+    payload: job.payload ?? null
+  };
+};
+
+export const processOneNativeJob = async ({
+  workerId,
+  logger,
+  enabled,
+  store: injectedStore,
+  processor
+}: ProcessNativeJobArgs): Promise<void> => {
   if (!enabled) return;
 
   const store = injectedStore ?? getNativePipelineStore();
+  const activeProcessor = processor ?? defaultProcessor;
   const job = store.claimNextJob(workerId);
   if (!job) return;
 
@@ -33,10 +51,12 @@ export const processOneNativeJob = async ({ workerId, logger, enabled, store: in
   });
 
   try {
-    await simulateJobWork();
+    const processorResult = await activeProcessor(job);
     const result = {
       processedBy: workerId,
       kind: job.kind,
+      attemptCount: job.attemptCount,
+      ...(processorResult ? { output: processorResult } : {}),
       finishedAt: new Date().toISOString()
     };
     store.completeJob(job.id, result);

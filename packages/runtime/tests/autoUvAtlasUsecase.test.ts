@@ -7,6 +7,7 @@ import { DEFAULT_UV_POLICY, type UvPolicyConfig } from '../src/domain/uv/policy'
 import type { Capabilities } from '../src/types';
 import { runAutoUvAtlas } from '../src/usecases/textureTools/autoUvAtlas';
 import type { TextureToolContext } from '../src/usecases/textureTools/context';
+import { createMockImage } from './fakes';
 
 type UsageTexture = {
   id?: string;
@@ -100,17 +101,17 @@ const createContext = (options: ContextOptions = {}): TextureToolContext => {
         name: 'atlas',
         width: 16,
         height: 16,
-        image: { tag: 'before' } as unknown as CanvasImageSource
+        image: createMockImage('data:image/png;base64,BEFR')
       }
     }),
     setFaceUv: () => null
-  } as unknown as EditorPort;
+  } as never;
 
   const textureRenderer: TextureRendererPort = {
     readPixels: () => ({ result: { width: 16, height: 16, data: createOpaque(16, 16) } }),
     renderPixels: () => ({
       result: {
-        image: { tag: 'after' } as unknown as CanvasImageSource,
+        image: createMockImage('data:image/png;base64,AFTR'),
         width: 16,
         height: 16
       }

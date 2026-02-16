@@ -55,7 +55,7 @@ const cubes: Cube[] = [
     editor: {
       setProjectTextureResolution: () => null
     }
-  } as unknown as TextureToolContext;
+  } as never;
   const res = applyAutoUvAtlasPlanConfig(
     ctx,
     {
@@ -88,7 +88,7 @@ const cubes: Cube[] = [
         return null;
       }
     }
-  } as unknown as TextureToolContext;
+  } as never;
   const res = applyAutoUvAtlasPlanConfig(
     ctx,
     {
@@ -165,7 +165,7 @@ const cubes: Cube[] = [
     editor: {
       setProjectTextureResolution: () => null
     }
-  } as unknown as TextureToolContext;
+  } as never;
   const res = applyAutoUvAtlasPlanConfig(
     ctx,
     {

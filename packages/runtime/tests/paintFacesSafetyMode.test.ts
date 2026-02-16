@@ -7,6 +7,7 @@ import type { TextureRendererPort } from '../src/ports/textureRenderer';
 import type { Capabilities, PaintFacesPayload } from '../src/types';
 import type { TextureToolContext } from '../src/usecases/textureTools/context';
 import { runPaintFaces } from '../src/usecases/textureTools/texturePaintFaces';
+import { createEditorStub, createMockImage } from './fakes';
 
 const capabilities: Capabilities = {
   pluginVersion: 'test',
@@ -30,7 +31,7 @@ const createContext = () => {
   const width = 16;
   const height = 16;
   let updateCalls = 0;
-  const image = { tag: 'tex' } as unknown as CanvasImageSource;
+  const image = createMockImage('data:image/png;base64,TEX0');
   const usage = {
     textures: [
       {
@@ -52,7 +53,8 @@ const createContext = () => {
     ]
   };
 
-  const editor = {
+  const editor: EditorPort = {
+    ...createEditorStub({ textureUsage: usage, textureResolution: { width, height } }),
     readTexture: () => ({
       result: {
         id: 'tex1',
@@ -61,10 +63,8 @@ const createContext = () => {
         height,
         image
       }
-    }),
-    getProjectTextureResolution: () => ({ width, height }),
-    getTextureUsage: () => ({ result: usage })
-  } as unknown as EditorPort;
+    })
+  };
 
   const textureRenderer: TextureRendererPort = {
     readPixels: () => ({ result: { width, height, data: createOpaque(width, height) } }),
@@ -190,10 +190,9 @@ const assertBlocked = (payload: PaintFacesPayload, expectedText: string) => {
 };
 
 assertBlocked(
-  {
-    textureName: 'minecraft_dragon',
-    op: { op: 'fill_rect', x: 0, y: 0, width: 1, height: 1, color: '#3f6f3b' }
-  } as unknown as PaintFacesPayload,
+  JSON.parse(
+    '{"textureName":"minecraft_dragon","op":{"op":"fill_rect","x":0,"y":0,"width":1,"height":1,"color":"#3f6f3b"}}'
+  ) as PaintFacesPayload,
   'target object'
 );
 
@@ -210,7 +209,7 @@ assertBlocked(
   {
     textureName: 'minecraft_dragon',
     target: { cubeName: 'body_main', face: 'north' },
-    op: { op: 'fill_rect', x: 0, y: 0, width: 1, height: 1 } as unknown as PaintFacesPayload['op']
+    op: JSON.parse('{"op":"fill_rect","x":0,"y":0,"width":1,"height":1}') as PaintFacesPayload['op']
   },
   'invalid texture op'
 );

@@ -6,6 +6,7 @@ import { DEFAULT_ANIMATION_TIME_POLICY } from '../src/domain/animation/timePolic
 import { DEFAULT_UV_POLICY } from '../src/domain/uv/policy';
 import type { TextureToolContext } from '../src/usecases/textureTools/context';
 import { normalizePaintTarget, resolveTextureForPaintFaces } from '../src/usecases/textureTools/paintFacesPayload';
+import { createEditorStub } from './fakes';
 
 const capabilities: Capabilities = {
   pluginVersion: 'test',
@@ -35,9 +36,10 @@ const createContext = (options?: {
         height: 16
       }
     ];
-  const editor = {
+  const editor: EditorPort = {
+    ...createEditorStub({ textureResolution: options?.resolution ?? { width: 16, height: 16 } }),
     getProjectTextureResolution: () => options?.resolution ?? { width: 16, height: 16 }
-  } as unknown as EditorPort;
+  };
   const ctx: TextureToolContext = {
     ensureActive: () => null,
     ensureRevisionMatch: () => null,
@@ -83,7 +85,7 @@ const createContext = (options?: {
 }
 
 {
-  const res = normalizePaintTarget({ cubeName: 'cube', face: 'bad' as unknown as 'north' });
+  const res = normalizePaintTarget({ cubeName: 'cube', face: 'bad' as 'north' });
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(res.error.code, 'invalid_payload');
 }

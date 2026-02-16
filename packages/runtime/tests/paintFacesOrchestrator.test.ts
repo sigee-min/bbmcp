@@ -12,6 +12,7 @@ import {
   TEXTURE_FACES_OP_REQUIRED,
   TEXTURE_FACES_TEXTURE_REQUIRED,
 } from '../src/shared/messages';
+import { createEditorStub, createMockImage } from './fakes';
 
 const capabilities: Capabilities = {
   pluginVersion: 'test',
@@ -52,14 +53,13 @@ const createContext = (options?: {
   const width = 16;
   const height = 16;
   const usage = options?.usage ?? createUsage();
-  const image = { tag: 'atlas' } as unknown as CanvasImageSource;
+  const image = createMockImage('data:image/png;base64,ATLAS');
   let updateCalls = 0;
 
-  const editor = {
+  const editor: EditorPort = {
+    ...createEditorStub({ textureUsage: usage, textureResolution: { width, height } }),
     readTexture: () => ({ result: { id: 'tex1', name: 'atlas', width, height, image } }),
-    getProjectTextureResolution: () => ({ width, height }),
-    getTextureUsage: () => ({ result: usage })
-  } as unknown as EditorPort;
+  };
 
   const textureRenderer: TextureRendererPort = {
     readPixels: () => ({ result: { width, height, data: createOpaque(width, height) } }),
@@ -148,7 +148,7 @@ const createContext = (options?: {
   const res = runPaintFaces(ctx, {
     textureName: 'atlas',
     target: { cubeName: 'body', face: 'north' },
-    op: null as unknown as never
+    op: undefined as never
   });
   assert.equal(res.ok, false);
   if (!res.ok) {
@@ -162,7 +162,7 @@ const createContext = (options?: {
   const res = runPaintFaces(ctx, {
     textureName: 'atlas',
     target: { cubeName: 'body', face: 'north' },
-    coordSpace: 'invalid' as unknown as 'face',
+    coordSpace: 'invalid' as 'face',
     op: { op: 'fill_rect', x: 0, y: 0, width: 1, height: 1, color: '#336699' }
   });
   assert.equal(res.ok, false);

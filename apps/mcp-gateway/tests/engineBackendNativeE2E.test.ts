@@ -15,9 +15,12 @@ import {
   type ProjectRepositoryScope
 } from '@ashfox/backend-core';
 import type { ToolName, ToolPayloadMap, ToolResponse, ToolResultMap } from '@ashfox/contracts/types/internal';
-import type { SessionState } from '@ashfox/runtime/session/types';
 import { GatewayDispatcher } from '../src/dispatcher';
 import { registerAsync } from './helpers';
+
+type SessionState = {
+  textures?: Array<{ id?: string; name: string; width?: number; height?: number }>;
+} & Record<string, unknown>;
 
 const EXPORT_BUCKET = 'exports';
 const DEFAULT_TENANT = 'default-tenant';
@@ -145,7 +148,7 @@ const readJson = <T>(filePath: string): T => JSON.parse(fs.readFileSync(filePath
 
 const extractSessionState = (state: unknown): SessionState => {
   if (isRecord(state) && isRecord(state.session)) {
-    return state.session as unknown as SessionState;
+    return state.session as SessionState;
   }
   return state as SessionState;
 };

@@ -197,6 +197,20 @@ export class AppwriteProjectRepository implements ProjectRepository {
     }
   }
 
+  async saveIfRevision(record: PersistedProjectRecord, expectedRevision: string | null): Promise<boolean> {
+    const existing = await this.find(record.scope);
+    if (expectedRevision === null) {
+      if (existing) return false;
+      await this.save(record);
+      return true;
+    }
+    if (!existing || existing.revision !== expectedRevision) {
+      return false;
+    }
+    await this.save(record);
+    return true;
+  }
+
   async remove(scope: ProjectRepositoryScope): Promise<void> {
     const normalizedScope = {
       tenantId: normalizeRequired(scope.tenantId, 'tenantId'),

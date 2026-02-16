@@ -29,6 +29,10 @@ export interface ProjectRepository {
   remove(scope: ProjectRepositoryScope): Promise<void>;
 }
 
+export interface ProjectRepositoryWithRevisionGuard {
+  saveIfRevision(record: PersistedProjectRecord, expectedRevision: string | null): Promise<boolean>;
+}
+
 export interface BlobPointer {
   bucket: string;
   key: string;

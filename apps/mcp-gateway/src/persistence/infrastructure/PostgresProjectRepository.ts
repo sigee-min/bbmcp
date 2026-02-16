@@ -14,9 +14,14 @@ export interface PostgresPool {
   query<TResult extends Record<string, unknown> = Record<string, unknown>>(
     text: string,
     params?: unknown[]
-  ): Promise<{ rows: TResult[] }>;
+  ): Promise<PostgresQueryResult<TResult>>;
   end(): Promise<void>;
 }
+
+export type PostgresQueryResult<TResult extends Record<string, unknown> = Record<string, unknown>> = {
+  rows: TResult[];
+  rowCount?: number | null;
+};
 
 type PersistedRow = {
   tenant_id: string;
@@ -29,6 +34,10 @@ type PersistedRow = {
 
 type MigrationRow = {
   version: number | string;
+};
+
+type MutationProbeRow = {
+  applied: number;
 };
 
 type PostgresMigration = {
@@ -215,6 +224,48 @@ export class PostgresProjectRepository implements ProjectRepository {
       `,
       [record.scope.tenantId, record.scope.projectId, record.revision, JSON.stringify(record.state), createdAt, updatedAt]
     );
+  }
+
+  async saveIfRevision(record: PersistedProjectRecord, expectedRevision: string | null): Promise<boolean> {
+    await this.ensureInitialized();
+    const pool = this.getPool();
+    const createdAt = normalizeTimestamp(record.createdAt);
+    const updatedAt = normalizeTimestamp(record.updatedAt);
+    if (expectedRevision === null) {
+      const inserted = await pool.query<MutationProbeRow>(
+        `
+          INSERT INTO ${this.tableSql} (
+            tenant_id,
+            project_id,
+            revision,
+            state,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, $3, $4::jsonb, $5::timestamptz, $6::timestamptz)
+          ON CONFLICT (tenant_id, project_id)
+          DO NOTHING
+          RETURNING 1 AS applied
+        `,
+        [record.scope.tenantId, record.scope.projectId, record.revision, JSON.stringify(record.state), createdAt, updatedAt]
+      );
+      return (inserted.rowCount ?? inserted.rows.length) > 0;
+    }
+
+    const updated = await pool.query<MutationProbeRow>(
+      `
+        UPDATE ${this.tableSql}
+        SET revision = $3,
+            state = $4::jsonb,
+            updated_at = $5::timestamptz
+        WHERE tenant_id = $1
+          AND project_id = $2
+          AND revision = $6
+        RETURNING 1 AS applied
+      `,
+      [record.scope.tenantId, record.scope.projectId, record.revision, JSON.stringify(record.state), updatedAt, expectedRevision]
+    );
+    return (updated.rowCount ?? updated.rows.length) > 0;
   }
 
   async remove(scope: ProjectRepositoryScope): Promise<void> {

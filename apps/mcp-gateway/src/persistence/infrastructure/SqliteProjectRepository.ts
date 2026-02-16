@@ -15,6 +15,10 @@ type SqliteDatabase = {
   close: () => void;
 };
 
+type SqliteRunResult = {
+  changes?: number | bigint;
+};
+
 type DatabaseSyncConstructor = new (location: string) => SqliteDatabase;
 
 type SqliteRow = {
@@ -51,6 +55,16 @@ const ensureIso = (value: unknown): string => {
     if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
   }
   return new Date().toISOString();
+};
+
+const toChangedRows = (value: unknown): number => {
+  const changes = (value as SqliteRunResult | null | undefined)?.changes;
+  if (typeof changes === 'number') return Number.isFinite(changes) ? changes : 0;
+  if (typeof changes === 'bigint') {
+    const asNumber = Number(changes);
+    return Number.isFinite(asNumber) ? asNumber : 0;
+  }
+  return 0;
 };
 
 const parseState = (value: string): unknown => {
@@ -213,6 +227,53 @@ export class SqliteProjectRepository implements ProjectRepository {
       ensureIso(record.createdAt),
       ensureIso(record.updatedAt)
     );
+  }
+
+  async saveIfRevision(record: PersistedProjectRecord, expectedRevision: string | null): Promise<boolean> {
+    const db = await this.ensureInitialized();
+    if (expectedRevision === null) {
+      const inserted = db.prepare(
+        `
+          INSERT OR IGNORE INTO ${this.tableSql} (
+            tenant_id,
+            project_id,
+            revision,
+            state,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?)
+        `
+      ).run(
+        record.scope.tenantId,
+        record.scope.projectId,
+        record.revision,
+        JSON.stringify(record.state),
+        ensureIso(record.createdAt),
+        ensureIso(record.updatedAt)
+      );
+      return toChangedRows(inserted) > 0;
+    }
+
+    const updated = db.prepare(
+      `
+        UPDATE ${this.tableSql}
+        SET revision = ?,
+            state = ?,
+            updated_at = ?
+        WHERE tenant_id = ?
+          AND project_id = ?
+          AND revision = ?
+      `
+    ).run(
+      record.revision,
+      JSON.stringify(record.state),
+      ensureIso(record.updatedAt),
+      record.scope.tenantId,
+      record.scope.projectId,
+      expectedRevision
+    );
+    return toChangedRows(updated) > 0;
   }
 
   async remove(scope: ProjectRepositoryScope): Promise<void> {

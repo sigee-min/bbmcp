@@ -278,6 +278,7 @@ const createCrudDeps = (
 
 {
   const session = createSession();
+  const invalidTriggerValue: unknown = 123;
   const res = runSetTriggerKeyframes(
     {
       session,
@@ -300,6 +301,7 @@ const createCrudDeps = (
 
 {
   const session = createSession();
+  const invalidTriggerValue: unknown = 123;
   const res = runSetTriggerKeyframes(
     {
       session,
@@ -322,6 +324,7 @@ const createCrudDeps = (
 
 {
   const session = createSession();
+  const invalidTriggerValue: unknown = 123;
   const res = runSetTriggerKeyframes(
     {
       session,
@@ -341,6 +344,7 @@ const createCrudDeps = (
 
 {
   const session = createSession();
+  const invalidTriggerValueLocal: unknown = 123;
   const res = runSetTriggerKeyframes(
     {
       session,
@@ -351,7 +355,7 @@ const createCrudDeps = (
     {
       clip: 'idle',
       channel: 'sound',
-      keys: [{ time: 0, value: 123 as unknown as string }]
+      keys: [{ time: 0, value: invalidTriggerValueLocal as string }]
     }
   );
   assert.equal(res.ok, false);

@@ -7,6 +7,7 @@ import { DEFAULT_ANIMATION_TIME_POLICY } from '../src/domain/animation/timePolic
 import { DEFAULT_UV_POLICY } from '../src/domain/uv/policy';
 import type { TextureToolContext } from '../src/usecases/textureTools/context';
 import { runPaintFacesPass } from '../src/usecases/textureTools/paintFacesPass';
+import { createEditorStub, createMockImage } from './fakes';
 
 const capabilities: Capabilities = {
   pluginVersion: 'test',
@@ -61,14 +62,15 @@ const createPassSetup = (options: PassSetup = {}) => {
         name: 'atlas',
         width: 16,
         height: 16,
-        image: { tag: 'atlas' } as unknown as CanvasImageSource
+        image: createMockImage('data:image/png;base64,ATLS')
       }
     } as ReturnType<EditorPort['readTexture']>);
 
-  const editor = {
+  const editor: EditorPort = {
+    ...createEditorStub({ textureResolution: resolution }),
     readTexture: () => textureRead,
     getProjectTextureResolution: () => resolution
-  } as unknown as EditorPort;
+  };
 
   const renderer =
     options.renderer ??
@@ -78,7 +80,7 @@ const createPassSetup = (options: PassSetup = {}) => {
       }),
       renderPixels: ({ width, height, data }) => ({
         result: {
-          image: { width, height, size: data.length } as unknown as CanvasImageSource,
+          image: createMockImage(`data:image/png;base64,${Math.max(1, Math.floor(data.length / 4)).toString(16)}`),
           width,
           height
         }
@@ -195,7 +197,7 @@ const createPassSetup = (options: PassSetup = {}) => {
 {
   const renderer: TextureRendererPort = {
     renderPixels: ({ width, height }) => ({
-      result: { image: { width, height } as unknown as CanvasImageSource, width, height }
+      result: { image: createMockImage('data:image/png;base64,EDGE'), width, height }
     })
   };
   const setup = createPassSetup({ renderer });

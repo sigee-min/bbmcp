@@ -4,6 +4,7 @@ import type { EditorPort } from '../src/ports/editor';
 import type { TextureRendererPort } from '../src/ports/textureRenderer';
 import type { TextureToolContext } from '../src/usecases/textureTools/context';
 import { captureTextureBackup, maybeRollbackTextureLoss, type TextureBackup } from '../src/usecases/textureTools/paintFacesRecovery';
+import { createEditorStub, createMockImage } from './fakes';
 
 const makePixels = (width: number, height: number, opaquePixels: number): Uint8ClampedArray => {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -29,7 +30,7 @@ const createSetup = (options: SetupOptions = {}) => {
         name: 'atlas',
         width: 16,
         height: 16,
-        image: { tag: 'atlas' } as unknown as CanvasImageSource
+        image: createMockImage('data:image/png;base64,ATLS')
       }
     } as ReturnType<EditorPort['readTexture']>);
 
@@ -50,12 +51,15 @@ const createSetup = (options: SetupOptions = {}) => {
       value: { id: 'tex1', name: 'atlas' }
     }));
 
+  const editor: EditorPort = {
+    ...createEditorStub(),
+    readTexture: () => readTexture
+  };
+
   const ctx = {
-    editor: {
-      readTexture: () => readTexture
-    } as unknown as EditorPort,
+    editor,
     updateTexture
-  } as unknown as TextureToolContext;
+  } as TextureToolContext;
 
   const textureRenderer = {
     readPixels
@@ -138,7 +142,7 @@ const createSetup = (options: SetupOptions = {}) => {
 }
 
 const guardBackup: TextureBackup = {
-  image: { tag: 'before' } as unknown as CanvasImageSource,
+  image: createMockImage('data:image/png;base64,BEFR'),
   width: 16,
   height: 16,
   opaquePixels: 400
@@ -302,4 +306,3 @@ const guardBackup: TextureBackup = {
   assert.equal(err?.code, 'invalid_state');
   assert.equal(err?.details?.recoveryAttempts, 3);
 }
-

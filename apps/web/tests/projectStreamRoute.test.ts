@@ -74,7 +74,7 @@ const getProjectStream = async (
 
 module.exports = async () => {
   const store = getNativePipelineStore();
-  store.reset();
+  await store.reset();
 
   {
     const response = await GET(new Request('http://localhost/api/projects/missing-project/stream'), {

@@ -79,8 +79,8 @@ module.exports = async () => {
   const originalFetch = globalThis.fetch;
   const originalEventSource = globalThis.EventSource;
   const store = getNativePipelineStore();
-  store.reset();
-  const projectPayload = { ok: true, projects: store.listProjects() };
+  await store.reset();
+  const projectPayload = { ok: true, projects: await store.listProjects() };
 
   globalThis.fetch = async (requestUrl) => {
     assert.equal(String(requestUrl), '/api/projects');

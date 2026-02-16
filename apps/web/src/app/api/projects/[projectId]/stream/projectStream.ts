@@ -15,8 +15,8 @@ type CreateProjectStreamArgs = {
 };
 
 type StreamStore = {
-  getProject(projectId: string): NativeProjectSnapshot | null;
-  getProjectEventsSince(projectId: string, lastSeq: number): NativeProjectEvent[];
+  getProject(projectId: string): Promise<NativeProjectSnapshot | null>;
+  getProjectEventsSince(projectId: string, lastSeq: number): Promise<NativeProjectEvent[]>;
 };
 
 type EventPushContext = {
@@ -24,16 +24,16 @@ type EventPushContext = {
   sentInitialSnapshot: boolean;
 };
 
-const pushInitialSnapshotIfNeeded = (
+const pushInitialSnapshotIfNeeded = async (
   store: StreamStore,
   projectId: string,
   controller: ReadableStreamDefaultController<Uint8Array>,
   context: EventPushContext
-): void => {
+): Promise<void> => {
   if (context.sentInitialSnapshot) {
     return;
   }
-  const current = store.getProject(projectId);
+  const current = await store.getProject(projectId);
   if (!current) {
     return;
   }
@@ -47,15 +47,15 @@ const pushInitialSnapshotIfNeeded = (
   context.sentInitialSnapshot = true;
 };
 
-const pushPendingEvents = (
+const pushPendingEvents = async (
   store: StreamStore,
   projectId: string,
   controller: ReadableStreamDefaultController<Uint8Array>,
   context: EventPushContext
-): void => {
-  const pending = store.getProjectEventsSince(projectId, context.cursor);
+): Promise<void> => {
+  const pending = await store.getProjectEventsSince(projectId, context.cursor);
   if (pending.length === 0) {
-    pushInitialSnapshotIfNeeded(store, projectId, controller, context);
+    await pushInitialSnapshotIfNeeded(store, projectId, controller, context);
     return;
   }
 
@@ -89,15 +89,23 @@ export const createProjectStream = ({ request, store, projectId, cursor }: Creat
         sentInitialSnapshot: false
       };
 
-      pushPendingEvents(store, projectId, controller, context);
+      const pumpEvents = async (): Promise<void> => {
+        try {
+          const project = await store.getProject(projectId);
+          if (!project) {
+            pushUnavailableError(controller, projectId, context.cursor + 1);
+            return;
+          }
+          await pushPendingEvents(store, projectId, controller, context);
+        } catch {
+          pushUnavailableError(controller, projectId, context.cursor + 1);
+        }
+      };
+
+      void pumpEvents();
 
       const eventTimer = setInterval(() => {
-        const project = store.getProject(projectId);
-        if (!project) {
-          pushUnavailableError(controller, projectId, context.cursor + 1);
-          return;
-        }
-        pushPendingEvents(store, projectId, controller, context);
+        void pumpEvents();
       }, EVENT_POLL_MS);
 
       const keepAliveTimer = setInterval(() => {

@@ -18,7 +18,7 @@ export async function GET(
 ) {
   const store = getNativePipelineStore();
   const { projectId } = await context.params;
-  const project = store.getProject(projectId);
+  const project = await store.getProject(projectId);
 
   if (!project) {
     return new Response(

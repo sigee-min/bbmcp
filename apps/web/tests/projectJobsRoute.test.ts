@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 
 import { GET, POST } from '../src/app/api/projects/[projectId]/jobs/route';
+import { getNativePipelineStore } from '../src/lib/nativePipelineStore';
 
 module.exports = async () => {
+  const store = getNativePipelineStore();
+  await store.reset();
+
   {
     const response = await GET(new Request('http://localhost/api/projects/missing/jobs'), {
       params: Promise.resolve({ projectId: 'missing' })

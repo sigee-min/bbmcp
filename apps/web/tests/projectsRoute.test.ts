@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 
 import { GET } from '../src/app/api/projects/route';
+import { getNativePipelineStore } from '../src/lib/nativePipelineStore';
 
 module.exports = async () => {
+  const store = getNativePipelineStore();
+  await store.reset();
+
   {
     const response = await GET(new Request('http://localhost/api/projects'));
     assert.equal(response.status, 200);

@@ -37,7 +37,7 @@ export async function GET(
 ) {
   const { projectId } = await context.params;
   const store = getNativePipelineStore();
-  const project = store.getProject(projectId);
+  const project = await store.getProject(projectId);
   if (!project) {
     return NextResponse.json(
       {
@@ -51,7 +51,7 @@ export async function GET(
 
   return NextResponse.json({
     ok: true,
-    jobs: store.listProjectJobs(projectId)
+    jobs: await store.listProjectJobs(projectId)
   });
 }
 
@@ -127,7 +127,7 @@ export async function POST(
     );
   }
 
-  const job = store.submitJob({
+  const job = await store.submitJob({
     projectId,
     kind: normalizedKind,
     payload: body.payload,

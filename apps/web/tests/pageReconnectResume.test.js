@@ -95,7 +95,7 @@ module.exports = async () => {
   };
 
   const store = getNativePipelineStore();
-  store.reset();
+  await store.reset();
   globalThis.clearTimeout = (timerId) => {
     scheduledTimers.delete(timerId);
   };
@@ -105,7 +105,7 @@ module.exports = async () => {
     return new Response(
       JSON.stringify({
         ok: true,
-        projects: store.listProjects()
+        projects: await store.listProjects()
       }),
       {
         status: 200,

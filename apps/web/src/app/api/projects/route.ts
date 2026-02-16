@@ -10,6 +10,6 @@ export async function GET(request: Request) {
   const store = getNativePipelineStore();
   return NextResponse.json({
     ok: true,
-    projects: store.listProjects(query)
+    projects: await store.listProjects(query)
   });
 }

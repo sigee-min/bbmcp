@@ -1,0 +1,104 @@
+.inspector {
+  height: 100%;
+  border: 1px solid var(--color-border-700);
+  border-radius: var(--dashboard-radius-lg);
+  padding: var(--dashboard-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--dashboard-space-3);
+  background: var(--dashboard-gradient-card);
+  box-shadow: var(--dashboard-shadow-md);
+}
+
+.tabList {
+  display: flex;
+  gap: var(--dashboard-space-2);
+  flex-wrap: wrap;
+}
+
+.tabButton {
+  border: 1px solid var(--color-border-700);
+  background: transparent;
+  color: var(--color-text-300);
+  border-radius: 999px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: border-color var(--dashboard-transition-fast), color var(--dashboard-transition-fast),
+    background var(--dashboard-transition-fast);
+}
+
+.tabButton:hover {
+  border-color: var(--color-accent-400);
+  color: var(--color-text-100);
+}
+
+.tabButtonSelected {
+  border-color: var(--color-accent-500);
+  color: var(--color-text-100);
+  background: rgb(60 141 255 / 18%);
+}
+
+.panelBody {
+  border: 1px solid var(--color-border-700);
+  border-radius: var(--dashboard-radius-md);
+  padding: var(--dashboard-space-3);
+  overflow: auto;
+  min-height: 520px;
+  background: rgb(12 18 36 / 88%);
+}
+
+.hierarchyRow {
+  padding: 6px 0 6px 10px;
+  border-left: 1px solid var(--color-border-600);
+  font-size: 0.8rem;
+  color: var(--color-accent-400);
+}
+
+.hierarchyBone {
+  color: var(--color-text-100);
+}
+
+.hierarchyLabel {
+  color: var(--color-text-100);
+  font-weight: 600;
+}
+
+.hierarchyKind {
+  margin-left: 8px;
+  color: var(--color-text-500);
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-text-500);
+}
+
+.animationList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dashboard-space-2);
+}
+
+.animationCard {
+  border: 1px solid var(--color-border-700);
+  border-radius: var(--dashboard-radius-sm);
+  padding: var(--dashboard-space-3);
+  font-size: 0.8rem;
+  background: rgb(17 24 45 / 74%);
+}
+
+.animationMeta {
+  margin-top: 4px;
+  color: var(--color-text-500);
+}
+
+@media (max-width: 840px) {
+  .inspector {
+    padding: var(--dashboard-space-4);
+  }
+
+  .panelBody {
+    min-height: 360px;
+  }
+}

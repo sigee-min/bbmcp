@@ -57,6 +57,32 @@ module.exports = async () => {
       new Request('http://localhost/api/projects/project-a/jobs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'gltf.convert', payload: { codecId: 'glb', optimize: true } })
+      }),
+      {
+        params: Promise.resolve({ projectId: 'project-a' })
+      }
+    );
+    assert.equal(response.status, 202);
+    const body = (await response.json()) as {
+      job?: {
+        kind?: string;
+        payload?: {
+          codecId?: string;
+          optimize?: boolean;
+        };
+      };
+    };
+    assert.equal(body.job?.kind, 'gltf.convert');
+    assert.equal(body.job?.payload?.codecId, 'glb');
+    assert.equal(body.job?.payload?.optimize, true);
+  }
+
+  {
+    const response = await POST(
+      new Request('http://localhost/api/projects/project-a/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ kind: 'custom.unsupported' })
       }),
       {

@@ -48,6 +48,10 @@ const makePayload = (input: Partial<ProjectStreamPayload> & Pick<ProjectStreamPa
     INSPECTOR_TABS.map((tab) => tab.id),
     ['hierarchy', 'animations']
   );
+  assert.deepEqual(
+    INSPECTOR_TABS.map((tab) => tab.label),
+    ['하이어라키', '애니메이션']
+  );
 }
 
 {

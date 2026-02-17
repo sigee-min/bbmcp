@@ -123,6 +123,13 @@ module.exports = async () => {
     });
     await flushUpdates();
 
+    const viewport = container.querySelector('[aria-label="Model viewport. Drag or use arrow keys to rotate."]');
+    assert.ok(viewport, 'viewport should expose keyboard-accessible aria label');
+    assert.equal(viewport.getAttribute('aria-describedby'), 'dashboard-viewport-assist');
+    const streamStatus = container.querySelector('[role="status"][aria-live="polite"]');
+    assert.ok(streamStatus, 'stream status should be exposed as live region');
+    assert.match(streamStatus.textContent ?? '', /스트림 상태/);
+
     assert.ok(MockEventSource.instances.length >= 1);
     const firstStream = MockEventSource.instances.at(-1);
     assert.ok(firstStream);
@@ -134,7 +141,7 @@ module.exports = async () => {
     await flushUpdates();
 
     const beforeClickText = container.textContent ?? '';
-    assert.match(beforeClickText, /stream_unavailable: reconnecting/);
+    assert.match(beforeClickText, /자동으로 다시 연결하는 중입니다/);
 
     const projectBButton = findProjectButtonByName(container, 'Desert Lynx');
     assert.ok(projectBButton, 'project list should stay visible while stream error banner is shown');
@@ -146,7 +153,7 @@ module.exports = async () => {
     await flushUpdates();
 
     const afterClickText = container.textContent ?? '';
-    assert.doesNotMatch(afterClickText, /stream_unavailable: reconnecting/);
+    assert.doesNotMatch(afterClickText, /자동으로 다시 연결하는 중입니다/);
 
     const nextStream = MockEventSource.instances.at(-1);
     assert.ok(nextStream);

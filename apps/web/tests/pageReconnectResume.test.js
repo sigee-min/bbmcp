@@ -149,6 +149,11 @@ module.exports = async () => {
     });
     await flushUpdates();
 
+    const viewport = container.querySelector('[aria-label="Model viewport. Drag or use arrow keys to rotate."]');
+    assert.ok(viewport, 'viewport should remain keyboard reachable after stream reconnect');
+    const streamStatus = container.querySelector('[role="status"][aria-live="polite"]');
+    assert.ok(streamStatus, 'stream status should expose live updates');
+
     const firstStream = MockEventSource.instances.at(-1);
     assert.ok(firstStream);
     assert.match(firstStream.url, /\/api\/projects\/project-a\/stream\?lastEventId=10$/);

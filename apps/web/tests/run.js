@@ -13,6 +13,25 @@ register({
   }
 });
 
+const createCssModuleExports = () => {
+  let cssModule;
+  cssModule = new Proxy(
+    {},
+    {
+      get: (_target, property) => {
+        if (property === '__esModule') return true;
+        if (property === 'default') return cssModule;
+        return String(property);
+      }
+    }
+  );
+  return cssModule;
+};
+
+require.extensions['.css'] = (module) => {
+  module.exports = createCssModuleExports();
+};
+
 const discoverTests = () =>
   fs
     .readdirSync(__dirname, { withFileTypes: true })

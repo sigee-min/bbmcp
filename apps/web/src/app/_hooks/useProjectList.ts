@@ -16,11 +16,23 @@ interface ProjectsResponse {
 
 interface UseProjectListOptions {
   setState: Dispatch<SetStateAction<DashboardState>>;
+  reloadVersion?: number;
 }
 
-export const useProjectList = ({ setState }: UseProjectListOptions): void => {
+export const useProjectList = ({ setState, reloadVersion = 0 }: UseProjectListOptions): void => {
   useEffect(() => {
     let cancelled = false;
+
+    setState((prev) => {
+      if (prev.projects.length > 0) {
+        return prev;
+      }
+      return {
+        ...prev,
+        status: 'loading',
+        errorCode: null
+      };
+    });
 
     const loadProjects = async () => {
       try {
@@ -48,5 +60,5 @@ export const useProjectList = ({ setState }: UseProjectListOptions): void => {
     return () => {
       cancelled = true;
     };
-  }, [setState]);
+  }, [reloadVersion, setState]);
 };

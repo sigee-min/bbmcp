@@ -1,0 +1,42 @@
+.layout {
+  min-height: 100vh;
+  width: min(1600px, 100vw);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 360px;
+  grid-template-areas: "sidebar center inspector";
+  gap: var(--dashboard-space-4);
+  padding: var(--dashboard-space-5);
+}
+
+.sidebarArea {
+  grid-area: sidebar;
+}
+
+.centerArea {
+  grid-area: center;
+}
+
+.inspectorArea {
+  grid-area: inspector;
+}
+
+@media (max-width: 1240px) {
+  .layout {
+    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-areas:
+      "sidebar center"
+      "inspector inspector";
+  }
+}
+
+@media (max-width: 840px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "sidebar"
+      "center"
+      "inspector";
+    padding: var(--dashboard-space-4);
+  }
+}

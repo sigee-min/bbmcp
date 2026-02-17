@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
   NativeJobContractError,
-  type NativeJobSubmitInput,
   type SupportedNativeJobKind,
   normalizeNativeJobPayload,
   normalizeSupportedNativeJobKind
@@ -140,33 +139,31 @@ export async function POST(
     );
   }
 
-  let normalizedPayload: NativeJobSubmitInput['payload'];
+  const submitOptions = {
+    maxAttempts: parsedMaxAttempts.value,
+    leaseMs: parsedLeaseMs.value
+  };
+
   try {
-    normalizedPayload = normalizeNativeJobPayload(normalizedKind, body.payload);
-  } catch (error) {
-    if (error instanceof NativeJobContractError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          code: 'invalid_payload',
-          message: error.message
-        },
-        { status: 400 }
-      );
+    if (normalizedKind === 'gltf.convert') {
+      const normalizedPayload = normalizeNativeJobPayload('gltf.convert', body.payload);
+      const job = await store.submitJob({
+        projectId,
+        kind: 'gltf.convert',
+        ...(normalizedPayload ? { payload: normalizedPayload } : {}),
+        ...submitOptions
+      });
+      return NextResponse.json({ ok: true, job }, { status: 202 });
+    } else {
+      const normalizedPayload = normalizeNativeJobPayload('texture.preflight', body.payload);
+      const job = await store.submitJob({
+        projectId,
+        kind: 'texture.preflight',
+        ...(normalizedPayload ? { payload: normalizedPayload } : {}),
+        ...submitOptions
+      });
+      return NextResponse.json({ ok: true, job }, { status: 202 });
     }
-    throw error;
-  }
-
-  try {
-    const job = await store.submitJob({
-      projectId,
-      kind: normalizedKind,
-      ...(normalizedPayload ? { payload: normalizedPayload } : {}),
-      maxAttempts: parsedMaxAttempts.value,
-      leaseMs: parsedLeaseMs.value
-    });
-
-    return NextResponse.json({ ok: true, job }, { status: 202 });
   } catch (error) {
     if (error instanceof NativeJobContractError) {
       return NextResponse.json(

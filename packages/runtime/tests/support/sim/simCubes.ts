@@ -6,7 +6,7 @@ import type {
   DeleteCubeCommand
 } from '../../../src/ports/editor';
 import type { CubeFaceDirection, CubeInstance, TextureInstance } from '../../../src/types/blockbench';
-import type { ToolError } from '../../../src/types';
+import type { ToolError } from '/contracts/types/internal';
 import type { BlockbenchSimState, SimCounters } from './simTypes';
 import { CUBE_FACE_DIRECTIONS } from '../../../src/shared/toolConstants';
 import { ensureFaces, error } from './simUtils';

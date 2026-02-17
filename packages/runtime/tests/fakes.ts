@@ -30,7 +30,7 @@ import type { SnapshotPort } from '../src/ports/snapshot';
 import type { TextureRendererPort } from '../src/ports/textureRenderer';
 import type { TmpSaveResult, TmpStorePort } from '../src/ports/tmpStore';
 import type { ProjectSession } from '../src/session';
-import type { RenderPreviewResult, ToolError } from '../src/types';
+import type { RenderPreviewResult, ToolError } from '/contracts/types/internal';
 
 type EditorStubState = {
   textures: TextureStat[];

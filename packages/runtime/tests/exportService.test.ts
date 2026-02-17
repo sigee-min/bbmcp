@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { ProjectSession } from '../src/session';
 import { ExportService } from '../src/usecases/ExportService';
-import type { Capabilities, ToolError } from '../src/types';
+import type { Capabilities, ToolError } from '/contracts/types/internal';
 import type { NativeCodecTarget } from '../src/ports/exporter';
 import { createEditorStubWithState, createFormatPortStub } from './fakes';
 import { registerAsync } from './helpers';

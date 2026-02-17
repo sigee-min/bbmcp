@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { ToolDispatcherImpl } from '../src/dispatcher';
 import { ProjectSession } from '../src/session';
-import type { Capabilities } from '../src/types';
+import type { Capabilities } from '/contracts/types/internal';
 import type { ViewportRefreshRequest } from '../src/ports/viewportRefresher';
 import { ToolService } from '../src/usecases/ToolService';
 import { noopLog, registerAsync } from './helpers';

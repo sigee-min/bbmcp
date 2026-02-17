@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { appendMissingRevisionNextActions } from '../src/shared/tooling/revisionNextActions';
-import type { ToolResponse } from '../src/types';
+import type { ToolResponse } from '/contracts/types/internal';
 
 {
   const response: ToolResponse<unknown> = {

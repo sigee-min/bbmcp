@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { runResponsePipeline } from '../src/dispatcher/responsePipeline';
 import { callTool } from '../src/transport/mcp/nextActions';
-import type { ToolResponse } from '../src/types';
+import type { ToolResponse } from '/contracts/types/internal';
 
 const createLogger = () => {
   const warnings: Array<{ message: string; meta?: Record<string, unknown> }> = [];

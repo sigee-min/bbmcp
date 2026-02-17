@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { ProjectSession } from '../src/session';
 import { ToolService } from '../src/usecases/ToolService';
-import type { Capabilities } from '../src/types';
+import type { Capabilities } from '/contracts/types/internal';
 import { registerAsync } from './helpers';
 import {
   createEditorStubWithState,

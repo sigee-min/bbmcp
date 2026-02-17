@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import type { EditorPort } from '../src/ports/editor';
-import type { Capabilities, PaintFacesPayload } from '../src/types';
+import type { Capabilities, PaintFacesPayload } from '/contracts/types/internal';
 import { DEFAULT_ANIMATION_TIME_POLICY } from '../src/domain/animation/timePolicy';
 import { DEFAULT_UV_POLICY } from '../src/domain/uv/policy';
 import type { TextureToolContext } from '../src/usecases/textureTools/context';

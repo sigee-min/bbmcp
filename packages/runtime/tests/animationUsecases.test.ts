@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import type { Capabilities, ToolError } from '../src/types/internal';
+import type { Capabilities, ToolError } from '/contracts/types/internal';
 import { ProjectSession } from '../src/session';
 import {
   ANIMATION_UNSUPPORTED_FORMAT,

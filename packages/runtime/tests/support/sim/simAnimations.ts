@@ -3,7 +3,7 @@ import type {
   UpdateAnimationCommand,
   DeleteAnimationCommand
 } from '../../../src/ports/editor';
-import type { ToolError } from '../../../src/types';
+import type { ToolError } from '/contracts/types/internal';
 import type { BlockbenchSimState } from './simTypes';
 import { error } from './simUtils';
 

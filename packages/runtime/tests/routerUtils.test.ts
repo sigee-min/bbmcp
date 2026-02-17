@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { toCallToolResult } from '../src/transport/mcp/routerUtils';
-import type { ToolResponse } from '../src/types';
+import type { ToolResponse } from '/contracts/types/internal';
 
 {
   const okWithContent: ToolResponse<unknown> = {

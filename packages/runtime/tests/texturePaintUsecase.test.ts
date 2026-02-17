@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import type { EditorPort } from '../src/ports/editor';
-import type { ToolError, PaintTexturePayload, TextureUsageResult } from '../src/types';
+import type { ToolError, PaintTexturePayload, TextureUsageResult } from '/contracts/types/internal';
 import { MAX_TEXTURE_OPS } from '../src/domain/textureOps';
 import { computeTextureUsageId } from '../src/domain/textureUsage';
 import { DEFAULT_ANIMATION_TIME_POLICY } from '../src/domain/animation/timePolicy';

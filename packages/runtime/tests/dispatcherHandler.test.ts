@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { ToolDispatcherImpl } from '../src/dispatcher';
-import type { ToolPayloadMap, ToolResultMap } from '../src/types';
+import type { ToolPayloadMap, ToolResultMap } from '/contracts/types/internal';
 import { ok, registerAsync, unsafePayload } from './helpers';
 
 const createDispatcher = () => {

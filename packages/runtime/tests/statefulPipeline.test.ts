@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { runStatefulPipeline } from '../src/dispatcher/statefulPipeline';
-import type { ToolError, ToolResponse } from '../src/types';
+import type { ToolError, ToolResponse } from '/contracts/types/internal';
 import { registerAsync } from './helpers';
 
 const revisionMismatchError = (expected: string, currentRevision: string): ToolError => ({

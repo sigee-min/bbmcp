@@ -1,4 +1,4 @@
-import type { Dispatcher, ProjectState, ProjectStateDetail, ToolError, ToolResponse, ToolPayloadMap } from '../../src/types';
+import type { Dispatcher, ProjectState, ProjectStateDetail, ToolError, ToolResponse, ToolPayloadMap } from '/contracts/types/internal';
 import type { ToolName } from '../../src/shared/toolConstants';
 import { TOOL_NAMES } from '../../src/shared/toolConstants';
 import { err } from '../../src/shared/tooling/toolResponse';

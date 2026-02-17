@@ -21,7 +21,7 @@ import type {
 } from '../../../src/ports/editor';
 import type { FormatDescriptor } from '../../../src/ports/formats';
 import type { SnapshotPort } from '../../../src/ports/snapshot';
-import type { RenderPreviewResult, ToolError } from '../../../src/types';
+import type { RenderPreviewResult, ToolError } from '/contracts/types/internal';
 import type { CubeInstance, TextureInstance } from '../../../src/types/blockbench';
 import { buildTextureUsageResult } from '../../../src/adapters/blockbench/BlockbenchTextureUsage';
 import { DEFAULT_TEXTURE_SIZE } from './simConstants';

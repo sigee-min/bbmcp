@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { callWithAutoRetry } from '../src/dispatcher/retryPolicy';
-import type { ToolError } from '../src/types';
+import type { ToolError } from '/contracts/types/internal';
 import { registerAsync } from './helpers';
 
 type TestLogger = {

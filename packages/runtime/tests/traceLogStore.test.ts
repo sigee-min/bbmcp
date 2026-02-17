@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { TraceLogStore } from '../src/trace/traceLogStore';
 import type { TraceLogWriter } from '../src/ports/traceLog';
-import type { ToolError } from '../src/types';
+import type { ToolError } from '/contracts/types/internal';
 
 class QueueWriter implements TraceLogWriter {
   readonly writes: string[] = [];

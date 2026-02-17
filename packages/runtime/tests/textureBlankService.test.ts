@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { runCreateBlankTexture } from '../src/usecases/textureService/textureBlank';
-import type { ToolError } from '../src/types';
+import type { ToolError } from '/contracts/types/internal';
 import {
   TEXTURE_ALREADY_EXISTS,
   TEXTURE_PAINT_SIZE_EXCEEDS_MAX,

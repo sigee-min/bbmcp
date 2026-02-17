@@ -1,4 +1,4 @@
-import type { ProjectDiffCounts, ProjectDiffCountsByKind } from '../types/project';
+import type { ProjectDiffCounts, ProjectDiffCountsByKind } from '@ashfox/contracts/types/project';
 import type { TraceLogEntry, TraceLogRecord, TraceLogReport } from '@ashfox/contracts/types/traceLog';
 import { parseTraceLogText } from './traceLogReplay';
 
@@ -83,7 +83,6 @@ export const buildTraceLogReport = (text: string): TraceLogReport => {
   if (parsed.warnings?.length) report.warnings = parsed.warnings;
   return report;
 };
-
 
 
 

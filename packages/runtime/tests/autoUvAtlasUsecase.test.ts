@@ -4,7 +4,7 @@ import type { EditorPort } from '../src/ports/editor';
 import type { TextureRendererPort } from '../src/ports/textureRenderer';
 import { DEFAULT_ANIMATION_TIME_POLICY } from '../src/domain/animation/timePolicy';
 import { DEFAULT_UV_POLICY, type UvPolicyConfig } from '../src/domain/uv/policy';
-import type { Capabilities } from '../src/types';
+import type { Capabilities } from '/contracts/types/internal';
 import { runAutoUvAtlas } from '../src/usecases/textureTools/autoUvAtlas';
 import type { TextureToolContext } from '../src/usecases/textureTools/context';
 import { createMockImage } from './fakes';

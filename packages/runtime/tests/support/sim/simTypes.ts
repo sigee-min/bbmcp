@@ -1,6 +1,6 @@
 import type { FormatDescriptor } from '../../../src/ports/formats';
 import type { TextureResolution } from '../../../src/ports/editor';
-import type { RenderPreviewResult } from '../../../src/types';
+import type { RenderPreviewResult } from '/contracts/types/internal';
 import type { TrackedAnimation, TrackedBone } from '../../../src/session';
 import type { CubeInstance, TextureInstance } from '../../../src/types/blockbench';
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import type { ProjectDiff, ProjectState } from '../src/types';
+import type { ProjectDiff, ProjectState } from '/contracts/types/internal';
 import { TraceLogStore } from '../src/trace/traceLogStore';
 import { TraceRecorder } from '../src/trace/traceRecorder';
 import { parseTraceLogText } from '../src/trace/traceLogReplay';

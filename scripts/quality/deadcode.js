@@ -20,7 +20,7 @@ if (run.status !== 0) {
   return;
 }
 
-const maxSuppressed = Number.parseInt(process.env.ASHFOX_DEADCODE_MAX_SUPPRESSED ?? '600', 10);
+const maxSuppressed = Number.parseInt(process.env.ASHFOX_DEADCODE_MAX_SUPPRESSED ?? '200', 10);
 const summaryFile = process.env.ASHFOX_DEADCODE_SUMMARY_FILE;
 const allowlistFile = path.resolve(
   process.cwd(),

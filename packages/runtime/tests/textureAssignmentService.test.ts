@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import type { EditorPort } from '../src/ports/editor';
-import type { ToolError } from '../src/types';
+import type { ToolError } from '/contracts/types/internal';
 import { ProjectSession } from '../src/session';
 import { TextureAssignmentService } from '../src/usecases/textureService/TextureAssignmentService';
 

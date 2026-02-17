@@ -1,5 +1,5 @@
 import type { CubeInstance } from '../../../src/types/blockbench';
-import type { ToolError } from '../../../src/types';
+import type { ToolError } from '/contracts/types/internal';
 import type { BlockbenchSimState } from './simTypes';
 import { DEFAULT_TEXTURE_SIZE } from './simConstants';
 import { buildBoxUvLayout, ensureFaces, resolveUvOrigin, scaleVec2, error } from './simUtils';

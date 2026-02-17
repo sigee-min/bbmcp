@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import type { SessionState } from '../src/session';
-import type { Capabilities, ExportResult, ToolError } from '../src/types';
+import type { Capabilities, ExportResult, ToolError } from '/contracts/types/internal';
 import { keyframeTimeBucket } from '../src/domain/animation/keyframes';
 import { writeInternalFallbackExport } from '../src/usecases/export/writeInternalFallback';
 import { ExportService } from '../src/usecases/ExportService';

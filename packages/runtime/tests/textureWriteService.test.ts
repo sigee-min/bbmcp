@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { hashCanvasImage } from '../src/shared/textureData';
 import type { EditorPort, TextureStat } from '../src/ports/editor';
-import type { ToolError } from '../src/types';
+import type { ToolError } from '/contracts/types/internal';
 import { ProjectSession } from '../src/session';
 import { TextureWriteService } from '../src/usecases/textureService/TextureWriteService';
 import { createMockImage } from './fakes';

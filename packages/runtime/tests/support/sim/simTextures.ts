@@ -7,7 +7,7 @@ import type {
   ReadTextureCommand
 } from '../../../src/ports/editor';
 import type { TextureInstance } from '../../../src/types/blockbench';
-import type { ToolError } from '../../../src/types';
+import type { ToolError } from '/contracts/types/internal';
 import type { BlockbenchSimState, SimCounters } from './simTypes';
 import { DEFAULT_TEXTURE_SIZE } from './simConstants';
 import { normalizeSize, error } from './simUtils';

@@ -1,5 +1,5 @@
 import type { Logger } from '../src/logging';
-import type { Limits, ToolError } from '../src/types';
+import type { Limits, ToolError } from '/contracts/types/internal';
 import { DEFAULT_UV_POLICY } from '../src/domain/uv/policy';
 
 export type UsecaseResult<T> = { ok: true; value: T } | { ok: false; error: ToolError };

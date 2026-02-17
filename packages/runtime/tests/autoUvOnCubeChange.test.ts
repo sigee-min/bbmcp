@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { CubeService } from '../src/usecases/model/CubeService';
 import { ProjectSession } from '../src/session';
-import type { Capabilities } from '../src/types';
+import type { Capabilities } from '/contracts/types/internal';
 import { ok } from '../src/usecases/result';
 import { createEditorStub } from './fakes';
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { buildDefaultToolService } from '../src/dispatcher/bootstrap';
 import { ProjectSession } from '../src/session';
-import type { Capabilities } from '../src/types';
+import type { Capabilities } from '/contracts/types/internal';
 import { ToolService } from '../src/usecases/ToolService';
 import { noopLog } from './helpers';
 

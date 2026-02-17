@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import type { EditorPort } from '../src/ports/editor';
 import type { TextureRendererPort } from '../src/ports/textureRenderer';
-import type { Capabilities } from '../src/types';
+import type { Capabilities } from '/contracts/types/internal';
 import { DEFAULT_ANIMATION_TIME_POLICY } from '../src/domain/animation/timePolicy';
 import { DEFAULT_UV_POLICY } from '../src/domain/uv/policy';
 import { runPaintFaces } from '../src/usecases/textureTools/texturePaintFaces';

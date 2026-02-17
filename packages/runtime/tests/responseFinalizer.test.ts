@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { finalizeToolResponse } from '../src/dispatcher/responseFinalizer';
 import type { Logger } from '../src/logging';
-import type { ToolPayloadMap, ToolResponse } from '../src/types';
+import type { ToolPayloadMap, ToolResponse } from '/contracts/types/internal';
 
 const logger: Logger = {
   log: () => undefined,

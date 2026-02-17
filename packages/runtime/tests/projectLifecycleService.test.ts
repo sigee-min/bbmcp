@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import type { ToolError, Capabilities } from '../src/types';
+import type { ToolError, Capabilities } from '/contracts/types/internal';
 import { ProjectSession } from '../src/session';
 import { ProjectLifecycleService } from '../src/usecases/project/ProjectLifecycleService';
 import type { ProjectServiceDeps } from '../src/usecases/project/projectServiceTypes';

@@ -1,5 +1,5 @@
 import type { TextureResolution } from '../../../src/ports/editor';
-import type { ToolError } from '../../../src/types';
+import type { ToolError } from '/contracts/types/internal';
 import type { CubeFace, CubeFaceDirection, CubeInstance } from '../../../src/types/blockbench';
 import { CUBE_FACE_DIRECTIONS } from '../../../src/shared/toolConstants';
 import { computeExpectedUvSizeWithOverflow, DEFAULT_UV_POLICY } from '../../../src/domain/uv/policy';

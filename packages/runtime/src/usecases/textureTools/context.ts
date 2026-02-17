@@ -53,8 +53,8 @@ export type TextureToolContext = {
     ifRevision?: string;
     allowExisting?: boolean;
   }) => UsecaseResult<{ id: string; name: string; created: boolean }>;
-  preflightTexture?: (payload: { textureId?: string; textureName?: string; includeUsage?: boolean }) => UsecaseResult<import('../../types').PreflightTextureResult>;
-  autoUvAtlas?: (payload: import('../../types').AutoUvAtlasPayload) => UsecaseResult<import('../../types').AutoUvAtlasResult>;
+  preflightTexture?: (payload: { textureId?: string; textureName?: string; includeUsage?: boolean }) => UsecaseResult<import('@ashfox/contracts/types/internal').PreflightTextureResult>;
+  autoUvAtlas?: (payload: import('@ashfox/contracts/types/internal').AutoUvAtlasPayload) => UsecaseResult<import('@ashfox/contracts/types/internal').AutoUvAtlasResult>;
   runWithoutRevisionGuard?: <T>(fn: () => T) => T;
 };
 
@@ -63,5 +63,4 @@ export const uvGuardMessages = buildUvGuardMessages();
 export const uvPaintMessages = buildUvPaintMessages();
 export const uvPaintPixelMessages = buildUvPaintPixelMessages();
 export const uvPaintSourceMessages = buildUvPaintSourceMessages();
-
 

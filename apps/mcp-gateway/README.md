@@ -9,7 +9,7 @@ Current scope:
 
 Environment variables:
 - `ASHFOX_HOST` (default `127.0.0.1`)
-- `ASHFOX_PORT` (default `8790`)
+- `ASHFOX_PORT` (default `8787`)
 - `ASHFOX_PATH` (default `/mcp`)
 - `ASHFOX_GATEWAY_BACKEND` (`engine` | `blockbench`, default `engine`)
 - `ASHFOX_PERSISTENCE_FAIL_FAST` (default `true`; if `false`, start even when persistence readiness is degraded)

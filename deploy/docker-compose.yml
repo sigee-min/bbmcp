@@ -1,17 +1,14 @@
-version: '3.9'
 services:
   web:
     build:
-      context: ../apps/web
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: apps/web/Dockerfile
     container_name: ashfox-web
     environment:
       - NODE_ENV=production
-      - ASHFOX_GATEWAY_URL=http://mcp-gateway:8790/mcp
+      - PORT=8686
     ports:
-      - '3000:3000'
-    depends_on:
-      - mcp-gateway
+      - '8686:8686'
 
   mcp-gateway:
     build:
@@ -20,16 +17,17 @@ services:
     container_name: ashfox-mcp-gateway
     environment:
       - ASHFOX_HOST=0.0.0.0
-      - ASHFOX_PORT=8790
+      - ASHFOX_PORT=8787
       - ASHFOX_PATH=/mcp
       - ASHFOX_GATEWAY_BACKEND=engine
       - ASHFOX_PERSISTENCE_PRESET=local
+      - ASHFOX_DB_PROVIDER=postgres
+      - ASHFOX_DB_POSTGRES_URL=postgresql://ashfox:ashfox@postgres:5432/ashfox
       - ASHFOX_STORAGE_PROVIDER=fs
       - ASHFOX_STORAGE_FS_ROOT=/tmp/ashfox-storage
     ports:
-      - '8790:8790'
+      - '8787:8787'
     depends_on:
-      - redis
       - postgres
 
   worker:
@@ -41,15 +39,13 @@ services:
       - ASHFOX_WORKER_HEARTBEAT_MS=5000
       - ASHFOX_WORKER_POLL_MS=1200
       - ASHFOX_WORKER_NATIVE_PIPELINE=1
+      - ASHFOX_PERSISTENCE_PRESET=local
+      - ASHFOX_DB_PROVIDER=postgres
+      - ASHFOX_DB_POSTGRES_URL=postgresql://ashfox:ashfox@postgres:5432/ashfox
+      - ASHFOX_STORAGE_PROVIDER=fs
+      - ASHFOX_STORAGE_FS_ROOT=/tmp/ashfox-storage
     depends_on:
-      - redis
       - postgres
-
-  redis:
-    image: redis:7-alpine
-    container_name: ashfox-redis
-    ports:
-      - '6379:6379'
 
   postgres:
     image: postgres:16-alpine

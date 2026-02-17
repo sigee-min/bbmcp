@@ -10,7 +10,9 @@ Current scope:
 - Project stream SSE API (`/api/projects/[projectId]/stream`)
 
 Environment variables:
-- `ASHFOX_GATEWAY_URL` (default `http://127.0.0.1:8790/mcp`)
+- `ASHFOX_PERSISTENCE_PRESET` (default `local`)
+- `ASHFOX_DB_PROVIDER` (default from preset)
+- `ASHFOX_STORAGE_PROVIDER` (default from preset)
 
 Run locally:
 
@@ -19,6 +21,8 @@ cd apps/web
 npm install
 npm run dev
 ```
+
+Default local web port is `8686`.
 
 Design intent:
 - Use Next.js route handlers for API control endpoints.

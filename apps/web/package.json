@@ -3,9 +3,9 @@
   "version": "0.0.2",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 8686",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 8686",
     "test": "node tests/run.js"
   },
   "dependencies": {

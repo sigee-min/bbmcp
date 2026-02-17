@@ -8,7 +8,7 @@ import { GatewayDispatcher } from './dispatcher';
 import { closeGatewayPersistence, createGatewayPersistence } from './persistence';
 
 const DEFAULT_HOST = '127.0.0.1';
-const DEFAULT_PORT = 8790;
+const DEFAULT_PORT = 8787;
 const DEFAULT_PATH = '/mcp';
 const DEFAULT_BACKEND: BackendKind = 'engine';
 const GATEWAY_VERSION = '0.0.2';

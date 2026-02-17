@@ -135,21 +135,20 @@ const REQUIRED_ENV_KEYS = [
   'ASHFOX_HOST',
   'ASHFOX_PORT',
   'ASHFOX_PATH',
-  'ASHFOX_GATEWAY_URL',
   'ASHFOX_WORKER_HEARTBEAT_MS'
 ];
 
-const REQUIRED_SERVICES = ['web', 'mcp-gateway', 'worker', 'redis', 'postgres'];
+const REQUIRED_SERVICES = ['web', 'mcp-gateway', 'worker', 'postgres'];
 
 const DEFAULT_SMOKE_CHECKS: SmokeCheck[] = [
   {
     id: 'web_root',
-    url: 'http://127.0.0.1:3000/',
+    url: 'http://127.0.0.1:8686/',
     validate: (res) => res.status >= 200 && res.status < 400
   },
   {
     id: 'gateway_metrics',
-    url: 'http://127.0.0.1:8790/metrics',
+    url: 'http://127.0.0.1:8787/metrics',
     validate: (res) => res.status === 200 && res.body.includes('ashfox_mcp_requests_total')
   }
 ];

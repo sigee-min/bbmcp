@@ -1,25 +1,10 @@
 import type { BlobPointer, BlobReadResult, BlobStore, BlobWriteInput } from '@ashfox/backend-core';
 import type { AshfoxBlobStoreConfig } from '../config';
-import { normalizeBlobBucket, normalizeBlobKey, normalizeBlobPrefix } from './validation';
+import { fromStorageKey, toStoragePointer } from './blobKey';
 
 export interface AshfoxStorageBlobStoreOptions {
   fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
 }
-
-const toStorageKey = (key: string, keyPrefix: string | undefined): string => {
-  const normalizedKey = normalizeBlobKey(key);
-  const normalizedPrefix = normalizeBlobPrefix(keyPrefix);
-  if (!normalizedPrefix) return normalizedKey;
-  return `${normalizedPrefix}/${normalizedKey}`;
-};
-
-const fromStorageKey = (storageKey: string, keyPrefix: string | undefined): string => {
-  const normalizedPrefix = normalizeBlobPrefix(keyPrefix);
-  if (!normalizedPrefix) return storageKey;
-  const prefix = `${normalizedPrefix}/`;
-  if (!storageKey.startsWith(prefix)) return storageKey;
-  return storageKey.slice(prefix.length);
-};
 
 const encodePath = (value: string): string =>
   value
@@ -69,9 +54,7 @@ export class AshfoxStorageBlobStore implements BlobStore {
     pointer: BlobPointer,
     options?: { body?: Uint8Array; contentType?: string; cacheControl?: string }
   ): Promise<Response> {
-    const bucket = normalizeBlobBucket(pointer.bucket);
-    const key = normalizeBlobKey(pointer.key);
-    const storageKey = toStorageKey(key, this.config.keyPrefix);
+    const { bucket, storageKey } = toStoragePointer(pointer, this.config.keyPrefix);
     const url = `${this.config.baseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${encodePath(storageKey)}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.config.requestTimeoutMs);
@@ -97,8 +80,7 @@ export class AshfoxStorageBlobStore implements BlobStore {
   }
 
   async put(input: BlobWriteInput): Promise<BlobPointer> {
-    const bucket = normalizeBlobBucket(input.bucket);
-    const key = normalizeBlobKey(input.key);
+    const { bucket, key } = toStoragePointer(input, this.config.keyPrefix);
     const response = await this.request('POST', { bucket, key }, {
       body: input.bytes,
       contentType: input.contentType,
@@ -111,15 +93,13 @@ export class AshfoxStorageBlobStore implements BlobStore {
   }
 
   async get(pointer: BlobPointer): Promise<BlobReadResult | null> {
-    const bucket = normalizeBlobBucket(pointer.bucket);
-    const key = normalizeBlobKey(pointer.key);
+    const { bucket, key, storageKey } = toStoragePointer(pointer, this.config.keyPrefix);
     const response = await this.request('GET', { bucket, key });
     if (response.status === 404) return null;
     if (!response.ok) {
       throw await buildError(response);
     }
     const buffer = await response.arrayBuffer();
-    const storageKey = toStorageKey(key, this.config.keyPrefix);
     return {
       bucket,
       key: fromStorageKey(storageKey, this.config.keyPrefix),
@@ -132,8 +112,7 @@ export class AshfoxStorageBlobStore implements BlobStore {
   }
 
   async delete(pointer: BlobPointer): Promise<void> {
-    const bucket = normalizeBlobBucket(pointer.bucket);
-    const key = normalizeBlobKey(pointer.key);
+    const { bucket, key } = toStoragePointer(pointer, this.config.keyPrefix);
     const response = await this.request('DELETE', { bucket, key });
     if (response.status === 404) return;
     if (!response.ok) {

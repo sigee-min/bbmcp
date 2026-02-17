@@ -2,10 +2,9 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import type { BlobPointer, BlobReadResult, BlobStore, BlobWriteInput } from '@ashfox/backend-core';
 import type { AppwriteBlobStoreConfig } from '../config';
+import { createAppwriteTransport } from './appwrite/transport';
+import { toStoragePointer } from './blobKey';
 import {
-  appwriteTimeoutError,
-  normalizeBlobBucket,
-  normalizeBlobKey,
   normalizeBlobPrefix
 } from './validation';
 
@@ -37,20 +36,10 @@ type BlobMetadataRecord = {
 
 const APPWRITE_CHUNK_BYTES = 5 * 1024 * 1024;
 
-const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '');
+const toNamespaceKey = (bucket: string, storageKey: string): string => `${bucket}/${storageKey}`;
 
-const toStorageKey = (key: string, keyPrefix: string | undefined): string => {
-  const normalizedKey = normalizeBlobKey(key);
-  const normalizedPrefix = normalizeBlobPrefix(keyPrefix);
-  if (!normalizedPrefix) return normalizedKey;
-  return `${normalizedPrefix}/${normalizedKey}`;
-};
-
-const toNamespaceKey = (bucket: string, key: string, keyPrefix: string | undefined): string =>
-  `${bucket}/${toStorageKey(key, keyPrefix)}`;
-
-const toFileId = (bucket: string, key: string, keyPrefix: string | undefined): string => {
-  const digest = createHash('sha256').update(toNamespaceKey(bucket, key, keyPrefix)).digest('hex');
+const toFileId = (namespaceKey: string): string => {
+  const digest = createHash('sha256').update(namespaceKey).digest('hex');
   return `f${digest.slice(0, 35)}`;
 };
 
@@ -88,36 +77,21 @@ const parseMetadataMap = (value: unknown): Record<string, string> | undefined =>
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 };
 
-const buildError = async (response: Response, action: string): Promise<Error> => {
-  const raw = (await response.text()).trim();
-  if (!raw) {
-    return new Error(`Appwrite ${action} failed: ${response.status} ${response.statusText}`);
-  }
-  try {
-    const parsed = JSON.parse(raw) as { message?: unknown; type?: unknown; code?: unknown };
-    const message = typeof parsed.message === 'string' ? parsed.message : `${response.status} ${response.statusText}`;
-    const type = typeof parsed.type === 'string' ? parsed.type : '';
-    const code = typeof parsed.code === 'number' || typeof parsed.code === 'string' ? String(parsed.code) : '';
-    const suffix = [type, code].filter(Boolean).join('/');
-    return new Error(`Appwrite ${action} failed: ${message}${suffix ? ` (${suffix})` : ''}`);
-  } catch {
-    return new Error(`Appwrite ${action} failed: ${response.status} ${response.statusText} :: ${raw.slice(0, 300)}`);
-  }
-};
-
 export class AppwriteBlobStore implements BlobStore {
   private readonly config: AppwriteBlobStoreConfig;
-  private readonly fetchImpl: (input: string, init?: RequestInit) => Promise<Response>;
+  private readonly transport: ReturnType<typeof createAppwriteTransport<AppwriteBlobStoreConfig>>;
   private readonly filesPath: string;
   private readonly metadataDocumentsPath: string | null;
 
   constructor(config: AppwriteBlobStoreConfig, options: AppwriteBlobStoreOptions = {}) {
-    this.config = {
+    this.transport = createAppwriteTransport(
+      {
       ...config,
-      baseUrl: normalizeBaseUrl(config.baseUrl),
       keyPrefix: normalizeBlobPrefix(config.keyPrefix)
-    };
-    this.fetchImpl = options.fetchImpl ?? fetch;
+      },
+      { fetchImpl: options.fetchImpl }
+    );
+    this.config = this.transport.config;
     this.filesPath = `/storage/buckets/${encodeURIComponent(this.config.bucketId)}/files`;
     if (this.config.metadataDatabaseId && this.config.metadataCollectionId) {
       this.metadataDocumentsPath = `/databases/${encodeURIComponent(this.config.metadataDatabaseId)}/collections/${encodeURIComponent(this.config.metadataCollectionId)}/documents`;
@@ -131,39 +105,7 @@ export class AppwriteBlobStore implements BlobStore {
     pathValue: string,
     options: { body?: BodyInit; json?: unknown; headers?: Record<string, string> } = {}
   ): Promise<Response> {
-    const url = `${this.config.baseUrl}${pathValue}`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.config.requestTimeoutMs);
-    try {
-      const headers = new Headers({
-        'x-appwrite-project': this.config.projectId,
-        'x-appwrite-key': this.config.apiKey,
-        'x-appwrite-response-format': this.config.responseFormat
-      });
-      if (options.headers) {
-        for (const [key, value] of Object.entries(options.headers)) {
-          headers.set(key, value);
-        }
-      }
-      let body = options.body;
-      if (options.json !== undefined) {
-        headers.set('content-type', 'application/json');
-        body = JSON.stringify(options.json);
-      }
-      return await this.fetchImpl(url, {
-        method,
-        headers,
-        body,
-        signal: controller.signal
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw appwriteTimeoutError(this.config.requestTimeoutMs, method, pathValue);
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
+    return this.transport.request(method, pathValue, options);
   }
 
   private buildFilePath(fileId: string): string {
@@ -211,7 +153,7 @@ export class AppwriteBlobStore implements BlobStore {
     const response = await this.request('DELETE', this.buildFilePath(fileId));
     if (response.status === 404) return;
     if (!response.ok) {
-      throw await buildError(response, 'delete file');
+      throw await this.transport.toError(response, 'delete file');
     }
   }
 
@@ -239,7 +181,7 @@ export class AppwriteBlobStore implements BlobStore {
     });
     if (createResponse.ok) return;
     if (createResponse.status !== 409) {
-      throw await buildError(createResponse, 'create blob metadata');
+      throw await this.transport.toError(createResponse, 'create blob metadata');
     }
     const updateResponse = await this.request(
       'PATCH',
@@ -251,7 +193,7 @@ export class AppwriteBlobStore implements BlobStore {
       }
     );
     if (!updateResponse.ok) {
-      throw await buildError(updateResponse, 'update blob metadata');
+      throw await this.transport.toError(updateResponse, 'update blob metadata');
     }
   }
 
@@ -290,7 +232,7 @@ export class AppwriteBlobStore implements BlobStore {
       );
       if (response.status === 404) return;
       if (!response.ok) {
-        throw await buildError(response, 'delete blob metadata');
+        throw await this.transport.toError(response, 'delete blob metadata');
       }
     } catch {
       // Metadata is best-effort to avoid breaking file deletion semantics.
@@ -298,10 +240,9 @@ export class AppwriteBlobStore implements BlobStore {
   }
 
   async put(input: BlobWriteInput): Promise<BlobPointer> {
-    const bucket = normalizeBlobBucket(input.bucket);
-    const key = normalizeBlobKey(input.key);
-    const fileId = toFileId(bucket, key, this.config.keyPrefix);
-    const namespacedKey = toNamespaceKey(bucket, key, this.config.keyPrefix);
+    const { bucket, key, storageKey } = toStoragePointer(input, this.config.keyPrefix);
+    const namespacedKey = toNamespaceKey(bucket, storageKey);
+    const fileId = toFileId(namespacedKey);
     const fileName = path.posix.basename(namespacedKey) || `${fileId}.bin`;
     const contentType = input.contentType || 'application/octet-stream';
 
@@ -311,7 +252,7 @@ export class AppwriteBlobStore implements BlobStore {
       uploadResponse = await this.uploadFile(fileId, input.bytes, contentType, fileName);
     }
     if (!uploadResponse.ok) {
-      throw await buildError(uploadResponse, 'upload file');
+      throw await this.transport.toError(uploadResponse, 'upload file');
     }
 
     let updatedAt: string | undefined;
@@ -340,19 +281,18 @@ export class AppwriteBlobStore implements BlobStore {
   }
 
   async get(pointer: BlobPointer): Promise<BlobReadResult | null> {
-    const bucket = normalizeBlobBucket(pointer.bucket);
-    const key = normalizeBlobKey(pointer.key);
-    const fileId = toFileId(bucket, key, this.config.keyPrefix);
+    const { bucket, key, storageKey } = toStoragePointer(pointer, this.config.keyPrefix);
+    const fileId = toFileId(toNamespaceKey(bucket, storageKey));
     const metadataResponse = await this.request('GET', this.buildFilePath(fileId));
     if (metadataResponse.status === 404) return null;
     if (!metadataResponse.ok) {
-      throw await buildError(metadataResponse, 'read file metadata');
+      throw await this.transport.toError(metadataResponse, 'read file metadata');
     }
     const fileMetadata = (await metadataResponse.json()) as AppwriteFileMetadata;
     const viewResponse = await this.request('GET', `${this.buildFilePath(fileId)}/view`);
     if (viewResponse.status === 404) return null;
     if (!viewResponse.ok) {
-      throw await buildError(viewResponse, 'read file bytes');
+      throw await this.transport.toError(viewResponse, 'read file bytes');
     }
     const buffer = await viewResponse.arrayBuffer();
     const metadataRecord = await this.readMetadata(fileId, { bucket, key });
@@ -372,9 +312,8 @@ export class AppwriteBlobStore implements BlobStore {
   }
 
   async delete(pointer: BlobPointer): Promise<void> {
-    const bucket = normalizeBlobBucket(pointer.bucket);
-    const key = normalizeBlobKey(pointer.key);
-    const fileId = toFileId(bucket, key, this.config.keyPrefix);
+    const { bucket, storageKey } = toStoragePointer(pointer, this.config.keyPrefix);
+    const fileId = toFileId(toNamespaceKey(bucket, storageKey));
     await this.deleteFileById(fileId);
     await this.deleteMetadata(fileId);
   }

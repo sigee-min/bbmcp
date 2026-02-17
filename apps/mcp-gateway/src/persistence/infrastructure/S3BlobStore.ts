@@ -1,27 +1,12 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import type { BlobPointer, BlobReadResult, BlobStore, BlobWriteInput } from '@ashfox/backend-core';
 import type { S3BlobStoreConfig } from '../config';
-import { normalizeBlobBucket, normalizeBlobKey, normalizeBlobPrefix } from './validation';
+import { fromStorageKey, toStoragePointer } from './blobKey';
 
 export interface S3ClientLike {
   send(command: unknown): Promise<Record<string, unknown>>;
   destroy?(): void;
 }
-
-const toStorageKey = (key: string, keyPrefix: string | undefined): string => {
-  const normalizedKey = normalizeBlobKey(key);
-  const normalizedPrefix = normalizeBlobPrefix(keyPrefix);
-  if (!normalizedPrefix) return normalizedKey;
-  return `${normalizedPrefix}/${normalizedKey}`;
-};
-
-const fromStorageKey = (storageKey: string, keyPrefix: string | undefined): string => {
-  const normalizedPrefix = normalizeBlobPrefix(keyPrefix);
-  if (!normalizedPrefix) return storageKey;
-  const prefix = `${normalizedPrefix}/`;
-  if (!storageKey.startsWith(prefix)) return storageKey;
-  return storageKey.slice(prefix.length);
-};
 
 const isNotFoundError = (error: unknown): boolean => {
   const candidate = error as { name?: string; code?: string; Code?: string; $metadata?: { httpStatusCode?: number } };
@@ -77,9 +62,7 @@ export class S3BlobStore implements BlobStore {
   }
 
   async put(input: BlobWriteInput): Promise<BlobPointer> {
-    const bucket = normalizeBlobBucket(input.bucket);
-    const key = normalizeBlobKey(input.key);
-    const storageKey = toStorageKey(key, this.config.keyPrefix);
+    const { bucket, key, storageKey } = toStoragePointer(input, this.config.keyPrefix);
     await this.client.send(
       new PutObjectCommand({
         Bucket: bucket,
@@ -94,9 +77,7 @@ export class S3BlobStore implements BlobStore {
   }
 
   async get(pointer: BlobPointer): Promise<BlobReadResult | null> {
-    const bucket = normalizeBlobBucket(pointer.bucket);
-    const key = normalizeBlobKey(pointer.key);
-    const storageKey = toStorageKey(key, this.config.keyPrefix);
+    const { bucket, storageKey } = toStoragePointer(pointer, this.config.keyPrefix);
     try {
       const result = (await this.client.send(
         new GetObjectCommand({
@@ -127,9 +108,7 @@ export class S3BlobStore implements BlobStore {
   }
 
   async delete(pointer: BlobPointer): Promise<void> {
-    const bucket = normalizeBlobBucket(pointer.bucket);
-    const key = normalizeBlobKey(pointer.key);
-    const storageKey = toStorageKey(key, this.config.keyPrefix);
+    const { bucket, storageKey } = toStoragePointer(pointer, this.config.keyPrefix);
     try {
       await this.client.send(
         new DeleteObjectCommand({

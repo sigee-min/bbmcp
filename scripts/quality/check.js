@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 // ashfox release gate: lightweight static checks.
+// Complexity hotspot checks are enforced separately via check-complexity-hotspots.js.
 // Intentionally dependency-free: Node fs + regex scanning.
 
 const fs = require('fs');

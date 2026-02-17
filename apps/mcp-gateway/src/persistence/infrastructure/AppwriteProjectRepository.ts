@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { PersistedProjectRecord, ProjectRepository, ProjectRepositoryScope } from '@ashfox/backend-core';
 import type { AppwriteDatabaseConfig } from '../config';
-import { appwriteTimeoutError } from './validation';
+import { createAppwriteTransport } from './appwrite/transport';
 
 export interface AppwriteProjectRepositoryOptions {
   fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
@@ -50,8 +50,6 @@ const normalizeTimestamp = (value: unknown): string => {
   }
   return new Date().toISOString();
 };
-
-const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '');
 
 const toDocumentId = (scope: ProjectRepositoryScope): string => {
   const key = `${scope.tenantId}::${scope.projectId}`;
@@ -103,26 +101,9 @@ const parseState = (value: unknown): unknown => {
   }
 };
 
-const buildError = async (response: Response, action: string): Promise<Error> => {
-  const raw = (await response.text()).trim();
-  if (!raw) {
-    return new Error(`Appwrite ${action} failed: ${response.status} ${response.statusText}`);
-  }
-  try {
-    const parsed = JSON.parse(raw) as { message?: unknown; type?: unknown; code?: unknown };
-    const message = typeof parsed.message === 'string' ? parsed.message : `${response.status} ${response.statusText}`;
-    const type = typeof parsed.type === 'string' ? parsed.type : '';
-    const code = typeof parsed.code === 'number' || typeof parsed.code === 'string' ? String(parsed.code) : '';
-    const suffix = [type, code].filter(Boolean).join('/');
-    return new Error(`Appwrite ${action} failed: ${message}${suffix ? ` (${suffix})` : ''}`);
-  } catch {
-    return new Error(`Appwrite ${action} failed: ${response.status} ${response.statusText} :: ${raw.slice(0, 300)}`);
-  }
-};
-
 export class AppwriteProjectRepository implements ProjectRepository {
   private readonly config: AppwriteDatabaseConfig;
-  private readonly fetchImpl: (input: string, init?: RequestInit) => Promise<Response>;
+  private readonly transport: ReturnType<typeof createAppwriteTransport<AppwriteDatabaseConfig>>;
   private readonly documentsPath: string;
   private readonly lockTtlMs: number;
   private readonly lockTimeoutMs: number;
@@ -130,11 +111,8 @@ export class AppwriteProjectRepository implements ProjectRepository {
   private readonly sleepImpl: (delayMs: number) => Promise<void>;
 
   constructor(config: AppwriteDatabaseConfig, options: AppwriteProjectRepositoryOptions = {}) {
-    this.config = {
-      ...config,
-      baseUrl: normalizeBaseUrl(config.baseUrl)
-    };
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.transport = createAppwriteTransport(config, { fetchImpl: options.fetchImpl });
+    this.config = this.transport.config;
     this.lockTtlMs = resolvePositiveInt(options.lockTtlMs, DEFAULT_LOCK_TTL_MS);
     this.lockTimeoutMs = resolvePositiveInt(options.lockTimeoutMs, DEFAULT_LOCK_TIMEOUT_MS);
     this.lockRetryMs = resolvePositiveInt(options.lockRetryMs, DEFAULT_LOCK_RETRY_MS);
@@ -150,7 +128,7 @@ export class AppwriteProjectRepository implements ProjectRepository {
     const response = await this.request('GET', this.toDocumentPath(documentId));
     if (response.status === 404) return null;
     if (!response.ok) {
-      throw await buildError(response, action);
+      throw await this.transport.toError(response, action);
     }
     return (await response.json()) as AppwriteProjectDocument;
   }
@@ -159,7 +137,7 @@ export class AppwriteProjectRepository implements ProjectRepository {
     const response = await this.request('DELETE', this.toDocumentPath(documentId));
     if (response.status === 404) return;
     if (!response.ok) {
-      throw await buildError(response, action);
+      throw await this.transport.toError(response, action);
     }
   }
 
@@ -191,7 +169,7 @@ export class AppwriteProjectRepository implements ProjectRepository {
       }
 
       if (createResponse.status !== 409) {
-        throw await buildError(createResponse, 'acquire lock');
+        throw await this.transport.toError(createResponse, 'acquire lock');
       }
 
       const existingLockDocument = await this.readDocument(lockDocumentId, 'read lock');
@@ -220,34 +198,7 @@ export class AppwriteProjectRepository implements ProjectRepository {
     path: string,
     options: { json?: unknown } = {}
   ): Promise<Response> {
-    const url = `${this.config.baseUrl}${path}`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.config.requestTimeoutMs);
-    try {
-      const headers = new Headers({
-        'x-appwrite-project': this.config.projectId,
-        'x-appwrite-key': this.config.apiKey,
-        'x-appwrite-response-format': this.config.responseFormat
-      });
-      let body: string | undefined;
-      if (options.json !== undefined) {
-        headers.set('content-type', 'application/json');
-        body = JSON.stringify(options.json);
-      }
-      return await this.fetchImpl(url, {
-        method,
-        headers,
-        body,
-        signal: controller.signal
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw appwriteTimeoutError(this.config.requestTimeoutMs, method, path);
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
+    return this.transport.request(method, path, options);
   }
 
   async find(scope: ProjectRepositoryScope): Promise<PersistedProjectRecord | null> {
@@ -303,7 +254,7 @@ export class AppwriteProjectRepository implements ProjectRepository {
     if (createResponse.ok) return;
 
     if (createResponse.status !== 409) {
-      throw await buildError(createResponse, 'create document');
+      throw await this.transport.toError(createResponse, 'create document');
     }
 
     const updateResponse = await this.request('PATCH', this.toDocumentPath(documentId), {
@@ -316,7 +267,7 @@ export class AppwriteProjectRepository implements ProjectRepository {
       }
     });
     if (!updateResponse.ok) {
-      throw await buildError(updateResponse, 'update document');
+      throw await this.transport.toError(updateResponse, 'update document');
     }
   }
 

@@ -4,14 +4,12 @@ import {
   TOOL_FIX_INVALID_STATE,
   TOOL_FIX_IO_ERROR,
   TOOL_FIX_NO_CHANGE,
-  TOOL_FIX_NOT_IMPLEMENTED,
   TOOL_FIX_UNKNOWN,
   TOOL_FIX_UNSUPPORTED_FORMAT,
   TOOL_HINT_INVALID_PAYLOAD,
   TOOL_HINT_INVALID_STATE,
   TOOL_HINT_IO_ERROR,
   TOOL_HINT_NO_CHANGE,
-  TOOL_HINT_NOT_IMPLEMENTED,
   TOOL_HINT_UNKNOWN,
   TOOL_HINT_UNSUPPORTED_FORMAT
 } from '../../shared/messages';
@@ -19,7 +17,6 @@ import {
 const DEFAULT_FIXES: Partial<Record<ToolErrorCode, string>> = {
   invalid_payload: TOOL_FIX_INVALID_PAYLOAD,
   invalid_state: TOOL_FIX_INVALID_STATE,
-  not_implemented: TOOL_FIX_NOT_IMPLEMENTED,
   unsupported_format: TOOL_FIX_UNSUPPORTED_FORMAT,
   no_change: TOOL_FIX_NO_CHANGE,
   io_error: TOOL_FIX_IO_ERROR,
@@ -29,7 +26,6 @@ const DEFAULT_FIXES: Partial<Record<ToolErrorCode, string>> = {
 const DEFAULT_MESSAGE_HINTS: Partial<Record<ToolErrorCode, string>> = {
   invalid_payload: TOOL_HINT_INVALID_PAYLOAD,
   invalid_state: TOOL_HINT_INVALID_STATE,
-  not_implemented: TOOL_HINT_NOT_IMPLEMENTED,
   unsupported_format: TOOL_HINT_UNSUPPORTED_FORMAT,
   no_change: TOOL_HINT_NO_CHANGE,
   io_error: TOOL_HINT_IO_ERROR,
@@ -68,7 +64,6 @@ const normalizeTerminology = (value: string): string =>
     .replace(/textureResolution/g, 'texture resolution')
     .replace(/get_project_state/g, 'get_project_state')
     .replace(/set_project_texture_resolution/g, 'set_project_texture_resolution');
-
 
 
 

@@ -1,1 +1,1 @@
-import '../../../packages/runtime/src/sidecar/index';
+import '@ashfox/runtime/sidecar';

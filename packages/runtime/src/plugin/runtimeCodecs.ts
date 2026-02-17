@@ -71,7 +71,7 @@ export const registerCodecs = (args: {
       }
     }
 
-    if (args.exportPolicy === 'best_effort' && compiled.error.code === 'not_implemented') {
+    if (args.exportPolicy === 'best_effort' && isBestEffortFallbackError(compiled.error.code)) {
       const fallback = buildInternalExportString(exportKind);
       if (fallback) return { ok: true, data: fallback };
     }
@@ -114,3 +114,6 @@ export const registerCodecs = (args: {
 
   register('gecko_geo_anim', PLUGIN_ID + '_entity_rig');
 };
+
+const isBestEffortFallbackError = (code: string): boolean =>
+  code === 'invalid_state';

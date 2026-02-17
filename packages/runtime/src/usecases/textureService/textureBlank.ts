@@ -48,7 +48,7 @@ export const runCreateBlankTexture = (
       return fail({ code: 'invalid_payload', message: TEXTURE_NAME_REQUIRED });
     }
     if (!ctx.textureRenderer) {
-      return fail({ code: 'not_implemented', message: TEXTURE_RENDERER_UNAVAILABLE });
+      return fail({ code: 'invalid_state', message: TEXTURE_RENDERER_UNAVAILABLE });
     }
 
     const existing = ctx.editor.listTextures().find((tex) => tex.name === payload.name);
@@ -89,7 +89,7 @@ export const runCreateBlankTexture = (
     const renderRes = ctx.textureRenderer.renderPixels({ width, height, data });
     if (renderRes.error) return fail(renderRes.error);
     if (!renderRes.result) {
-      return fail({ code: 'not_implemented', message: TEXTURE_RENDERER_NO_IMAGE });
+      return fail({ code: 'invalid_state', message: TEXTURE_RENDERER_NO_IMAGE });
     }
 
     const created = ctx.importTexture({
@@ -102,4 +102,3 @@ export const runCreateBlankTexture = (
     if (!created.ok) return fail(created.error);
     return ok({ id: created.value.id, name: created.value.name, created: true });
   });
-

@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 
-import { NativePipelineStore } from '../src/nativePipeline/store';
+import { NativePipelineStore } from '@ashfox/native-pipeline/testing';
 import { registerAsync } from './helpers';
 
 registerAsync(
   (async () => {
+    assert.equal(typeof require.resolve('@ashfox/native-pipeline/testing'), 'string');
+    assert.equal(typeof NativePipelineStore, 'function');
+
     const store = new NativePipelineStore();
 
     const allProjects = await store.listProjects();
@@ -13,6 +16,8 @@ registerAsync(
     const filtered = await store.listProjects('lynx');
     assert.equal(filtered.length, 1);
     assert.equal(filtered[0]?.name, 'Desert Lynx');
+    const projectABefore = await store.getProject('project-a');
+    assert.ok(projectABefore);
 
     const job = await store.submitJob({
       projectId: 'project-a',
@@ -30,9 +35,44 @@ registerAsync(
     assert.equal(claimed?.attemptCount, 1);
     assert.equal(typeof claimed?.leaseExpiresAt, 'string');
 
-    const completed = await store.completeJob(job.id, { ok: true });
+    const completed = await store.completeJob(job.id, {
+      kind: 'gltf.convert',
+      output: { ok: true }
+    });
     assert.equal(completed?.status, 'completed');
-    assert.deepEqual(completed?.result, { ok: true });
+    assert.deepEqual(completed?.result, {
+      kind: 'gltf.convert',
+      output: { ok: true }
+    });
+    const projectAAfterNoDelta = await store.getProject('project-a');
+    assert.ok(projectAAfterNoDelta);
+    assert.equal(projectAAfterNoDelta?.stats.bones, projectABefore?.stats.bones);
+    assert.equal(projectAAfterNoDelta?.stats.cubes, projectABefore?.stats.cubes);
+    assert.equal(projectAAfterNoDelta?.hasGeometry, projectABefore?.hasGeometry);
+
+    const projectCBefore = await store.getProject('project-c');
+    assert.ok(projectCBefore);
+    const projected = await store.submitJob({
+      projectId: 'project-c',
+      kind: 'gltf.convert'
+    });
+    const projectedRunning = await store.claimNextJob('worker-projection');
+    assert.equal(projectedRunning?.id, projected.id);
+    const projectedCompleted = await store.completeJob(projected.id, {
+      kind: 'gltf.convert',
+      status: 'converted',
+      hasGeometry: true,
+      geometryDelta: {
+        bones: 1,
+        cubes: 2
+      }
+    });
+    assert.equal(projectedCompleted?.status, 'completed');
+    const projectCAfterProjection = await store.getProject('project-c');
+    assert.ok(projectCAfterProjection);
+    assert.equal(projectCAfterProjection?.stats.bones, (projectCBefore?.stats.bones ?? 0) + 1);
+    assert.equal(projectCAfterProjection?.stats.cubes, (projectCBefore?.stats.cubes ?? 0) + 2);
+    assert.equal(projectCAfterProjection?.hasGeometry, true);
 
     const events = await store.getProjectEventsSince('project-a', 0);
     assert.ok(events.length >= 1);
@@ -54,21 +94,28 @@ registerAsync(
     assert.equal(listedJobs.some((candidate) => candidate.id === job.id), true);
     assert.equal(listedJobs.some((candidate) => candidate.id === failedJob.id), true);
 
-    const nonObjectPayload = JSON.parse('"bad"') as Record<string, unknown>;
-    const payloadGuarded = await store.submitJob({
-      projectId: 'project-a',
-      kind: 'payload.guard',
-      payload: nonObjectPayload
-    });
-    assert.equal(payloadGuarded.payload, undefined);
-    const runningPayloadGuarded = await store.claimNextJob('worker-payload');
-    assert.equal(runningPayloadGuarded?.id, payloadGuarded.id);
-    const completedPayloadGuarded = await store.completeJob(payloadGuarded.id, { ok: true });
-    assert.equal(completedPayloadGuarded?.status, 'completed');
+    const nonObjectPayload = JSON.parse('"bad"');
+    await assert.rejects(
+      () =>
+        store.submitJob({
+          projectId: 'project-a',
+          kind: 'gltf.convert',
+          payload: nonObjectPayload as never
+        }),
+      /payload must be an object/
+    );
+    await assert.rejects(
+      () =>
+        store.submitJob({
+          projectId: 'project-a',
+          kind: 'custom.unsupported' as never
+        }),
+      /kind must be one of: gltf.convert, texture.preflight/
+    );
 
     const retryable = await store.submitJob({
       projectId: 'project-a',
-      kind: 'retry.convert',
+      kind: 'gltf.convert',
       maxAttempts: 2,
       leaseMs: 5000
     });
@@ -120,7 +167,7 @@ registerAsync(
 
     const constrained = await store.submitJob({
       projectId: 'project-a',
-      kind: 'lease.clamp',
+      kind: 'texture.preflight',
       maxAttempts: 999,
       leaseMs: 1
     });
@@ -128,12 +175,15 @@ registerAsync(
     assert.equal(constrained.leaseMs, 5000);
     const constrainedClaim = await store.claimNextJob('worker-6');
     assert.equal(constrainedClaim?.id, constrained.id);
-    const constrainedComplete = await store.completeJob(constrained.id, { ok: true });
+    const constrainedComplete = await store.completeJob(constrained.id, {
+      kind: 'texture.preflight',
+      output: { ok: true }
+    });
     assert.equal(constrainedComplete?.status, 'completed');
 
     const expiring = await store.submitJob({
       projectId: 'project-a',
-      kind: 'lease.expiry',
+      kind: 'gltf.convert',
       maxAttempts: 3,
       leaseMs: 5000
     });
@@ -162,7 +212,7 @@ registerAsync(
 
     const concurrencyCandidate = await store.submitJob({
       projectId: 'project-a',
-      kind: 'claim.race',
+      kind: 'texture.preflight',
       maxAttempts: 2,
       leaseMs: 5000
     });
@@ -175,7 +225,10 @@ registerAsync(
     assert.equal(claims[0]?.status, 'running');
     const winner = claims[0]?.workerId;
     assert.equal(winner === 'worker-race-1' || winner === 'worker-race-2', true);
-    const completedRace = await store.completeJob(concurrencyCandidate.id, { ok: true, winner });
+    const completedRace = await store.completeJob(concurrencyCandidate.id, {
+      kind: 'texture.preflight',
+      output: { ok: true, winner }
+    });
     assert.equal(completedRace?.status, 'completed');
   })()
 );

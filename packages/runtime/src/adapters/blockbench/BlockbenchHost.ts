@@ -11,7 +11,7 @@ export class BlockbenchHost implements HostPort {
     const globals = readBlockbenchGlobals();
     const plugins = globals.Plugins;
     if (typeof plugins?.devReload !== 'function') {
-      return { code: 'not_implemented', message: ADAPTER_PLUGINS_DEVRELOAD_UNAVAILABLE };
+      return { code: 'invalid_state', message: ADAPTER_PLUGINS_DEVRELOAD_UNAVAILABLE };
     }
     const devReload = plugins.devReload;
     const safeDelay = normalizeDelay(delayMs);
@@ -32,6 +32,5 @@ const normalizeDelay = (value: number): number => {
   const rounded = Math.max(0, Math.trunc(value));
   return Math.min(rounded, MAX_DELAY_MS);
 };
-
 
 

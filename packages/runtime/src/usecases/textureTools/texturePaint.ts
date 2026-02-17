@@ -40,7 +40,7 @@ export const runPaintTexture = (
   payload: PaintTexturePayload
 ): UsecaseResult<PaintTextureResult> => {
   if (!ctx.textureRenderer) {
-    return fail({ code: 'not_implemented', message: TEXTURE_RENDERER_UNAVAILABLE });
+    return fail({ code: 'invalid_state', message: TEXTURE_RENDERER_UNAVAILABLE });
   }
   if (payload.mode && payload.mode !== 'create' && payload.mode !== 'update') {
     return fail({ code: 'invalid_payload', message: TEXTURE_PAINT_MODE_INVALID(payload.mode) });
@@ -222,7 +222,7 @@ export const runPaintTexture = (
   const renderRes = ctx.textureRenderer.renderPixels({ width, height, data: targetPixels });
   if (renderRes.error) return fail(renderRes.error);
   if (!renderRes.result) {
-    return fail({ code: 'not_implemented', message: TEXTURE_RENDERER_NO_IMAGE });
+    return fail({ code: 'invalid_state', message: TEXTURE_RENDERER_NO_IMAGE });
   }
   const upsert =
     mode === 'update'
@@ -245,4 +245,3 @@ export const runPaintTexture = (
   if (!upsert.ok) return fail(upsert.error);
   return ok({ width, height, uvUsageId: payload.uvUsageId, opsApplied: ops.length });
 };
-

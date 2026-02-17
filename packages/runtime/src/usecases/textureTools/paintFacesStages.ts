@@ -312,7 +312,7 @@ const readPaintFacesPixels = (
     height: textureSource.textureHeight
   });
   if (!readPixels || readPixels.error || !readPixels.result) {
-    return fail(readPixels?.error ?? { code: 'not_implemented', message: TEXTURE_RENDERER_UNAVAILABLE });
+    return fail(readPixels?.error ?? { code: 'invalid_state', message: TEXTURE_RENDERER_UNAVAILABLE });
   }
   return ok(readPixels.result.data);
 };

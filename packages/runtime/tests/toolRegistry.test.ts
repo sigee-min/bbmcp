@@ -12,4 +12,4 @@ assert.equal(DEFAULT_TOOL_REGISTRY.count, DEFAULT_TOOL_REGISTRY.tools.length);
 assert.equal(DEFAULT_TOOL_REGISTRY.hash, computeToolRegistryHash(DEFAULT_TOOL_REGISTRY.tools));
 
 // Contract test: tool registry signature must be stable unless intentionally changed.
-assert.equal(DEFAULT_TOOL_REGISTRY.hash, '47ac255e');
+assert.equal(DEFAULT_TOOL_REGISTRY.hash, 'cb178c9d');

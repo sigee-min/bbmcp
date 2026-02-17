@@ -67,7 +67,7 @@ export const runPaintFaces = (
   payload: PaintFacesPayload
 ): UsecaseResult<PaintFacesResult> => {
   if (!ctx.textureRenderer) {
-    return fail({ code: 'not_implemented', message: TEXTURE_RENDERER_UNAVAILABLE });
+    return fail({ code: 'invalid_state', message: TEXTURE_RENDERER_UNAVAILABLE });
   }
   const textureRenderer = ctx.textureRenderer;
   const activeErr = ctx.ensureActive();
@@ -231,4 +231,3 @@ const shouldRecoverPaintFacesError = (error: ToolError): boolean => {
   const reason = typeof error.details?.reason === 'string' ? error.details.reason : '';
   return RECOVERY_ERROR_REASONS.has(reason);
 };
-

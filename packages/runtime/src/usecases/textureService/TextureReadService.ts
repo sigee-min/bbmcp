@@ -62,7 +62,7 @@ export class TextureReadService {
     if (!preparedRes.ok) return preparedRes;
     if (!saveToTmp) return ok(preparedRes.value.result);
     if (!this.tmpStore) {
-      return fail({ code: 'not_implemented', message: TMP_STORE_UNAVAILABLE });
+      return fail({ code: 'invalid_state', message: TMP_STORE_UNAVAILABLE });
     }
     const savedRes = this.savePreparedTexture(preparedRes.value, {
       nameHint: tmpName ?? sourceRes.value.name ?? 'texture',
@@ -77,11 +77,10 @@ export class TextureReadService {
     options: { nameHint: string; prefix: string }
   ): UsecaseResult<ReadTextureResult> {
     if (!this.tmpStore) {
-      return fail({ code: 'not_implemented', message: TMP_STORE_UNAVAILABLE });
+      return fail({ code: 'invalid_state', message: TMP_STORE_UNAVAILABLE });
     }
     const saved = this.tmpStore.saveDataUri(prepared.dataUri, options);
     if (!saved.ok) return fail(saved.error);
     return ok(withSavedTextureResult(prepared, { path: saved.data.path, byteLength: saved.data.byteLength }));
   }
 }
-

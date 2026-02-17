@@ -41,7 +41,6 @@ export interface IfRevisionOption {
 
 export type ToolErrorCode =
   | 'unsupported_format'
-  | 'not_implemented'
   | 'invalid_state'
   | 'invalid_state_revision_mismatch'
   | 'invalid_payload'

@@ -20,7 +20,7 @@ export type PreparedTextureReadImage = {
 export const prepareTextureReadImage = (source: TextureSource): UsecaseResult<PreparedTextureReadImage> => {
   const dataUri = normalizeTextureDataUri(source.dataUri);
   if (!dataUri) {
-    return fail({ code: 'not_implemented', message: TEXTURE_DATA_UNAVAILABLE });
+    return fail({ code: 'invalid_state', message: TEXTURE_DATA_UNAVAILABLE });
   }
 
   const mimeType = parseDataUriMimeType(dataUri) ?? 'image/png';

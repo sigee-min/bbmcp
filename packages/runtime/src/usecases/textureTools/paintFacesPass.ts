@@ -127,7 +127,7 @@ const finalizePaintFacesPass = (
     data: execution.pixels
   });
   if (renderRes.error) return fail(renderRes.error);
-  if (!renderRes.result) return fail({ code: 'not_implemented', message: TEXTURE_RENDERER_NO_IMAGE });
+  if (!renderRes.result) return fail({ code: 'invalid_state', message: TEXTURE_RENDERER_NO_IMAGE });
 
   const updateRes = params.ctx.updateTexture({
     id: params.resolvedTexture.id,

@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "exports": {
+    "./conformance": "./src/conformance/index.ts",
+    "./plugin": "./src/plugin.ts",
+    "./sidecar": "./src/sidecar/index.ts",
     "./server": "./src/server.ts",
     "./logging": "./src/logging.ts",
     "./observability": "./src/observability/index.ts"

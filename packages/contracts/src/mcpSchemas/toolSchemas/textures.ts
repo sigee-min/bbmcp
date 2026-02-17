@@ -3,6 +3,15 @@ import { cubeFaceSchema, metaProps, revisionProp } from '../schemas/common';
 import { textureOpSchema } from '../schemas/texture';
 
 export const textureToolSchemas: Record<string, JsonSchema> = {
+  preflight_texture: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      textureId: { type: 'string' },
+      textureName: { type: 'string' },
+      includeUsage: { type: 'boolean' }
+    }
+  },
   paint_faces: {
     type: 'object',
     required: ['target', 'op'],
@@ -79,4 +88,3 @@ export const textureToolSchemas: Record<string, JsonSchema> = {
   },
   // apply_texture_spec and apply_uv_spec removed (legacy pipeline)
 };
-

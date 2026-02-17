@@ -85,7 +85,7 @@ const withGlobals = (overrides: TestGlobals, run: () => void) => {
       const adapter = new BlockbenchProjectAdapter(logger);
       const err = adapter.closeProject();
       assert.ok(err);
-      assert.equal(err?.code, 'not_implemented');
+      assert.equal(err?.code, 'invalid_state');
       assert.equal(err?.message, ADAPTER_PROJECT_CLOSE_ASYNC_UNSUPPORTED);
     }
   );

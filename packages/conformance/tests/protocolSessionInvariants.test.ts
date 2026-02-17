@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 
-import { resolveSession } from '../../../packages/runtime/src/transport/mcp/routerSession';
-import { SessionStore } from '../../../packages/runtime/src/transport/mcp/session';
 import {
   MCP_PROTOCOL_VERSION_MISMATCH,
-  MCP_SESSION_ID_REQUIRED
-} from '../../../packages/runtime/src/shared/messages';
+  MCP_SESSION_ID_REQUIRED,
+  resolveSession,
+  SessionStore
+} from '@ashfox/runtime/conformance';
 
 {
   const sessions = new SessionStore();

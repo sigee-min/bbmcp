@@ -1,4 +1,11 @@
 import { NextResponse } from 'next/server';
+import {
+  NativeJobContractError,
+  type NativeJobSubmitInput,
+  type SupportedNativeJobKind,
+  normalizeNativeJobPayload,
+  normalizeSupportedNativeJobKind
+} from '@ashfox/native-pipeline/types';
 
 import { getNativePipelineStore } from '../../../../../lib/nativePipelineStore';
 
@@ -49,9 +56,21 @@ export async function GET(
     );
   }
 
+  const listProjectJobs = store.listProjectJobs;
+  if (typeof listProjectJobs !== 'function') {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: 'invalid_state',
+        message: 'Project job listing is unavailable for the active queue backend.'
+      },
+      { status: 501 }
+    );
+  }
+
   return NextResponse.json({
     ok: true,
-    jobs: await store.listProjectJobs(projectId)
+    jobs: await listProjectJobs.call(store, projectId)
   });
 }
 
@@ -80,17 +99,22 @@ export async function POST(
     );
   }
 
-  if (typeof body.kind !== 'string' || body.kind.trim().length === 0) {
-    return NextResponse.json(
-      {
-        ok: false,
-        code: 'invalid_payload',
-        message: 'kind is required'
-      },
-      { status: 400 }
-    );
+  let normalizedKind: SupportedNativeJobKind;
+  try {
+    normalizedKind = normalizeSupportedNativeJobKind(body.kind);
+  } catch (error) {
+    if (error instanceof NativeJobContractError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'invalid_payload',
+          message: error.message
+        },
+        { status: 400 }
+      );
+    }
+    throw error;
   }
-  const normalizedKind = body.kind.trim();
 
   const parsedMaxAttempts = parseOptionalPositiveInt(body.maxAttempts);
   if (!parsedMaxAttempts.ok) {
@@ -116,27 +140,44 @@ export async function POST(
     );
   }
 
-  if (body.payload !== undefined && !isRecord(body.payload)) {
-    return NextResponse.json(
-      {
-        ok: false,
-        code: 'invalid_payload',
-        message: 'payload must be an object'
-      },
-      { status: 400 }
-    );
+  let normalizedPayload: NativeJobSubmitInput['payload'];
+  try {
+    normalizedPayload = normalizeNativeJobPayload(normalizedKind, body.payload);
+  } catch (error) {
+    if (error instanceof NativeJobContractError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'invalid_payload',
+          message: error.message
+        },
+        { status: 400 }
+      );
+    }
+    throw error;
   }
 
-  const job = await store.submitJob({
-    projectId,
-    kind: normalizedKind,
-    payload: body.payload,
-    maxAttempts: parsedMaxAttempts.value,
-    leaseMs: parsedLeaseMs.value
-  });
+  try {
+    const job = await store.submitJob({
+      projectId,
+      kind: normalizedKind,
+      ...(normalizedPayload ? { payload: normalizedPayload } : {}),
+      maxAttempts: parsedMaxAttempts.value,
+      leaseMs: parsedLeaseMs.value
+    });
 
-  return NextResponse.json({ ok: true, job }, { status: 202 });
+    return NextResponse.json({ ok: true, job }, { status: 202 });
+  } catch (error) {
+    if (error instanceof NativeJobContractError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'invalid_payload',
+          message: error.message
+        },
+        { status: 400 }
+      );
+    }
+    throw error;
+  }
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value);

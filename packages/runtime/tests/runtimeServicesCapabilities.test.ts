@@ -29,6 +29,9 @@ const buildRuntime = (overrides: Record<string, unknown>) => {
       java_block: { name: 'Java Block/Item', animation_mode: false },
       free: { name: 'Generic Model', animation_mode: true, meshes: true }
     },
+    Plugins: {
+      devReload: () => {}
+    },
     Codecs: {
       gltf: { id: 'gltf', name: 'glTF', extension: 'gltf glb' },
       obj: { id: 'obj', name: 'OBJ', extension: 'obj' }
@@ -39,12 +42,16 @@ const buildRuntime = (overrides: Record<string, unknown>) => {
   const gltf = targets.find((target) => target.id === 'gltf');
   const native = targets.find((target) => target.id === 'native_codec');
   const obj = targets.find((target) => target.id === 'obj' && target.kind === 'native_codec');
+  const availability = runtime.capabilities.toolAvailability ?? {};
 
   assert.equal(gltf?.kind, 'gltf');
   assert.equal(gltf?.available, true);
   assert.equal(native?.kind, 'native_codec');
   assert.equal(native?.available, true);
   assert.equal(Boolean(obj), true);
+  assert.equal(availability.render_preview?.available, true);
+  assert.equal(availability.paint_faces?.available, true);
+  assert.equal(availability.reload_plugins?.available, true);
 }
 
 {
@@ -60,7 +67,10 @@ const buildRuntime = (overrides: Record<string, unknown>) => {
   const targets = runtime.capabilities.exportTargets ?? [];
   const gltf = targets.find((target) => target.id === 'gltf');
   const native = targets.find((target) => target.id === 'native_codec');
+  const availability = runtime.capabilities.toolAvailability ?? {};
 
   assert.equal(gltf?.available, true);
   assert.equal(native?.available, false);
+  assert.equal(availability.reload_plugins?.available, false);
+  assert.equal(availability.reload_plugins?.reason, 'host_unavailable');
 }

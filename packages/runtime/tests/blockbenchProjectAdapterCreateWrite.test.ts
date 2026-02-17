@@ -50,7 +50,7 @@ const withGlobals = (overrides: TestGlobals, run: () => void) =>
     () => {
       const adapter = new BlockbenchProjectAdapter(logger);
       const err = adapter.createProject('demo', 'fmt');
-      assert.deepEqual(err, { code: 'not_implemented', message: ADAPTER_PROJECT_CREATE_UNAVAILABLE });
+      assert.deepEqual(err, { code: 'invalid_state', message: ADAPTER_PROJECT_CREATE_UNAVAILABLE });
     }
   );
 }
@@ -234,7 +234,7 @@ const withGlobals = (overrides: TestGlobals, run: () => void) =>
     () => {
       const adapter = new BlockbenchProjectAdapter(logger);
       const err = adapter.closeProject();
-      assert.deepEqual(err, { code: 'not_implemented', message: ADAPTER_PROJECT_CLOSE_UNAVAILABLE });
+      assert.deepEqual(err, { code: 'invalid_state', message: ADAPTER_PROJECT_CLOSE_UNAVAILABLE });
     }
   );
 }
@@ -272,7 +272,7 @@ const withGlobals = (overrides: TestGlobals, run: () => void) =>
     () => {
       const adapter = new BlockbenchProjectAdapter(logger);
       const err = adapter.writeFile('out.json', '{}');
-      assert.deepEqual(err, { code: 'not_implemented', message: ADAPTER_BLOCKBENCH_WRITEFILE_UNAVAILABLE });
+      assert.deepEqual(err, { code: 'invalid_state', message: ADAPTER_BLOCKBENCH_WRITEFILE_UNAVAILABLE });
     }
   );
 }

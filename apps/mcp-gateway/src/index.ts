@@ -72,8 +72,7 @@ const main = async (): Promise<void> => {
 
   const dispatcher = new GatewayDispatcher({
     registry,
-    defaultBackend: resolveBackendKind(process.env.ASHFOX_GATEWAY_BACKEND),
-    nativeProdGuard: resolveBooleanFlag(process.env.ASHFOX_NATIVE_PROD_GUARD, true)
+    defaultBackend: resolveBackendKind(process.env.ASHFOX_GATEWAY_BACKEND)
   });
 
   const config: ServerConfig = {
@@ -95,7 +94,6 @@ const main = async (): Promise<void> => {
     port: config.port,
     path: config.path,
     backend: resolveBackendKind(process.env.ASHFOX_GATEWAY_BACKEND),
-    nativeProdGuard: resolveBooleanFlag(process.env.ASHFOX_NATIVE_PROD_GUARD, true),
     persistence: persistence.health
   });
 

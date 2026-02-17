@@ -26,7 +26,7 @@ const closedSnapshot: Snapshot = {
 
 const buildContext = (options?: {
   applyClose?: boolean;
-  closeError?: { code: 'not_implemented'; message: string };
+  closeError?: { code: 'invalid_state'; message: string };
 }): { ctx: ProjectDeleteContext; resetCalls: () => number; closeCalls: () => number } => {
   let resetCount = 0;
   let closeCount = 0;
@@ -93,7 +93,7 @@ const buildContext = (options?: {
 }
 
 {
-  const closeError = { code: 'not_implemented' as const, message: 'close unsupported' };
+  const closeError = { code: 'invalid_state' as const, message: 'close unsupported' };
   const { ctx, resetCalls, closeCalls } = buildContext({ closeError });
   const res = runDeleteProject(ctx, { target: { name: 'dragon' } });
   assert.equal(res.ok, false);

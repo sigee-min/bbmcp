@@ -256,5 +256,5 @@ const createContext = (options: ContextOptions = {}): TextureToolContext => {
   });
   const res = runAutoUvAtlas(ctx, { apply: true, ifRevision: 'r1' });
   assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.error.code, 'not_implemented');
+  if (!res.ok) assert.equal(res.error.code, 'invalid_state');
 }

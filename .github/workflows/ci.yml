@@ -6,7 +6,7 @@ on:
   pull_request:
 
 env:
-  NODE_VERSION: 20
+  NODE_VERSION: 22
 
 jobs:
   detect-changes:
@@ -202,7 +202,7 @@ jobs:
         if: needs.detect-changes.outputs.gateway == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Install

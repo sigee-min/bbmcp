@@ -3,6 +3,7 @@ import type { ToolName } from '@ashfox/contracts/types/internal';
 const READ_ONLY_TOOLS = new Set<ToolName>([
   'list_capabilities',
   'get_project_state',
+  'preflight_texture',
   'read_texture',
   'render_preview',
   'validate',

@@ -26,7 +26,7 @@ export class BlockbenchTextureAssignAdapter {
       const cubeApi = getCubeApi();
       const textureApi = getTextureApi();
       if ('error' in cubeApi || 'error' in textureApi) {
-        return { code: 'not_implemented', message: ADAPTER_CUBE_TEXTURE_API_UNAVAILABLE };
+        return { code: 'invalid_state', message: ADAPTER_CUBE_TEXTURE_API_UNAVAILABLE };
       }
       const texture = findTextureRef(params.textureName, params.textureId);
       if (!texture) {
@@ -39,7 +39,7 @@ export class BlockbenchTextureAssignAdapter {
       }
       const supportsApply = cubes.every((cube) => typeof cube.applyTexture === 'function');
       if (!supportsApply) {
-        return { code: 'not_implemented', message: ADAPTER_CUBE_APPLY_TEXTURE_UNAVAILABLE };
+        return { code: 'invalid_state', message: ADAPTER_CUBE_APPLY_TEXTURE_UNAVAILABLE };
       }
       const faces = normalizeFaces(params.faces);
       const textureRef = resolveFaceTextureRef(texture);
@@ -79,4 +79,3 @@ export class BlockbenchTextureAssignAdapter {
     });
   }
 }
-

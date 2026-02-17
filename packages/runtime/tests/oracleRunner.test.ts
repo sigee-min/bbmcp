@@ -253,8 +253,8 @@ const runNativeCodecFixture = async (fixtureId: string, fixtureDir: string, code
     capabilities: baseCapabilities(),
     editor: editorState.editor,
     exporter: {
-      exportNative: () => ({ code: 'not_implemented', message: 'export not implemented' }),
-      exportGltf: () => ({ code: 'not_implemented', message: 'export not implemented' }),
+      exportNative: () => ({ code: 'invalid_state', message: 'export not implemented' }),
+      exportGltf: () => ({ code: 'invalid_state', message: 'export not implemented' }),
       exportCodec: () => {
         calls.codec += 1;
         return null;
@@ -304,11 +304,11 @@ const runGltfFixture = async (fixtureId: string, fixtureDir: string) => {
       exporter: {
         exportNative: () => {
           calls.native += 1;
-          return { code: 'not_implemented', message: 'export not implemented' };
+          return { code: 'invalid_state', message: 'export not implemented' };
         },
         exportGltf: () => {
           calls.gltf += 1;
-          return { code: 'not_implemented', message: 'export not implemented' };
+          return { code: 'invalid_state', message: 'export not implemented' };
         }
       },
       formats: createFormatPortStub('geckolib_model', 'GeckoLib'),
@@ -390,7 +390,7 @@ const runNoRenderFixture = async (fixtureId: string, fixtureDir: string) => {
     editor: editorState.editor,
     formats: createFormatPortStub('geckolib_model', 'GeckoLib'),
     snapshot: createSnapshotPortStub(session),
-    exporter: createExportPortStub('not_implemented'),
+    exporter: createExportPortStub('invalid_state'),
     host: createHostPortStub(),
     textureRenderer: createTextureRendererStub(),
     tmpStore: createTmpStoreStub(),

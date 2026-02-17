@@ -30,8 +30,8 @@ import * as validation from '../src/shared/messages/validation';
 
 {
   assert.equal(project.PROJECT_UNSUPPORTED_FORMAT('custom').includes('custom'), true);
-  assert.equal(project.PROJECT_FORMAT_ID_MISSING('entity_rig').includes('entity_rig'), true);
-  assert.equal(project.EXPORT_FORMAT_NOT_ENABLED('entity_rig').includes('entity_rig'), true);
+  assert.equal(project.PROJECT_AUTHORING_FORMAT_ID_MISSING.includes('authoring'), true);
+  assert.equal(project.EXPORT_CODEC_UNSUPPORTED('entity_rig').includes('entity_rig'), true);
 }
 
 {

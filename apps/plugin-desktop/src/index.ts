@@ -1,1 +1,1 @@
-import '../../../packages/runtime/src/plugin';
+import '@ashfox/runtime/plugin';

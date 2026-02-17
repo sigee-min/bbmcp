@@ -382,4 +382,9 @@ export interface BlockbenchGlobals {
 export const readBlockbenchGlobals = (): BlockbenchGlobals =>
   globalThis as typeof globalThis & BlockbenchGlobals;
 
+export type OffscreenCanvasCtor = new (width: number, height: number) => OffscreenCanvas;
 
+export const readOffscreenCanvasCtor = (): OffscreenCanvasCtor | null => {
+  const ctor = (globalThis as typeof globalThis & { OffscreenCanvas?: OffscreenCanvasCtor }).OffscreenCanvas;
+  return typeof ctor === 'function' ? ctor : null;
+};

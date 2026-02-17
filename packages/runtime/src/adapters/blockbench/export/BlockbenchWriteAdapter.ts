@@ -20,7 +20,7 @@ import {
 } from '../io/pathPolicy';
 
 type FsModule = FsPathPolicyModule & {
-  writeFileSync: (path: string, data: Uint8Array) => void;
+  writeFileSync: (path: string, data: Uint8Array | string) => void;
 };
 
 export class BlockbenchWriteAdapter {
@@ -63,12 +63,15 @@ export class BlockbenchWriteAdapter {
   private writeText(destPath: string, contents: string, defaultFileName: string): ToolError | null {
     const globals = readGlobals();
     const blockbench = globals.Blockbench;
-    if (!blockbench?.writeFile) {
-      return { code: 'not_implemented', message: ADAPTER_BLOCKBENCH_WRITEFILE_UNAVAILABLE };
-    }
-    const fs = loadNativeModule<FsPathPolicyModule>('fs', { optional: true });
+    const fs = loadNativeModule<FsModule>('fs', { optional: true });
     const path = loadNativeModule<PathPolicyModule>('path', { optional: true });
     const resolvedPath = resolveDirectoryAwarePath(destPath, defaultFileName, fs, path);
+    if (!blockbench?.writeFile) {
+      if (fs?.writeFileSync) {
+        return this.writeTextWithFs(fs, resolvedPath, contents, defaultFileName, path);
+      }
+      return { code: 'invalid_state', message: ADAPTER_BLOCKBENCH_WRITEFILE_UNAVAILABLE };
+    }
     try {
       blockbench.writeFile(resolvedPath, { content: contents, savetype: 'text' });
       return null;
@@ -92,9 +95,39 @@ export class BlockbenchWriteAdapter {
     }
   }
 
+  private writeTextWithFs(
+    fs: FsModule,
+    resolvedPath: string,
+    contents: string,
+    defaultFileName: string,
+    path?: PathPolicyModule | null
+  ): ToolError | null {
+    try {
+      fs.writeFileSync(resolvedPath, contents);
+      return null;
+    } catch (err) {
+      if (isEisdirError(err)) {
+        const fallbackPath = joinPath(resolvedPath, defaultFileName, path);
+        if (fallbackPath !== resolvedPath) {
+          try {
+            fs.writeFileSync(fallbackPath, contents);
+            return null;
+          } catch (retryErr) {
+            const message = errorMessage(retryErr, 'write failed');
+            this.log.error('write text fs fallback error', { message, path: fallbackPath });
+            return { code: 'io_error', message };
+          }
+        }
+      }
+      const message = errorMessage(err, 'write failed');
+      this.log.error('write text fs error', { message, path: resolvedPath });
+      return { code: 'io_error', message };
+    }
+  }
+
   private writeBinary(destPath: string, data: Uint8Array, defaultFileName: string): ToolError | null {
     const fs = loadNativeModule<FsModule>('fs', { optional: true });
-    if (!fs) return { code: 'not_implemented', message: ADAPTER_FILESYSTEM_WRITE_UNAVAILABLE };
+    if (!fs) return { code: 'invalid_state', message: ADAPTER_FILESYSTEM_WRITE_UNAVAILABLE };
     const path = loadNativeModule<PathPolicyModule>('path', { optional: true });
     const resolvedPath = resolveDirectoryAwarePath(destPath, defaultFileName, fs, path);
     try {
@@ -114,7 +147,7 @@ export class BlockbenchWriteAdapter {
   ): Promise<ToolError | null> {
     const write = codec.write;
     if (typeof write !== 'function') {
-      return { code: 'not_implemented', message: ADAPTER_NATIVE_CODEC_WRITE_UNAVAILABLE };
+      return { code: 'invalid_state', message: ADAPTER_NATIVE_CODEC_WRITE_UNAVAILABLE };
     }
     try {
       const writeResult = write.call(codec, compiled, destPath);
@@ -138,17 +171,17 @@ const isThenable = (value: unknown): value is { then: (onFulfilled: (arg: unknow
 
 const resolveTextCompile = (compiled: unknown): { ok: true; value: string } | { ok: false; error: ToolError } => {
   if (compiled === null || compiled === undefined) {
-    return { ok: false, error: { code: 'not_implemented', message: ADAPTER_NATIVE_COMPILER_EMPTY } };
+    return { ok: false, error: { code: 'invalid_state', message: ADAPTER_NATIVE_COMPILER_EMPTY } };
   }
   if (isThenable(compiled)) {
-    return { ok: false, error: { code: 'not_implemented', message: ADAPTER_NATIVE_COMPILER_ASYNC_UNSUPPORTED } };
+    return { ok: false, error: { code: 'invalid_state', message: ADAPTER_NATIVE_COMPILER_ASYNC_UNSUPPORTED } };
   }
   const value = typeof compiled === 'string' ? compiled : JSON.stringify(compiled ?? {}, null, 2);
   return { ok: true, value };
 };
 
 const canFallbackFromCodecWriteError = (error: ToolError): boolean => {
-  if (error.code !== 'not_implemented') return false;
+  if (error.code !== 'invalid_state') return false;
   return error.message === ADAPTER_NATIVE_CODEC_WRITE_UNAVAILABLE;
 };
 
@@ -165,4 +198,3 @@ const toBinary = (value: unknown): Uint8Array | null => {
   }
   return null;
 };
-

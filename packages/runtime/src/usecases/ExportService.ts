@@ -153,7 +153,7 @@ export class ExportService {
     if (exportPolicy === 'strict') {
       return this.failWithExportHints(nativeErr, snapshot, nativeCodecs);
     }
-    if (nativeErr.code !== 'not_implemented' && nativeErr.code !== 'unsupported_format') {
+    if (!isFallbackEligibleNativeError(nativeErr)) {
       return this.failWithExportHints(nativeErr, snapshot, nativeCodecs);
     }
     return writeInternalFallbackExport(this.editor, requestedFormat, payload.destPath, snapshot, {
@@ -169,7 +169,7 @@ export class ExportService {
     selectedTarget: NonNullable<ExportResult['selectedTarget']>
   ): Promise<UsecaseResult<ExportResult>> {
     if (typeof this.exporter.exportCodec !== 'function') {
-      return fail({ code: 'not_implemented', message: 'Native codec export is not available in this runtime.' });
+      return fail({ code: 'invalid_state', message: 'Native codec export is not available in this runtime.' });
     }
     const err = await this.exporter.exportCodec({ codecId, destPath });
     if (err) return fail(err);
@@ -287,3 +287,6 @@ const normalizeCodecToken = (value: string): string =>
   String(value)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '');
+
+const isFallbackEligibleNativeError = (error: ToolError): boolean =>
+  error.code === 'unsupported_format' || error.code === 'invalid_state';

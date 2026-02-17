@@ -3,6 +3,7 @@ export const PROJECT_STATE_DETAILS = ['summary', 'full'] as const;
 export const TOOL_NAMES = [
   'list_capabilities',
   'get_project_state',
+  'preflight_texture',
   'read_texture',
   'export_trace_log',
   'reload_plugins',

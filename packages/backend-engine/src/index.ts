@@ -1,15 +1,16 @@
-import type {
-  Capabilities,
-  CubeFaceDirection,
-  RenderPreviewPayload,
-  RenderPreviewResult,
-  ToolError,
-  ToolName,
-  ToolPayloadMap,
-  ToolResponse,
-  ToolResultMap,
-  TextureUsageEntry,
-  TextureUsageResult
+import {
+  TOOL_NAMES,
+  type Capabilities,
+  type CubeFaceDirection,
+  type RenderPreviewPayload,
+  type RenderPreviewResult,
+  type ToolError,
+  type ToolName,
+  type ToolPayloadMap,
+  type ToolResponse,
+  type ToolResultMap,
+  type TextureUsageEntry,
+  type TextureUsageResult
 } from '@ashfox/contracts/types/internal';
 import {
   backendToolError,
@@ -38,6 +39,7 @@ import type {
 import type { FormatDescriptor, FormatPort } from '../../runtime/src/ports/formats';
 import type { SnapshotPort } from '../../runtime/src/ports/snapshot';
 import { PREVIEW_UNSUPPORTED_NO_RENDER } from '../../runtime/src/shared/messages';
+import { LocalTmpStore } from '../../runtime/src/adapters/tmp/LocalTmpStore';
 import { ProjectSession } from '../../runtime/src/session';
 import type { SessionState } from '../../runtime/src/session/types';
 import { ToolDispatcherImpl } from '../../runtime/src/dispatcher';
@@ -48,6 +50,7 @@ const EXPORT_BUCKET = 'exports';
 const ENGINE_STATE_VERSION = 1;
 const DEFAULT_TEXTURE_RESOLUTION: TextureResolution = { width: 16, height: 16 };
 const ALL_CUBE_FACES: CubeFaceDirection[] = ['north', 'south', 'east', 'west', 'up', 'down'];
+const ENGINE_TMP_STORE = new LocalTmpStore();
 
 const ENGINE_FORMATS: FormatDescriptor[] = [
   {
@@ -250,6 +253,23 @@ const toDataUri = (image: CanvasImageSource | undefined): string | null => {
   return typeof dataUri === 'string' && dataUri.length > 0 ? dataUri : null;
 };
 
+type ToolAvailabilityMap = NonNullable<Capabilities['toolAvailability']>;
+type ToolAvailabilityEntry = NonNullable<ToolAvailabilityMap[ToolName]>;
+
+const buildToolAvailability = (
+  overrides: Partial<Record<ToolName, ToolAvailabilityEntry>>
+): ToolAvailabilityMap => {
+  const availability: ToolAvailabilityMap = {};
+  for (const name of TOOL_NAMES) {
+    availability[name] = { available: true };
+  }
+  for (const [name, entry] of Object.entries(overrides) as Array<[ToolName, ToolAvailabilityEntry | undefined]>) {
+    if (!entry) continue;
+    availability[name] = entry;
+  }
+  return availability;
+};
+
 const buildEngineCapabilities = (formats: FormatPort, nativeCodecs: NativeCodecTarget[]): Capabilities => {
   const activeFormatId = formats.getActiveFormatId();
   const capabilities = computeCapabilities(
@@ -290,6 +310,28 @@ const buildEngineCapabilities = (formats: FormatPort, nativeCodecs: NativeCodecT
       available: true
     }))
   );
+  capabilities.toolAvailability = buildToolAvailability({
+    render_preview: {
+      available: false,
+      reason: 'no_render_profile',
+      note: 'render_preview is unavailable in native no-render profile.'
+    },
+    reload_plugins: {
+      available: false,
+      reason: 'host_unavailable',
+      note: 'reload_plugins requires host plugin APIs.'
+    },
+    export_trace_log: {
+      available: false,
+      reason: 'trace_log_unavailable',
+      note: 'export_trace_log requires plugin trace log host support.'
+    },
+    paint_faces: {
+      available: false,
+      reason: 'texture_renderer_unavailable',
+      note: 'paint_faces requires texture renderer host support.'
+    }
+  });
   return capabilities;
 };
 
@@ -915,6 +957,7 @@ export class EngineBackend implements BackendPort {
       formats,
       snapshot,
       exporter,
+      tmpStore: ENGINE_TMP_STORE,
       policies: {
         snapshotPolicy: 'session',
         exportPolicy: 'best_effort',

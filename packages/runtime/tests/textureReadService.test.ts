@@ -42,7 +42,7 @@ const createHarness = (options: HarnessOptions = {}) => {
   const service = createHarness({ dataUri: undefined });
   const res = service.readTextureImage({ name: 'atlas' });
   assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.error.code, 'not_implemented');
+  if (!res.ok) assert.equal(res.error.code, 'invalid_state');
 }
 
 {
@@ -50,7 +50,7 @@ const createHarness = (options: HarnessOptions = {}) => {
   const res = service.readTextureImage({ name: 'atlas', saveToTmp: true });
   assert.equal(res.ok, false);
   if (!res.ok) {
-    assert.equal(res.error.code, 'not_implemented');
+    assert.equal(res.error.code, 'invalid_state');
     assert.equal(res.error.message.includes(TMP_STORE_UNAVAILABLE), true);
   }
 }

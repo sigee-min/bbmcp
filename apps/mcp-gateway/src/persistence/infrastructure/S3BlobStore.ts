@@ -1,40 +1,22 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import type { BlobPointer, BlobReadResult, BlobStore, BlobWriteInput } from '@ashfox/backend-core';
 import type { S3BlobStoreConfig } from '../config';
+import { normalizeBlobBucket, normalizeBlobKey, normalizeBlobPrefix } from './validation';
 
 export interface S3ClientLike {
   send(command: unknown): Promise<Record<string, unknown>>;
   destroy?(): void;
 }
 
-const normalizeBucket = (value: string): string => {
-  const normalized = value.trim();
-  if (!normalized) throw new Error('bucket must be a non-empty string.');
-  if (normalized.includes('/')) throw new Error('bucket must not include "/".');
-  return normalized;
-};
-
-const normalizeKey = (value: string): string => {
-  const normalized = value.trim().replace(/\\/g, '/').replace(/^\/+/, '');
-  if (!normalized) throw new Error('key must be a non-empty string.');
-  return normalized;
-};
-
-const normalizePrefix = (value: string | undefined): string | undefined => {
-  if (!value) return undefined;
-  const normalized = value.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-  return normalized ? normalized : undefined;
-};
-
 const toStorageKey = (key: string, keyPrefix: string | undefined): string => {
-  const normalizedKey = normalizeKey(key);
-  const normalizedPrefix = normalizePrefix(keyPrefix);
+  const normalizedKey = normalizeBlobKey(key);
+  const normalizedPrefix = normalizeBlobPrefix(keyPrefix);
   if (!normalizedPrefix) return normalizedKey;
   return `${normalizedPrefix}/${normalizedKey}`;
 };
 
 const fromStorageKey = (storageKey: string, keyPrefix: string | undefined): string => {
-  const normalizedPrefix = normalizePrefix(keyPrefix);
+  const normalizedPrefix = normalizeBlobPrefix(keyPrefix);
   if (!normalizedPrefix) return storageKey;
   const prefix = `${normalizedPrefix}/`;
   if (!storageKey.startsWith(prefix)) return storageKey;
@@ -95,8 +77,8 @@ export class S3BlobStore implements BlobStore {
   }
 
   async put(input: BlobWriteInput): Promise<BlobPointer> {
-    const bucket = normalizeBucket(input.bucket);
-    const key = normalizeKey(input.key);
+    const bucket = normalizeBlobBucket(input.bucket);
+    const key = normalizeBlobKey(input.key);
     const storageKey = toStorageKey(key, this.config.keyPrefix);
     await this.client.send(
       new PutObjectCommand({
@@ -112,8 +94,8 @@ export class S3BlobStore implements BlobStore {
   }
 
   async get(pointer: BlobPointer): Promise<BlobReadResult | null> {
-    const bucket = normalizeBucket(pointer.bucket);
-    const key = normalizeKey(pointer.key);
+    const bucket = normalizeBlobBucket(pointer.bucket);
+    const key = normalizeBlobKey(pointer.key);
     const storageKey = toStorageKey(key, this.config.keyPrefix);
     try {
       const result = (await this.client.send(
@@ -145,8 +127,8 @@ export class S3BlobStore implements BlobStore {
   }
 
   async delete(pointer: BlobPointer): Promise<void> {
-    const bucket = normalizeBucket(pointer.bucket);
-    const key = normalizeKey(pointer.key);
+    const bucket = normalizeBlobBucket(pointer.bucket);
+    const key = normalizeBlobKey(pointer.key);
     const storageKey = toStorageKey(key, this.config.keyPrefix);
     try {
       await this.client.send(

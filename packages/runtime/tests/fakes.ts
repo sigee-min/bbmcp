@@ -174,19 +174,21 @@ export const createSnapshotPortStub = (session: ProjectSession, override?: () =>
   readSnapshot: () => (override ? override() : session.snapshot())
 });
 
-export const createExportPortStub = (mode: 'ok' | 'not_implemented' = 'not_implemented'): ExportPort => ({
+export const createExportPortStub = (
+  mode: 'ok' | 'invalid_state' = 'invalid_state'
+): ExportPort => ({
   exportNative: () =>
     mode === 'ok'
       ? null
       : {
-          code: 'not_implemented',
+          code: 'invalid_state',
           message: 'export not implemented'
         },
   exportGltf: () =>
     mode === 'ok'
       ? null
       : {
-          code: 'not_implemented',
+          code: 'invalid_state',
           message: 'export not implemented'
         }
 });

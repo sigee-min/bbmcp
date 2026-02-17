@@ -57,7 +57,7 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
   }
 }
 
-// Missing Blockbench API should return not_implemented.
+// Missing Blockbench API should return invalid_state.
 {
   const writer = new BlockbenchTraceLogWriter({ mode: 'auto' });
   withGlobals(
@@ -68,7 +68,7 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
     () => {
       const err = writer.write('trace-data');
       assert.notEqual(err, null);
-      assert.equal(err?.code, 'not_implemented');
+      assert.equal(err?.code, 'invalid_state');
       assert.equal(err?.details?.reason, 'blockbench_missing');
     }
   );
@@ -85,7 +85,7 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
     () => {
       const err = writer.write('trace-data');
       assert.notEqual(err, null);
-      assert.equal(err?.code, 'not_implemented');
+      assert.equal(err?.code, 'invalid_state');
       assert.equal(err?.details?.reason, 'writefile_unavailable');
       assert.equal(err?.details?.missingPath, true);
     }
@@ -149,7 +149,7 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
     () => {
       const err = writer.write('trace-data');
       assert.notEqual(err, null);
-      assert.equal(err?.code, 'not_implemented');
+      assert.equal(err?.code, 'invalid_state');
       assert.equal(err?.details?.reason, 'export_unavailable');
     }
   );
@@ -270,4 +270,3 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
-

@@ -1,4 +1,4 @@
-import type { NativeProjectEvent, NativeProjectSnapshot } from '../../../../../lib/nativePipelineStore';
+import type { NativeProjectEvent, NativeProjectSnapshot } from '@ashfox/native-pipeline/types';
 import { buildSnapshotPayload } from './snapshotPayload';
 import {
   encodeSseChunk,

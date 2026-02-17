@@ -87,6 +87,12 @@ export const createHandlerMaps = (args: {
         payload,
         toToolResponse(args.service.getProjectState(payload))
       ),
+    preflight_texture: (payload) =>
+      args.logGuardFailure(
+        'preflight_texture',
+        payload,
+        toToolResponse(args.service.preflightTexture(payload))
+      ),
     read_texture: (payload) =>
       args.logGuardFailure(
         'read_texture',

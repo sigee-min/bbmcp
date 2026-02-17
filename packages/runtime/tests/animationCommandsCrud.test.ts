@@ -44,7 +44,7 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
         fps: 24
       });
       assert.notEqual(err, null);
-      assert.equal(err?.code, 'not_implemented');
+      assert.equal(err?.code, 'invalid_state');
     }
   );
 }
@@ -305,4 +305,3 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
     }
   );
 }
-

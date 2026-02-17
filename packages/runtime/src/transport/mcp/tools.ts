@@ -33,6 +33,13 @@ export const MCP_HIGH_LEVEL_TOOLS: McpToolDefinition[] = [
     inputSchema: toolSchemas.get_project_state
   }),
   defineTool({
+    name: 'preflight_texture',
+    title: 'Preflight Texture',
+    description:
+      'Analyzes texture UV usage and returns warnings, usage summary, bounds, and optional detailed usage payload.',
+    inputSchema: toolSchemas.preflight_texture
+  }),
+  defineTool({
     name: 'export_trace_log',
     title: 'Export Trace Log',
     description:
@@ -172,7 +179,6 @@ export const buildToolRegistry = (options?: { includeLowLevel?: boolean }): Tool
 };
 
 export const DEFAULT_TOOL_REGISTRY = buildToolRegistry({ includeLowLevel: true });
-
 
 
 

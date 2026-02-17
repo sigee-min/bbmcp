@@ -69,7 +69,7 @@ export const applyAutoUvAtlasPlanConfig = (
   if (result.pixelsPerBlock !== result.basePixelsPerBlock) {
     if (!ctx.setProjectUvPixelsPerBlock) {
       return fail({
-        code: 'not_implemented',
+        code: 'invalid_state',
         message: TEXTURE_AUTO_UV_DENSITY_UPDATE_UNAVAILABLE
       });
     }

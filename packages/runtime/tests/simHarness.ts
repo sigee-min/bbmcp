@@ -68,7 +68,7 @@ export const createBlockbenchSimHarness = (
     editor: engine.editor,
     formats,
     snapshot: engine.snapshotPort,
-    exporter: createExportPortStub('not_implemented'),
+    exporter: createExportPortStub('invalid_state'),
     host: createHostPortStub(),
     textureRenderer: createTextureRendererStub(),
     tmpStore: createTmpStoreStub(),

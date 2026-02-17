@@ -13,6 +13,7 @@ type MockCtx = {
 
 type TestGlobals = {
   document?: unknown;
+  OffscreenCanvas?: unknown;
 };
 
 const getGlobals = (): TestGlobals => globalThis as TestGlobals;
@@ -20,13 +21,16 @@ const getGlobals = (): TestGlobals => globalThis as TestGlobals;
 const withGlobals = (overrides: TestGlobals, run: () => void) => {
   const globals = getGlobals();
   const before = {
-    document: globals.document
+    document: globals.document,
+    OffscreenCanvas: (globalThis as TestGlobals).OffscreenCanvas
   };
   globals.document = overrides.document;
+  (globalThis as TestGlobals).OffscreenCanvas = overrides.OffscreenCanvas;
   try {
     run();
   } finally {
     globals.document = before.document;
+    (globalThis as TestGlobals).OffscreenCanvas = before.OffscreenCanvas;
   }
 };
 
@@ -38,14 +42,59 @@ const createCanvas = (ctx: MockCtx | null) => ({
 
 {
   const renderer = new BlockbenchTextureRenderer();
-  withGlobals({}, () => {
+  withGlobals({ OffscreenCanvas: undefined }, () => {
     const result = renderer.renderPixels({
       width: 1,
       height: 1,
       data: new Uint8ClampedArray([255, 0, 0, 255])
     });
-    assert.equal(result.error?.code, 'not_implemented');
+    assert.equal(result.error?.code, 'invalid_state');
   });
+}
+
+{
+  const renderer = new BlockbenchTextureRenderer();
+  let putCalls = 0;
+  class FakeOffscreenCanvas {
+    width = 0;
+    height = 0;
+
+    constructor(width: number, height: number) {
+      this.width = width;
+      this.height = height;
+    }
+
+    getContext(kind: string) {
+      if (kind !== '2d') return null;
+      return {
+        imageSmoothingEnabled: true,
+        createImageData: (width: number, height: number) => ({ data: new Uint8ClampedArray(width * height * 4) }),
+        putImageData: () => {
+          putCalls += 1;
+        },
+        clearRect: () => undefined,
+        drawImage: () => undefined,
+        getImageData: () => ({ data: new Uint8ClampedArray([0, 0, 0, 0]) })
+      };
+    }
+  }
+  withGlobals(
+    {
+      document: undefined,
+      OffscreenCanvas: FakeOffscreenCanvas
+    },
+    () => {
+      const result = renderer.renderPixels({
+        width: 1,
+        height: 1,
+        data: new Uint8ClampedArray([255, 0, 0, 255])
+      });
+      assert.equal(result.error, undefined);
+      assert.equal(result.result?.width, 1);
+      assert.equal(result.result?.height, 1);
+    }
+  );
+  assert.equal(putCalls, 1);
 }
 
 {
@@ -54,7 +103,8 @@ const createCanvas = (ctx: MockCtx | null) => ({
     {
       document: {
         createElement: () => null
-      }
+      },
+      OffscreenCanvas: undefined
     },
     () => {
       const result = renderer.renderPixels({
@@ -62,7 +112,7 @@ const createCanvas = (ctx: MockCtx | null) => ({
         height: 1,
         data: new Uint8ClampedArray([255, 0, 0, 255])
       });
-      assert.equal(result.error?.code, 'not_implemented');
+      assert.equal(result.error?.code, 'invalid_state');
     }
   );
 }
@@ -73,7 +123,8 @@ const createCanvas = (ctx: MockCtx | null) => ({
     {
       document: {
         createElement: () => createCanvas(null)
-      }
+      },
+      OffscreenCanvas: undefined
     },
     () => {
       const result = renderer.renderPixels({
@@ -81,7 +132,7 @@ const createCanvas = (ctx: MockCtx | null) => ({
         height: 1,
         data: new Uint8ClampedArray([255, 0, 0, 255])
       });
-      assert.equal(result.error?.code, 'not_implemented');
+      assert.equal(result.error?.code, 'invalid_state');
     }
   );
 }
@@ -178,4 +229,3 @@ const createCanvas = (ctx: MockCtx | null) => ({
   assert.equal(drawCalls, 1);
   assert.equal(clearCalls, 1);
 }
-

@@ -193,6 +193,7 @@ export interface AnimationTriggerResult {
 export interface ToolResultMap {
   list_capabilities: Capabilities;
   get_project_state: GetProjectStateResult;
+  preflight_texture: PreflightTextureResult;
   read_texture: ReadTextureResult;
   export_trace_log: ExportTraceLogResult;
   reload_plugins: ReloadPluginsResult;

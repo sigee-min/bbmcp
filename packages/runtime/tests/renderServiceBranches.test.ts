@@ -7,6 +7,7 @@ import {
   PREVIEW_FRAME_DATA_UNAVAILABLE,
   PREVIEW_FRAMES_UNAVAILABLE,
   PREVIEW_IMAGE_DATA_UNAVAILABLE,
+  PREVIEW_UNSUPPORTED_NO_RENDER,
   TMP_STORE_UNAVAILABLE
 } from '../src/shared/messages';
 
@@ -57,6 +58,26 @@ const createTmpStore = (saveDataUri: TmpStorePort['saveDataUri']): TmpStorePort 
         image: { mime: 'image/png', dataUri: 'data:image/png;base64,AAAA', byteLength: 1, width: 16, height: 16 }
       }
     })),
+    ensureActive: () => null,
+    allowRenderPreview: false
+  });
+  const res = service.renderPreview({ mode: 'fixed' });
+  assert.equal(res.ok, false);
+  if (!res.ok) {
+    assert.equal(res.error.code, 'invalid_state');
+    assert.equal(res.error.message, normalizedMessage(PREVIEW_UNSUPPORTED_NO_RENDER));
+  }
+}
+
+{
+  const service = new RenderService({
+    editor: createEditor(() => ({
+      result: {
+        kind: 'single',
+        frameCount: 1,
+        image: { mime: 'image/png', dataUri: 'data:image/png;base64,AAAA', byteLength: 1, width: 16, height: 16 }
+      }
+    })),
     ensureActive: () => ({ code: 'invalid_state', message: 'inactive' })
   });
   const res = service.renderPreview({ mode: 'fixed' });
@@ -96,7 +117,10 @@ const createTmpStore = (saveDataUri: TmpStorePort['saveDataUri']): TmpStorePort 
   });
   const res = service.renderPreview({ mode: 'fixed', saveToTmp: true });
   assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.error.message, normalizedMessage(PREVIEW_IMAGE_DATA_UNAVAILABLE));
+  if (!res.ok) {
+    assert.equal(res.error.code, 'invalid_state');
+    assert.equal(res.error.message, normalizedMessage(PREVIEW_IMAGE_DATA_UNAVAILABLE));
+  }
 }
 
 {
@@ -112,7 +136,10 @@ const createTmpStore = (saveDataUri: TmpStorePort['saveDataUri']): TmpStorePort 
   });
   const res = service.renderPreview({ mode: 'fixed', saveToTmp: true });
   assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.error.message, normalizedMessage(TMP_STORE_UNAVAILABLE));
+  if (!res.ok) {
+    assert.equal(res.error.code, 'invalid_state');
+    assert.equal(res.error.message, normalizedMessage(TMP_STORE_UNAVAILABLE));
+  }
 }
 
 {
@@ -169,7 +196,10 @@ const createTmpStore = (saveDataUri: TmpStorePort['saveDataUri']): TmpStorePort 
   });
   const res = service.renderPreview({ mode: 'turntable', saveToTmp: true });
   assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.error.message, normalizedMessage(PREVIEW_FRAMES_UNAVAILABLE));
+  if (!res.ok) {
+    assert.equal(res.error.code, 'invalid_state');
+    assert.equal(res.error.message, normalizedMessage(PREVIEW_FRAMES_UNAVAILABLE));
+  }
 }
 
 {
@@ -182,7 +212,10 @@ const createTmpStore = (saveDataUri: TmpStorePort['saveDataUri']): TmpStorePort 
   });
   const res = service.renderPreview({ mode: 'turntable', saveToTmp: true });
   assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.error.message, normalizedMessage(PREVIEW_FRAME_DATA_UNAVAILABLE));
+  if (!res.ok) {
+    assert.equal(res.error.code, 'invalid_state');
+    assert.equal(res.error.message, normalizedMessage(PREVIEW_FRAME_DATA_UNAVAILABLE));
+  }
 }
 
 {

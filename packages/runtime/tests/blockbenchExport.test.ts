@@ -57,10 +57,10 @@ const withGlobalsAsync = async (overrides: TestGlobals, run: () => Promise<void>
 };
 
 {
-  const adapter = new BlockbenchExport(noopLog);
+    const adapter = new BlockbenchExport(noopLog);
   withGlobals({}, () => {
     const error = adapter.exportNative({ formatId: 'entity_rig', destPath: 'out.json' });
-    assert.equal(error?.code, 'not_implemented');
+    assert.equal(error?.code, 'invalid_state');
   });
 }
 
@@ -75,7 +75,7 @@ const withGlobalsAsync = async (overrides: TestGlobals, run: () => Promise<void>
     },
     () => {
       const error = adapter.exportNative({ formatId: 'entity_rig', destPath: 'out.json' });
-      assert.equal(error?.code, 'not_implemented');
+      assert.equal(error?.code, 'invalid_state');
     }
   );
 }
@@ -155,7 +155,7 @@ const withGlobalsAsync = async (overrides: TestGlobals, run: () => Promise<void>
     },
     () => {
       const error = adapter.exportNative({ formatId: 'entity_rig', destPath: 'out.json' });
-      assert.equal(error?.code, 'not_implemented');
+      assert.equal(error?.code, 'invalid_state');
     }
   );
 }
@@ -173,7 +173,7 @@ const withGlobalsAsync = async (overrides: TestGlobals, run: () => Promise<void>
     },
     () => {
       const error = adapter.exportNative({ formatId: 'entity_rig', destPath: 'out.json' });
-      assert.equal(error?.code, 'not_implemented');
+      assert.equal(error?.code, 'invalid_state');
     }
   );
 }
@@ -287,7 +287,7 @@ registerAsync(
         },
         async () => {
           const error = await adapter.exportGltf({ destPath: 'out.glb' });
-          assert.equal(error?.code, 'not_implemented');
+          assert.equal(error?.code, 'invalid_state');
         }
       );
     }
@@ -434,7 +434,7 @@ registerAsync(
         },
         async () => {
           const error = await adapter.exportCodec?.({ codecId: 'fbx', destPath: 'asset.fbx' });
-          assert.equal(error?.code, 'not_implemented');
+          assert.equal(error?.code, 'invalid_state');
         }
       );
     }

@@ -14,7 +14,10 @@ import {
   type ProjectRepository,
   type ProjectRepositoryScope
 } from '@ashfox/backend-core';
+import type { NativeJobResult } from '@ashfox/native-pipeline/types';
 import type { ToolName, ToolPayloadMap, ToolResponse, ToolResultMap } from '@ashfox/contracts/types/internal';
+import type { Logger } from '@ashfox/runtime/logging';
+import { processOneNativeJob } from '../../worker/src/nativeJobProcessor';
 import { GatewayDispatcher } from '../src/dispatcher';
 import { registerAsync } from './helpers';
 
@@ -24,6 +27,16 @@ type SessionState = {
 
 const EXPORT_BUCKET = 'exports';
 const DEFAULT_TENANT = 'default-tenant';
+const PNG_1X1_TRANSPARENT =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5+r5kAAAAASUVORK5CYII=';
+
+const createNoopLogger = (): Logger => ({
+  log: () => {},
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {}
+});
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -169,6 +182,21 @@ const injectTextureIntoRecord = (
     };
   }
   return nextSession;
+};
+
+const injectTextureAssetIntoRecord = (
+  state: unknown,
+  asset: { id?: string; name: string; dataUri?: string; width?: number; height?: number }
+): unknown => {
+  if (isRecord(state) && isRecord(state.session)) {
+    const rawAssets = (state as { textureAssets?: unknown }).textureAssets;
+    const textureAssets = Array.isArray(rawAssets) ? [...rawAssets] : [];
+    return {
+      ...state,
+      textureAssets: [...textureAssets, asset]
+    };
+  }
+  return state;
 };
 
 const toExportPointer = (projectId: string, filePath: string): BlobPointer => ({
@@ -330,6 +358,58 @@ registerAsync(
     const northFace = bodyUsage?.faces.find((face) => face.face === 'north');
     assert.ok(northFace);
 
+    // TKT-20260217-004: read_texture saveToTmp should work in native profile.
+    const ensure004 = await callTool(dispatcher, 'ensure_project', {
+      projectId: 'tkt-004',
+      name: 'texture-read-004',
+      onMissing: 'create'
+    } as ToolPayloadMap['ensure_project'] & { projectId: string });
+    assert.equal(ensure004.ok, true);
+
+    const record004 = await persistence.projectRepository.find({
+      tenantId: DEFAULT_TENANT,
+      projectId: 'tkt-004'
+    });
+    assert.ok(record004);
+    if (!record004) return;
+    const stateWithTexture004 = injectTextureIntoRecord(record004.state, {
+      id: 'atlas-read-id',
+      name: 'atlas-read',
+      width: 1,
+      height: 1
+    });
+    const stateWithAssets004 = injectTextureAssetIntoRecord(stateWithTexture004, {
+      id: 'atlas-read-id',
+      name: 'atlas-read',
+      dataUri: PNG_1X1_TRANSPARENT,
+      width: 1,
+      height: 1
+    });
+    await persistence.projectRepository.save({
+      ...record004,
+      state: stateWithAssets004,
+      updatedAt: new Date().toISOString()
+    });
+
+    const readTextureTmp = await callTool(dispatcher, 'read_texture', {
+      projectId: 'tkt-004',
+      name: 'atlas-read',
+      saveToTmp: true,
+      tmpPrefix: 'native',
+      tmpName: 'atlas-read'
+    } as ToolPayloadMap['read_texture'] & { projectId: string });
+    assert.equal(readTextureTmp.ok, true);
+    if (readTextureTmp.ok) {
+      assert.equal(readTextureTmp.data.texture.name, 'atlas-read');
+      assert.equal(readTextureTmp.data.texture.mimeType, 'image/png');
+      const savedPath = readTextureTmp.data.saved?.texture?.path;
+      assert.equal(typeof savedPath, 'string');
+      if (typeof savedPath === 'string') {
+        assert.equal(fs.existsSync(savedPath), true);
+        fs.unlinkSync(savedPath);
+      }
+    }
+
     const invalidState = await callTool(dispatcher, 'add_bone', {
       projectId: 'tkt-002-empty',
       name: 'orphan'
@@ -346,6 +426,158 @@ registerAsync(
     if (!invalidPayload.ok) {
       assert.equal(invalidPayload.error.code, 'invalid_payload');
     }
+
+    // TKT-20260217-005: worker should execute real backend tool path (no payload-echo placeholder).
+    const workerLogger = createNoopLogger();
+
+    const ensureWorkerProject = await callTool(dispatcher, 'ensure_project', {
+      projectId: 'worker-job-1',
+      name: 'worker-job-1',
+      onMissing: 'create'
+    } as ToolPayloadMap['ensure_project'] & { projectId: string });
+    assert.equal(ensureWorkerProject.ok, true);
+
+    const addWorkerRoot = await callTool(dispatcher, 'add_bone', {
+      projectId: 'worker-job-1',
+      name: 'root',
+      pivot: [0, 0, 0]
+    } as ToolPayloadMap['add_bone'] & { projectId: string });
+    assert.equal(addWorkerRoot.ok, true);
+
+    const addWorkerCube = await callTool(dispatcher, 'add_cube', {
+      projectId: 'worker-job-1',
+      name: 'body',
+      bone: 'root',
+      from: [0, 0, 0],
+      to: [2, 2, 2]
+    } as ToolPayloadMap['add_cube'] & { projectId: string });
+    assert.equal(addWorkerCube.ok, true);
+
+    let gltfResult: NativeJobResult | undefined;
+    await processOneNativeJob({
+      workerId: 'worker-native-e2e',
+      logger: workerLogger,
+      enabled: true,
+      backend: engine,
+      store: {
+        claimNextJob: async () => ({
+          id: 'job-native-1',
+          projectId: 'worker-job-1',
+          kind: 'gltf.convert',
+          payload: { codecId: 'gltf', optimize: true },
+          status: 'running',
+          attemptCount: 1,
+          maxAttempts: 3,
+          leaseMs: 30000,
+          createdAt: new Date().toISOString()
+        }),
+        completeJob: async (_jobId: string, result?: NativeJobResult) => {
+          gltfResult = result;
+          return null;
+        },
+        failJob: async (_jobId: string, message: string) => {
+          throw new Error(`unexpected gltf failure: ${message}`);
+        }
+      }
+    });
+    assert.equal(gltfResult?.kind, 'gltf.convert');
+    assert.equal(gltfResult?.status, 'converted');
+    assert.equal(typeof gltfResult?.output?.exportPath, 'string');
+
+    let codecFailureMessage = '';
+    await processOneNativeJob({
+      workerId: 'worker-native-e2e',
+      logger: workerLogger,
+      enabled: true,
+      backend: engine,
+      store: {
+        claimNextJob: async () => ({
+          id: 'job-native-codec-fail',
+          projectId: 'worker-job-1',
+          kind: 'gltf.convert',
+          payload: { codecId: 'unknown-codec' },
+          status: 'running',
+          attemptCount: 1,
+          maxAttempts: 3,
+          leaseMs: 30000,
+          createdAt: new Date().toISOString()
+        }),
+        completeJob: async () => {
+          throw new Error('unknown codec should fail');
+        },
+        failJob: async (_jobId: string, message: string) => {
+          codecFailureMessage = message;
+          return null;
+        }
+      }
+    });
+    assert.equal(codecFailureMessage.includes('export failed (unsupported_format)'), true);
+
+    let preflightResult: NativeJobResult | undefined;
+    await processOneNativeJob({
+      workerId: 'worker-native-e2e',
+      logger: workerLogger,
+      enabled: true,
+      backend: engine,
+      store: {
+        claimNextJob: async () => ({
+          id: 'job-native-2',
+          projectId: 'worker-job-1',
+          kind: 'texture.preflight',
+          payload: {
+            textureIds: ['missing-texture'],
+            maxDimension: 16,
+            allowNonPowerOfTwo: false
+          },
+          status: 'running',
+          attemptCount: 1,
+          maxAttempts: 3,
+          leaseMs: 30000,
+          createdAt: new Date().toISOString()
+        }),
+        completeJob: async (_jobId: string, result?: NativeJobResult) => {
+          preflightResult = result;
+          return null;
+        },
+        failJob: async (_jobId: string, message: string) => {
+          throw new Error(`unexpected preflight failure: ${message}`);
+        }
+      }
+    });
+    assert.equal(preflightResult?.kind, 'texture.preflight');
+    assert.equal(preflightResult?.status, 'failed');
+    assert.equal(preflightResult?.summary?.checked, 0);
+    assert.equal(Array.isArray(preflightResult?.diagnostics), true);
+    if (Array.isArray(preflightResult?.diagnostics)) {
+      assert.equal(preflightResult.diagnostics.some((entry) => entry.includes('missing texture id(s): missing-texture')), true);
+    }
+
+    let unconfiguredFailMessage = '';
+    await processOneNativeJob({
+      workerId: 'worker-native-e2e',
+      logger: workerLogger,
+      enabled: true,
+      store: {
+        claimNextJob: async () => ({
+          id: 'job-native-3',
+          projectId: 'worker-job-1',
+          kind: 'gltf.convert',
+          status: 'running',
+          attemptCount: 1,
+          maxAttempts: 3,
+          leaseMs: 30000,
+          createdAt: new Date().toISOString()
+        }),
+        completeJob: async () => {
+          throw new Error('completeJob must not run without backend');
+        },
+        failJob: async (_jobId: string, message: string) => {
+          unconfiguredFailMessage = message;
+          return null;
+        }
+      }
+    });
+    assert.equal(unconfiguredFailMessage, 'Engine backend is required for native job execution.');
 
     // TKT-20260214-003: export e2e + oracle gate + render_preview unsupported
     const fx006Dir = path.join(oracleFixturesRoot, 'FX-006');
@@ -402,6 +634,21 @@ registerAsync(
       assert.deepEqual(exportFx006Again.data, exportFx006.data);
     }
 
+    const capabilitiesFx006 = await callTool(
+      dispatcher,
+      'list_capabilities',
+      {} as ToolPayloadMap['list_capabilities'] & { projectId?: string }
+    );
+    assert.equal(capabilitiesFx006.ok, true);
+    if (capabilitiesFx006.ok) {
+      const toolAvailability = capabilitiesFx006.data.toolAvailability ?? {};
+      assert.equal(toolAvailability.export?.available, true);
+      assert.equal(toolAvailability.render_preview?.available, false);
+      assert.equal(toolAvailability.reload_plugins?.available, false);
+      assert.equal(toolAvailability.export_trace_log?.available, false);
+      assert.equal(toolAvailability.paint_faces?.available, false);
+    }
+
     const previewFx006 = await callTool(dispatcher, 'render_preview', {
       projectId: 'fx006',
       mode: 'fixed'
@@ -409,20 +656,19 @@ registerAsync(
     assert.equal(previewFx006.ok, false);
     if (!previewFx006.ok) {
       assert.equal(previewFx006.error.code, fx006PreviewErr.code);
-      assert.equal(
-        previewFx006.error.message.includes(fx006PreviewErr.message) ||
-          previewFx006.error.message.includes('disabled in native production profile'),
-        true
-      );
+      assert.equal(previewFx006.error.message.includes(fx006PreviewErr.message), true);
+      assert.equal(previewFx006.error.message.includes('disabled in native production profile'), false);
     }
 
     const reloadPluginsFx006 = await callTool(dispatcher, 'reload_plugins', {
-      projectId: 'fx006'
+      projectId: 'fx006',
+      confirm: true
     } as ToolPayloadMap['reload_plugins'] & { projectId: string });
     assert.equal(reloadPluginsFx006.ok, false);
     if (!reloadPluginsFx006.ok) {
       assert.equal(reloadPluginsFx006.error.code, 'invalid_state');
-      assert.equal(reloadPluginsFx006.error.message.includes('disabled in native production profile'), true);
+      assert.equal(reloadPluginsFx006.error.message.includes('Plugin reload is not available in this host.'), true);
+      assert.equal(reloadPluginsFx006.error.message.includes('disabled in native production profile'), false);
     }
 
     const traceLogFx006 = await callTool(dispatcher, 'export_trace_log', {
@@ -432,7 +678,8 @@ registerAsync(
     assert.equal(traceLogFx006.ok, false);
     if (!traceLogFx006.ok) {
       assert.equal(traceLogFx006.error.code, 'invalid_state');
-      assert.equal(traceLogFx006.error.message.includes('disabled in native production profile'), true);
+      assert.equal(traceLogFx006.error.message.includes('Trace log export is unavailable.'), true);
+      assert.equal(traceLogFx006.error.message.includes('disabled in native production profile'), false);
     }
 
     const paintFacesFx006 = await callTool(dispatcher, 'paint_faces', {
@@ -441,7 +688,7 @@ registerAsync(
     assert.equal(paintFacesFx006.ok, false);
     if (!paintFacesFx006.ok) {
       assert.equal(paintFacesFx006.error.code, 'invalid_state');
-      assert.equal(paintFacesFx006.error.message.includes('disabled in native production profile'), true);
+      assert.equal(paintFacesFx006.error.message.includes('disabled in native production profile'), false);
     }
 
     const fx007Dir = path.join(oracleFixturesRoot, 'FX-007');

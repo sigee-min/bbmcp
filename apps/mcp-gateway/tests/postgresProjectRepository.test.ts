@@ -222,5 +222,18 @@ registerAsync(
 
     await repository.close();
     assert.equal(fakePool.closed, true);
+
+    assert.throws(
+      () =>
+        new PostgresProjectRepository({
+          connectionString: 'postgresql://fake',
+          schema: 'bad-schema-name',
+          tableName: 'ashfox_projects',
+          migrationsTableName: 'ashfox_schema_migrations',
+          maxConnections: 1,
+          poolFactory: () => fakePool
+        }),
+      /schema must match/
+    );
   })()
 );

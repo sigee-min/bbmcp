@@ -1,6 +1,6 @@
 import type { Logger } from '../../logging';
 import type { ResourceStore } from '../../ports/resources';
-import type { MetricsRegistry } from '../../observability/metrics';
+import type { MetricsRegistry } from '../../observability';
 import type { McpServerConfig, JsonRpcResponse } from './types';
 import type { ToolExecutor } from './executor';
 import type { SessionStore } from './session';

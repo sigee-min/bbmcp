@@ -210,7 +210,7 @@ export class ToolDispatcherImpl implements Dispatcher {
     payload: ToolPayloadMap['export_trace_log']
   ): ToolResponse<ToolResultMap['export_trace_log']> {
     if (!this.traceLogService) {
-      return err('not_implemented', 'Trace log export is unavailable.', { reason: 'trace_log_service_missing' });
+      return err('invalid_state', 'Trace log export is unavailable.', { reason: 'trace_log_service_missing' });
     }
     return toToolResponse(this.traceLogService.exportTraceLog(payload));
   }
@@ -235,7 +235,6 @@ export class ToolDispatcherImpl implements Dispatcher {
   }
 
 }
-
 
 
 

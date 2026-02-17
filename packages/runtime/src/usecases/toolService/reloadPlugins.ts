@@ -19,7 +19,7 @@ export const runReloadPlugins = (
     });
   }
   if (!host) {
-    return fail({ code: 'not_implemented', message: PLUGIN_RELOAD_UNAVAILABLE });
+    return fail({ code: 'invalid_state', message: PLUGIN_RELOAD_UNAVAILABLE });
   }
   const delayMs = normalizeReloadDelay(payload.delayMs);
   const err = host.schedulePluginReload(delayMs);
@@ -33,4 +33,3 @@ const normalizeReloadDelay = (value?: number): number => {
   if (numeric < 0) return 0;
   return Math.min(Math.trunc(numeric), 10_000);
 };
-

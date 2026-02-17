@@ -2,6 +2,9 @@
   "name": "@ashfox/mcp-gateway",
   "version": "0.0.2",
   "private": true,
+  "exports": {
+    "./persistence": "./src/persistence/index.ts"
+  },
   "scripts": {
     "dev": "ts-node src/index.ts",
     "start": "ts-node src/index.ts",

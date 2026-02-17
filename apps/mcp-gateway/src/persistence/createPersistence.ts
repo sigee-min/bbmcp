@@ -32,6 +32,22 @@ type Closable = {
   close?: () => Promise<void> | void;
 };
 
+const MIN_NODE_RUNTIME_MAJOR = 22;
+
+const readNodeRuntimeMajor = (): number => {
+  const rawMajor = process.versions.node.split('.')[0];
+  const major = Number.parseInt(rawMajor, 10);
+  return Number.isFinite(major) ? major : 0;
+};
+
+const assertNodeRuntimePreflight = (): void => {
+  const major = readNodeRuntimeMajor();
+  if (major >= MIN_NODE_RUNTIME_MAJOR) return;
+  throw new Error(
+    `Unsupported Node.js runtime ${process.versions.node}. Ashfox persistence requires Node.js ${MIN_NODE_RUNTIME_MAJOR}+ (node:sqlite DatabaseSync).`
+  );
+};
+
 const resolveSqliteRuntimeAvailability = (): { available: boolean; reason?: string } => {
   try {
     type SqliteModule = { DatabaseSync?: unknown };
@@ -339,6 +355,7 @@ export const createGatewayPersistence = (
   env: NodeJS.ProcessEnv = process.env,
   options: CreateGatewayPersistenceOptions = {}
 ): PersistencePorts => {
+  assertNodeRuntimePreflight();
   const selection = resolvePersistenceSelection(env);
   const repository = createProjectRepository(selection, env);
   const blobStore = createBlobStore(selection, env);

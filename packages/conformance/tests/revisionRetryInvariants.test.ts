@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { callWithAutoRetry } from '../../../packages/runtime/src/dispatcher/retryPolicy';
+import { callWithAutoRetry } from '@ashfox/runtime/conformance';
 
 const noopLog = {
   debug: () => undefined,

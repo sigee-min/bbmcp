@@ -206,7 +206,7 @@ registerAsync(
       const res = await service.exportModel({ format: 'native_codec', codecId: 'obj', destPath: 'model.obj' });
       assert.equal(res.ok, false);
       if (!res.ok) {
-        assert.equal(res.error.code, 'not_implemented');
+        assert.equal(res.error.code, 'invalid_state');
       }
     }
 
@@ -271,19 +271,19 @@ registerAsync(
     {
       const { service } = createHarness({
         exportPolicy: 'strict',
-        nativeError: { code: 'not_implemented', message: 'native unavailable' }
+        nativeError: { code: 'invalid_state', message: 'native unavailable' }
       });
       const res = await service.exportModel({ format: 'gecko_geo_anim', destPath: 'out.json' });
       assert.equal(res.ok, false);
       if (!res.ok) {
-        assert.equal(res.error.code, 'not_implemented');
+        assert.equal(res.error.code, 'invalid_state');
       }
     }
 
     {
       const { service, writes } = createHarness({
         exportPolicy: 'best_effort',
-        nativeError: { code: 'not_implemented', message: 'native unavailable' }
+        nativeError: { code: 'invalid_state', message: 'native unavailable' }
       });
       const res = await service.exportModel({
         format: 'gecko_geo_anim',
@@ -304,7 +304,28 @@ registerAsync(
     {
       const { service, writes } = createHarness({
         exportPolicy: 'best_effort',
-        nativeError: { code: 'not_implemented', message: 'native unavailable' }
+        nativeError: { code: 'invalid_state', message: 'native unavailable' }
+      });
+      const res = await service.exportModel({
+        format: 'gecko_geo_anim',
+        destPath: 'out.json',
+        options: { includeDiagnostics: true }
+      });
+      assert.equal(res.ok, true);
+      assert.equal(writes.length, 2);
+      assert.equal(writes[0].path, 'out.geo.json');
+      assert.equal(writes[1].path, 'out.animation.json');
+      if (res.ok) {
+        assert.equal(res.value.path, 'out.geo.json');
+        assert.equal(res.value.stage, 'fallback');
+        assert.equal(res.value.warnings?.includes('native unavailable'), true);
+      }
+    }
+
+    {
+      const { service, writes } = createHarness({
+        exportPolicy: 'best_effort',
+        nativeError: { code: 'invalid_state', message: 'native unavailable' }
       });
       const res = await service.exportModel({
         format: 'gecko_geo_anim',
@@ -313,7 +334,7 @@ registerAsync(
       });
       assert.equal(res.ok, false);
       if (!res.ok) {
-        assert.equal(res.error.code, 'not_implemented');
+        assert.equal(res.error.code, 'invalid_state');
       }
       assert.equal(writes.length, 0);
     }
@@ -371,7 +392,7 @@ registerAsync(
     {
       const { service, writes } = createHarness({
         exportPolicy: 'best_effort',
-        gltfError: { code: 'not_implemented', message: 'gltf unavailable' }
+        gltfError: { code: 'invalid_state', message: 'gltf unavailable' }
       });
       const res = await service.exportModel({ format: 'gltf', destPath: 'model.gltf' });
       assert.equal(res.ok, true);

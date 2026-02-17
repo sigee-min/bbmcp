@@ -66,7 +66,7 @@ export const saveDataUriToTmp = (
     optional: true
   });
   if (!fs || !path) {
-    return { ok: false, error: toolError('not_implemented', TMP_STORE_FILESYSTEM_UNAVAILABLE) };
+    return { ok: false, error: toolError('invalid_state', TMP_STORE_FILESYSTEM_UNAVAILABLE) };
   }
   const root = options?.cwd ?? (typeof process !== 'undefined' && process.cwd ? process.cwd() : '.');
   const baseDir = path.resolve(root, '.ashfox', 'tmp');
@@ -107,7 +107,6 @@ export class LocalTmpStore implements TmpStorePort {
     return saveDataUriToTmp(dataUri, options);
   }
 }
-
 
 
 

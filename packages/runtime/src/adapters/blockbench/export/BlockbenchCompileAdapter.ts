@@ -44,15 +44,15 @@ export class BlockbenchCompileAdapter {
     const format = getFormatByLookupIds(resolveNativeFormatLookupIds(formatId));
     const compiler = resolveFormatCompiler(format);
     if (!compiler) {
-      return { ok: false, error: { code: 'not_implemented', message: ADAPTER_NATIVE_COMPILER_UNAVAILABLE(formatId) } };
+      return { ok: false, error: { code: 'invalid_state', message: ADAPTER_NATIVE_COMPILER_UNAVAILABLE(formatId) } };
     }
     try {
       const compiled = compiler();
       if (compiled === null || compiled === undefined) {
-        return { ok: false, error: { code: 'not_implemented', message: ADAPTER_NATIVE_COMPILER_EMPTY } };
+        return { ok: false, error: { code: 'invalid_state', message: ADAPTER_NATIVE_COMPILER_EMPTY } };
       }
       if (isThenable(compiled)) {
-        return { ok: false, error: { code: 'not_implemented', message: ADAPTER_NATIVE_COMPILER_ASYNC_UNSUPPORTED } };
+        return { ok: false, error: { code: 'invalid_state', message: ADAPTER_NATIVE_COMPILER_ASYNC_UNSUPPORTED } };
       }
       return { ok: true, compiled };
     } catch (err) {
@@ -65,7 +65,7 @@ export class BlockbenchCompileAdapter {
   async compileGltf(): Promise<CompileCodecResult> {
     const selected = resolveGltfCodec();
     if (!selected) {
-      return { ok: false, error: { code: 'not_implemented', message: ADAPTER_GLTF_CODEC_UNAVAILABLE } };
+      return { ok: false, error: { code: 'invalid_state', message: ADAPTER_GLTF_CODEC_UNAVAILABLE } };
     }
     return await this.compileCodecSelection(selected);
   }
@@ -73,7 +73,7 @@ export class BlockbenchCompileAdapter {
   async compileCodec(codecId: string): Promise<CompileCodecResult> {
     const selected = resolveCodec(codecId);
     if (!selected) {
-      return { ok: false, error: { code: 'not_implemented', message: ADAPTER_NATIVE_CODEC_UNAVAILABLE(codecId) } };
+      return { ok: false, error: { code: 'invalid_state', message: ADAPTER_NATIVE_CODEC_UNAVAILABLE(codecId) } };
     }
     return await this.compileCodecSelection(selected);
   }
@@ -91,13 +91,13 @@ export class BlockbenchCompileAdapter {
     if (!compiler) {
       return {
         ok: false,
-        error: { code: 'not_implemented', message: ADAPTER_NATIVE_COMPILER_UNAVAILABLE(selection.id) }
+        error: { code: 'invalid_state', message: ADAPTER_NATIVE_COMPILER_UNAVAILABLE(selection.id) }
       };
     }
     try {
       const compiled = await resolveCompile(compiler());
       if (compiled === null || compiled === undefined) {
-        return { ok: false, error: { code: 'not_implemented', message: ADAPTER_NATIVE_COMPILER_EMPTY } };
+        return { ok: false, error: { code: 'invalid_state', message: ADAPTER_NATIVE_COMPILER_EMPTY } };
       }
       return {
         ok: true,

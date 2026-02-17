@@ -63,7 +63,7 @@ class FakeCube {
         faces: { north: [0, 0, 16, 16] }
       });
       assert.notEqual(err, null);
-      assert.equal(err?.code, 'not_implemented');
+      assert.equal(err?.code, 'invalid_state');
     }
   );
 }
@@ -135,4 +135,3 @@ class FakeCube {
   assert.equal(cube.faces.unknown, undefined);
   assert.equal(cube.autouv, 0);
 }
-

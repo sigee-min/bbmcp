@@ -94,5 +94,23 @@ registerAsync(
       key: 'path/to/file.json'
     });
     assert.equal(afterDelete, null);
+
+    await assert.rejects(
+      () =>
+        blobStore.put({
+          ...input,
+          bucket: '   '
+        }),
+      /bucket must be a non-empty string\./
+    );
+
+    await assert.rejects(
+      () =>
+        blobStore.put({
+          ...input,
+          bucket: 'bad/bucket'
+        }),
+      /bucket must not include "\/"\./
+    );
   })()
 );

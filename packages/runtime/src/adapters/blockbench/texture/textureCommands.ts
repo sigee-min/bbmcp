@@ -1,6 +1,5 @@
 import type { Logger } from '../../../logging';
 import { errorMessage } from '../../../logging';
-import { toolError } from '../../../shared/tooling/toolResponse';
 import type {
   DeleteTextureCommand,
   ImportTextureCommand,
@@ -12,6 +11,7 @@ import type {
 import type { ToolError } from '@ashfox/contracts/types/internal';
 import type { PreviewItem, TextureConstructor, TextureInstance } from '../../../types/blockbench';
 import { readGlobals, readTextureId, readTextureSize, removeEntity, renameEntity, withUndo } from '../blockbenchUtils';
+import { withMappedAdapterError } from '../adapterErrors';
 import { getTextureApi } from '../blockbenchAdapterUtils';
 import {
   ADAPTER_TEXTURE_CANVAS_UNAVAILABLE,
@@ -31,131 +31,153 @@ import { findTextureRef, listTextureStats } from './textureLookup';
 type TextureWriteCommand = ImportTextureCommand | UpdateTextureCommand;
 
 export const runImportTexture = (log: Logger, params: ImportTextureCommand): ToolError | null => {
-  try {
-    const api = getTextureApi();
-    if ('error' in api) return api.error;
-    const TextureCtor = api.TextureCtor as TextureConstructor;
-    let imageMissing = false;
-    withUndo({ textures: true }, 'Import texture', () => {
-      const tex = new TextureCtor({ name: params.name, width: params.width, height: params.height });
-      if (params.id) tex.ashfoxId = params.id;
-      if (typeof tex.add === 'function') {
-        tex.add();
+  return withMappedAdapterError(
+    log,
+    {
+      context: 'texture_import',
+      fallbackMessage: 'texture import failed',
+      logLabel: 'texture import error',
+      normalizeMessage: false
+    },
+    () => {
+      const api = getTextureApi();
+      if ('error' in api) return api.error;
+      const TextureCtor = api.TextureCtor as TextureConstructor;
+      let imageMissing = false;
+      withUndo({ textures: true }, 'Import texture', () => {
+        const tex = new TextureCtor({ name: params.name, width: params.width, height: params.height });
+        if (params.id) tex.ashfoxId = params.id;
+        if (typeof tex.add === 'function') {
+          tex.add();
+        }
+        if (!applyTextureContent(tex, params)) {
+          imageMissing = true;
+          return;
+        }
+        tex.select?.();
+      });
+      if (imageMissing) {
+        return { code: 'invalid_state', message: ADAPTER_TEXTURE_CANVAS_UNAVAILABLE };
       }
-      if (!applyTextureContent(tex, params)) {
-        imageMissing = true;
-        return;
-      }
-      tex.select?.();
-    });
-    if (imageMissing) {
-      return { code: 'not_implemented', message: ADAPTER_TEXTURE_CANVAS_UNAVAILABLE };
-    }
-    refreshTextureViewport(log);
-    log.info('texture imported', { name: params.name });
-    return null;
-  } catch (err) {
-    const message = errorMessage(err, 'texture import failed');
-    log.error('texture import error', { message });
-    return { code: 'io_error', message };
-  }
+      refreshTextureViewport(log);
+      log.info('texture imported', { name: params.name });
+      return null;
+    },
+    (error) => ({ code: 'io_error', message: error.message })
+  );
 };
 
 export const runUpdateTexture = (log: Logger, params: UpdateTextureCommand): ToolError | null => {
-  try {
-    const api = getTextureApi();
-    if ('error' in api) return api.error;
-    const target = findTextureRef(params.name, params.id);
-    if (!target) {
-      const label = params.id ?? params.name ?? 'unknown';
-      return { code: 'invalid_payload', message: TEXTURE_NOT_FOUND(label) };
-    }
-    if (params.id) target.ashfoxId = params.id;
-    let imageMissing = false;
-    withUndo({ textures: true }, 'Update texture', () => {
-      if (params.newName && params.newName !== target.name) {
-        renameEntity(target, params.newName);
+  return withMappedAdapterError(
+    log,
+    {
+      context: 'texture_update',
+      fallbackMessage: 'texture update failed',
+      logLabel: 'texture update error',
+      normalizeMessage: false
+    },
+    () => {
+      const api = getTextureApi();
+      if ('error' in api) return api.error;
+      const target = findTextureRef(params.name, params.id);
+      if (!target) {
+        const label = params.id ?? params.name ?? 'unknown';
+        return { code: 'invalid_payload', message: TEXTURE_NOT_FOUND(label) };
       }
-      if (!applyTextureContent(target, params)) imageMissing = true;
-    });
-    if (imageMissing) {
-      return { code: 'not_implemented', message: ADAPTER_TEXTURE_CANVAS_UNAVAILABLE };
-    }
-    refreshTextureViewport(log);
-    log.info('texture updated', { name: params.name, newName: params.newName });
-    return null;
-  } catch (err) {
-    const message = errorMessage(err, 'texture update failed');
-    log.error('texture update error', { message });
-    return { code: 'io_error', message };
-  }
+      if (params.id) target.ashfoxId = params.id;
+      let imageMissing = false;
+      withUndo({ textures: true }, 'Update texture', () => {
+        if (params.newName && params.newName !== target.name) {
+          renameEntity(target, params.newName);
+        }
+        if (!applyTextureContent(target, params)) imageMissing = true;
+      });
+      if (imageMissing) {
+        return { code: 'invalid_state', message: ADAPTER_TEXTURE_CANVAS_UNAVAILABLE };
+      }
+      refreshTextureViewport(log);
+      log.info('texture updated', { name: params.name, newName: params.newName });
+      return null;
+    },
+    (error) => ({ code: 'io_error', message: error.message })
+  );
 };
 
 export const runDeleteTexture = (log: Logger, params: DeleteTextureCommand): ToolError | null => {
-  try {
-    const api = getTextureApi();
-    if ('error' in api) return api.error;
-    const TextureCtor = api.TextureCtor as TextureConstructor;
-    const target = findTextureRef(params.name, params.id);
-    if (!target) {
-      const label = params.id ?? params.name ?? 'unknown';
-      return { code: 'invalid_payload', message: TEXTURE_NOT_FOUND(label) };
-    }
-    withUndo({ textures: true }, 'Delete texture', () => {
-      if (removeEntity(target)) return;
-      const list = TextureCtor?.all;
-      if (Array.isArray(list)) {
-        const idx = list.indexOf(target);
-        if (idx >= 0) list.splice(idx, 1);
+  return withMappedAdapterError(
+    log,
+    {
+      context: 'texture_delete',
+      fallbackMessage: 'texture delete failed',
+      logLabel: 'texture delete error'
+    },
+    () => {
+      const api = getTextureApi();
+      if ('error' in api) return api.error;
+      const TextureCtor = api.TextureCtor as TextureConstructor;
+      const target = findTextureRef(params.name, params.id);
+      if (!target) {
+        const label = params.id ?? params.name ?? 'unknown';
+        return { code: 'invalid_payload', message: TEXTURE_NOT_FOUND(label) };
       }
-    });
-    refreshTextureViewport(log);
-    log.info('texture deleted', { name: target?.name ?? params.name });
-    return null;
-  } catch (err) {
-    const message = errorMessage(err, 'texture delete failed');
-    log.error('texture delete error', { message });
-    return toolError('unknown', message, { reason: 'adapter_exception', context: 'texture_delete' });
-  }
+      withUndo({ textures: true }, 'Delete texture', () => {
+        if (removeEntity(target)) return;
+        const list = TextureCtor?.all;
+        if (Array.isArray(list)) {
+          const idx = list.indexOf(target);
+          if (idx >= 0) list.splice(idx, 1);
+        }
+      });
+      refreshTextureViewport(log);
+      log.info('texture deleted', { name: target?.name ?? params.name });
+      return null;
+    },
+    (error) => error
+  );
 };
 
 export const runReadTexture = (
   log: Logger,
   params: ReadTextureCommand
 ): { result?: TextureSource; error?: ToolError } => {
-  try {
-    const api = getTextureApi();
-    if ('error' in api) return { error: api.error };
-    const target = findTextureRef(params.name, params.id);
-    if (!target) {
-      const label = params.id ?? params.name ?? 'unknown';
-      return { error: { code: 'invalid_payload', message: TEXTURE_NOT_FOUND(label) } };
-    }
-    const size = readTextureSize(target);
-    const width = size.width;
-    const height = size.height;
-    const path = target?.path ?? target?.source;
-    const dataUri = getTextureDataUri(target);
-    const image = (target?.img ?? target?.canvas) as CanvasImageSource | null;
-    if (!dataUri && !image) {
-      return { error: { code: 'not_implemented', message: ADAPTER_TEXTURE_DATA_UNAVAILABLE } };
-    }
-    return {
-      result: {
-        id: readTextureId(target) ?? undefined,
-        name: target?.name ?? target?.id ?? 'texture',
-        width,
-        height,
-        path,
-        dataUri: dataUri ?? undefined,
-        image: image ?? undefined
+  return withMappedAdapterError(
+    log,
+    {
+      context: 'texture_read',
+      fallbackMessage: 'texture read failed',
+      logLabel: 'texture read error'
+    },
+    () => {
+      const api = getTextureApi();
+      if ('error' in api) return { error: api.error };
+      const target = findTextureRef(params.name, params.id);
+      if (!target) {
+        const label = params.id ?? params.name ?? 'unknown';
+        return { error: { code: 'invalid_payload', message: TEXTURE_NOT_FOUND(label) } };
       }
-    };
-  } catch (err) {
-    const message = errorMessage(err, 'texture read failed');
-    log.error('texture read error', { message });
-    return { error: toolError('unknown', message, { reason: 'adapter_exception', context: 'texture_read' }) };
-  }
+      const size = readTextureSize(target);
+      const width = size.width;
+      const height = size.height;
+      const path = target?.path ?? target?.source;
+      const dataUri = getTextureDataUri(target);
+      const image = (target?.img ?? target?.canvas) as CanvasImageSource | null;
+      if (!dataUri && !image) {
+        return { error: { code: 'invalid_state', message: ADAPTER_TEXTURE_DATA_UNAVAILABLE } };
+      }
+      return {
+        result: {
+          id: readTextureId(target) ?? undefined,
+          name: target?.name ?? target?.id ?? 'texture',
+          width,
+          height,
+          path,
+          dataUri: dataUri ?? undefined,
+          image: image ?? undefined
+        }
+      };
+    },
+    (error) => ({ error })
+  );
 };
 
 export const runListTextures = (): TextureStat[] => listTextureStats();
@@ -199,5 +221,3 @@ const refreshTextureViewport = (log: Logger): void => {
     log.warn('texture viewport refresh failed', { message: errorMessage(err, 'texture viewport refresh failed') });
   }
 };
-
-

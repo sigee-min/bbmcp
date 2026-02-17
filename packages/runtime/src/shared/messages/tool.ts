@@ -19,14 +19,12 @@ export const TOOL_RESPONSE_MALFORMED = 'malformed tool response';
 export const TOOL_ERROR_GENERIC = 'tool error';
 export const TOOL_FIX_INVALID_PAYLOAD = 'Check the input parameters and retry';
 export const TOOL_FIX_INVALID_STATE = 'Call get_project_state and retry';
-export const TOOL_FIX_NOT_IMPLEMENTED = 'This operation is not available in the current host';
 export const TOOL_FIX_UNSUPPORTED_FORMAT = 'Use list_capabilities to pick a supported format';
 export const TOOL_FIX_NO_CHANGE = 'Adjust the input and retry';
 export const TOOL_FIX_IO_ERROR = 'Check file paths and permissions and retry';
 export const TOOL_FIX_UNKNOWN = 'Retry the operation or check logs';
 export const TOOL_HINT_INVALID_PAYLOAD = 'Invalid payload.';
 export const TOOL_HINT_INVALID_STATE = 'Invalid state.';
-export const TOOL_HINT_NOT_IMPLEMENTED = 'Not implemented.';
 export const TOOL_HINT_UNSUPPORTED_FORMAT = 'Unsupported format.';
 export const TOOL_HINT_NO_CHANGE = 'No changes detected.';
 export const TOOL_HINT_IO_ERROR = 'I/O error.';
@@ -36,5 +34,4 @@ export const REVISION_REQUIRED_MESSAGE = 'ifRevision is required. Call get_proje
 export const REVISION_REQUIRED_FIX = 'Call get_project_state and retry with ifRevision set to the returned revision.';
 export const REVISION_MISMATCH_MESSAGE = 'Project revision mismatch. Refresh project state before retrying.';
 export const REVISION_MISMATCH_FIX = 'Call get_project_state and retry with the latest revision.';
-
 

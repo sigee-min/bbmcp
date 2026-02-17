@@ -12,7 +12,6 @@ Environment variables:
 - `ASHFOX_PORT` (default `8790`)
 - `ASHFOX_PATH` (default `/mcp`)
 - `ASHFOX_GATEWAY_BACKEND` (`engine` | `blockbench`, default `engine`)
-- `ASHFOX_NATIVE_PROD_GUARD` (default `true`; blocks non-native-safe tools such as `render_preview` / `reload_plugins` / `export_trace_log` / `paint_faces` when backend is `engine`)
 - `ASHFOX_PERSISTENCE_FAIL_FAST` (default `true`; if `false`, start even when persistence readiness is degraded)
 - `ASHFOX_PERSISTENCE_PRESET` (`local` | `selfhost` | `ashfox` | `appwrite`, default `local`)
 - `ASHFOX_DB_PROVIDER` (`sqlite` | `postgres` | `ashfox` | `appwrite`) overrides preset DB selection
@@ -54,6 +53,8 @@ Environment variables:
 - `ASHFOX_STORAGE_APPWRITE_METADATA_DATABASE_ID` / `ASHFOX_STORAGE_APPWRITE_METADATA_COLLECTION_ID` (default `ashfox` / `ashfox_blob_metadata`)
 - `ASHFOX_STORAGE_APPWRITE_TIMEOUT_MS` / `ASHFOX_STORAGE_APPWRITE_RESPONSE_FORMAT` (optional overrides)
 
+Tool availability enforcement is driven by backend/runtime capabilities (`list_capabilities`), not a gateway guard toggle.
+
 Appwrite schema prerequisites:
 - Database collection (`ASHFOX_DB_APPWRITE_COLLECTION_ID`) attributes: `tenantId` (string), `projectId` (string), `revision` (string), `stateJson` (string), `createdAt` (string), `updatedAt` (string)
 - Storage metadata collection (`ASHFOX_STORAGE_APPWRITE_METADATA_COLLECTION_ID`) attributes: `fileId` (string), `bucket` (string), `key` (string), `contentType` (string), `cacheControl` (string), `metadataJson` (string), `updatedAt` (string)
@@ -88,13 +89,13 @@ Use the following quick checks during incidents:
 Common error-code triage:
 
 - `invalid_state`
-  - Typical cause: native-prod guard blocked unsupported tool path or required state/persistence is unavailable.
-  - Next action: confirm tool is allowed for native profile; check `ASHFOX_NATIVE_PROD_GUARD`, backend mode, persistence health.
+  - Typical cause: required capability is unavailable in current backend/profile (for example no-render preview or host-dependent plugin reload) or required state/persistence is unavailable.
+  - Next action: inspect backend capability/error detail, then check backend mode and persistence health.
 
 - `unsupported_format`
   - Typical cause: requested export format/codec is unavailable for current capabilities.
   - Next action: inspect available export targets/codecs from `list_capabilities`; retry with supported target (for example `gltf` or known `native_codec`).
 
-- `not_implemented`
-  - Typical cause: non-native adapter path (often Blockbench-related) reached in an unsupported runtime.
-  - Next action: verify backend selection and call path; in production prefer native-safe flows and keep guard enabled.
+- `io_error`
+  - Typical cause: export/write path failed due filesystem/permission/runtime I/O issues.
+  - Next action: verify destination path, process permissions, and host write availability; retry after environment fix.

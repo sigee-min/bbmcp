@@ -1,11 +1,8 @@
-import type { ExportPayload } from '@ashfox/contracts/types/internal';
 import type { SessionState } from '../session';
 import type { InternalExportFormat } from './export/types';
 import { buildCanonicalExportModel } from './export/canonicalModel';
 import { CodecRegistry } from './export/codecRegistry';
 import type { CodecArtifact } from './export/codecs/types';
-
-export type ExportKind = ExportPayload['format'];
 
 export interface ExportBundle {
   format: InternalExportFormat;

@@ -1,4 +1,10 @@
-import type { Capabilities, Dispatcher, ExportTargetCapability } from '@ashfox/contracts/types/internal';
+import {
+  TOOL_NAMES,
+  type Capabilities,
+  type Dispatcher,
+  type ExportTargetCapability,
+  type ToolName
+} from '@ashfox/contracts/types/internal';
 import type { Logger } from '../logging';
 import type { ToolPolicies } from '../usecases/policies';
 import { computeCapabilities } from '../config';
@@ -24,6 +30,7 @@ import { PLUGIN_VERSION } from '../config';
 import { TraceLogService } from '../usecases/TraceLogService';
 import type { TraceLogWriteMode, TraceLogWriterFactory } from '../ports/traceLog';
 import { TraceLogFlushScheduler } from '../trace/traceLogFlushScheduler';
+import { readBlockbenchGlobals } from '../types/blockbench';
 
 export type RuntimeServices = {
   session: ProjectSession;
@@ -80,6 +87,35 @@ const INTERNAL_EXPORT_TARGETS: Array<Omit<ExportTargetCapability, 'available'>> 
   }
 ];
 
+type ToolAvailabilityMap = NonNullable<Capabilities['toolAvailability']>;
+type ToolAvailabilityEntry = NonNullable<ToolAvailabilityMap[ToolName]>;
+
+const buildToolAvailability = (
+  overrides: Partial<Record<ToolName, ToolAvailabilityEntry>>
+): ToolAvailabilityMap => {
+  const availability: ToolAvailabilityMap = {};
+  for (const name of TOOL_NAMES) {
+    availability[name] = { available: true };
+  }
+  for (const [name, entry] of Object.entries(overrides) as Array<[ToolName, ToolAvailabilityEntry | undefined]>) {
+    if (!entry) continue;
+    availability[name] = entry;
+  }
+  return availability;
+};
+
+const resolveReloadPluginsAvailability = (): ToolAvailabilityEntry => {
+  const globals = readBlockbenchGlobals();
+  if (typeof globals.Plugins?.devReload !== 'function') {
+    return {
+      available: false,
+      reason: 'host_unavailable',
+      note: 'reload_plugins requires Plugins.devReload support in the host.'
+    };
+  }
+  return { available: true };
+};
+
 export const buildRuntimeServices = (options: BuildRuntimeServicesOptions): RuntimeServices => {
   const session = new ProjectSession();
   const editor = new BlockbenchEditor(options.logger);
@@ -126,6 +162,9 @@ export const buildRuntimeServices = (options: BuildRuntimeServicesOptions): Runt
     return { ...target, available: true };
   });
   capabilities.exportTargets = [...internalTargets, ...nativeCodecs];
+  capabilities.toolAvailability = buildToolAvailability({
+    reload_plugins: resolveReloadPluginsAvailability()
+  });
   const service = new ToolService({
     session,
     capabilities,
@@ -232,6 +271,5 @@ export const buildRuntimeServices = (options: BuildRuntimeServicesOptions): Runt
     traceLogService
   };
 };
-
 
 

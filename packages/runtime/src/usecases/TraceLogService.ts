@@ -34,7 +34,7 @@ export class TraceLogService {
     }
     if (!this.writerFactory) {
       return fail({
-        code: 'not_implemented',
+        code: 'invalid_state',
         message: 'Trace log export is unavailable.',
         details: { reason: 'trace_log_writer_missing' }
       });
@@ -66,7 +66,6 @@ export class TraceLogService {
     return this.resourceUri;
   }
 }
-
 
 
 

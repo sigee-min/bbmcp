@@ -1,5 +1,5 @@
 import { errorMessage, Logger, withLogMeta } from '../../logging';
-import { PROMETHEUS_CONTENT_TYPE, type MetricsRegistry } from '../../observability/metrics';
+import { PROMETHEUS_CONTENT_TYPE, type MetricsRegistry } from '../../observability';
 import { McpRouter } from './router';
 import { HttpRequest, ResponsePlan } from './types';
 import { openSseConnection } from './transport';
@@ -266,4 +266,3 @@ export const createMcpHttpServer = (http: HttpModule, router: McpRouter, log: Lo
       kind: plan.kind
     });
   });
-

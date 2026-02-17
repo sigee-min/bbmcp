@@ -33,8 +33,6 @@ export const cloneProject = (project: NativeProjectSnapshot): NativeProjectSnaps
 export const cloneJob = (job: NativeJob): NativeJob => ({
   id: job.id,
   projectId: job.projectId,
-  kind: job.kind,
-  ...(job.payload ? { payload: { ...job.payload } } : {}),
   status: job.status,
   attemptCount: job.attemptCount,
   maxAttempts: job.maxAttempts,
@@ -45,9 +43,43 @@ export const cloneJob = (job: NativeJob): NativeJob => ({
   ...(job.nextRetryAt ? { nextRetryAt: job.nextRetryAt } : {}),
   ...(job.completedAt ? { completedAt: job.completedAt } : {}),
   ...(job.workerId ? { workerId: job.workerId } : {}),
-  ...(job.result ? { result: { ...job.result } } : {}),
   ...(job.error ? { error: job.error } : {}),
-  ...(job.deadLetter ? { deadLetter: true } : {})
+  ...(job.deadLetter ? { deadLetter: true } : {}),
+  ...(job.kind === 'gltf.convert'
+    ? {
+        kind: 'gltf.convert',
+        ...(job.payload ? { payload: { ...job.payload } } : {}),
+        ...(job.result
+          ? {
+              result: {
+                ...job.result,
+                ...(job.result.diagnostics ? { diagnostics: [...job.result.diagnostics] } : {}),
+                ...(job.result.output ? { output: { ...job.result.output } } : {})
+              }
+            }
+          : {})
+      }
+    : {
+        kind: 'texture.preflight',
+        ...(job.payload
+          ? {
+              payload: {
+                ...job.payload,
+                ...(job.payload.textureIds ? { textureIds: [...job.payload.textureIds] } : {})
+              }
+            }
+          : {}),
+        ...(job.result
+          ? {
+              result: {
+                ...job.result,
+                ...(job.result.diagnostics ? { diagnostics: [...job.result.diagnostics] } : {}),
+                ...(job.result.output ? { output: { ...job.result.output } } : {}),
+                ...(job.result.summary ? { summary: { ...job.result.summary } } : {})
+              }
+            }
+          : {})
+      })
 });
 
 export const cloneEvent = (event: NativeProjectEvent): NativeProjectEvent => ({

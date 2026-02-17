@@ -193,7 +193,7 @@ const createPassSetup = (options: PassSetup = {}) => {
   if (!res.ok) assert.equal(res.error.details?.coordSpace, 'texture');
 }
 
-// missing readPixels support should fail as not_implemented.
+// missing readPixels support should fail as invalid_state.
 {
   const renderer: TextureRendererPort = {
     renderPixels: ({ width, height }) => ({
@@ -203,7 +203,7 @@ const createPassSetup = (options: PassSetup = {}) => {
   const setup = createPassSetup({ renderer });
   const res = setup.run();
   assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.error.code, 'not_implemented');
+  if (!res.ok) assert.equal(res.error.code, 'invalid_state');
 }
 
 // invalid color should be rejected by op application.
@@ -238,7 +238,7 @@ const createPassSetup = (options: PassSetup = {}) => {
   if (!res.ok) assert.equal(res.error.message.startsWith('render failed'), true);
 }
 
-// missing render result should return not_implemented.
+// missing render result should return invalid_state.
 {
   const renderer: TextureRendererPort = {
     readPixels: () => ({ result: { width: 16, height: 16, data: createPixels(16, 16) } }),
@@ -247,7 +247,7 @@ const createPassSetup = (options: PassSetup = {}) => {
   const setup = createPassSetup({ renderer });
   const res = setup.run();
   assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.error.code, 'not_implemented');
+  if (!res.ok) assert.equal(res.error.code, 'invalid_state');
 }
 
 // update no_change is accepted and still returns a success payload.

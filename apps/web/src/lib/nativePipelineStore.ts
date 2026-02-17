@@ -1,19 +1,6 @@
-import {
-  getNativePipelineStore,
-  type NativeJob,
-  type NativePipelineProjectStorePort,
-  type NativePipelineQueueStorePort,
-  type NativePipelineStreamStorePort,
-  type NativeProjectEvent,
-  type NativeProjectSnapshot
-} from '@ashfox/native-pipeline';
+import { configureNativePipelineStoreFactory, getNativePipelineStore } from '@ashfox/native-pipeline';
+import { createGatewayNativePipelineStore } from '@ashfox/mcp-gateway/persistence';
 
-export type {
-  NativeJob,
-  NativePipelineProjectStorePort,
-  NativePipelineQueueStorePort,
-  NativePipelineStreamStorePort,
-  NativeProjectEvent,
-  NativeProjectSnapshot
-};
+configureNativePipelineStoreFactory(createGatewayNativePipelineStore);
+
 export { getNativePipelineStore };

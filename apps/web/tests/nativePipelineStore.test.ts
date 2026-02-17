@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { getNativePipelineStore } from '../src/lib/nativePipelineStore';
 
 module.exports = async () => {
+  assert.equal(typeof require.resolve('@ashfox/native-pipeline/types'), 'string');
   const store = getNativePipelineStore();
   await store.reset();
 

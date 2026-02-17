@@ -57,6 +57,23 @@ module.exports = async () => {
       new Request('http://localhost/api/projects/project-a/jobs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'custom.unsupported' })
+      }),
+      {
+        params: Promise.resolve({ projectId: 'project-a' })
+      }
+    );
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { code?: string; message?: string };
+    assert.equal(body.code, 'invalid_payload');
+    assert.equal(body.message, 'kind must be one of: gltf.convert, texture.preflight');
+  }
+
+  {
+    const response = await POST(
+      new Request('http://localhost/api/projects/project-a/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: '{bad json'
       }),
       {
@@ -203,6 +220,77 @@ module.exports = async () => {
     const body = (await response.json()) as { code?: string; message?: string };
     assert.equal(body.code, 'invalid_payload');
     assert.equal(body.message, 'payload must be an object');
+  }
+
+  {
+    const response = await POST(
+      new Request('http://localhost/api/projects/project-a/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'gltf.convert', payload: { textureIds: ['atlas'] } })
+      }),
+      {
+        params: Promise.resolve({ projectId: 'project-a' })
+      }
+    );
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { code?: string; message?: string };
+    assert.equal(body.code, 'invalid_payload');
+    assert.equal(body.message, 'payload has unsupported field(s) for gltf.convert: textureIds');
+  }
+
+  {
+    const response = await POST(
+      new Request('http://localhost/api/projects/project-a/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'gltf.convert', payload: { sourceAssetId: 'asset-1' } })
+      }),
+      {
+        params: Promise.resolve({ projectId: 'project-a' })
+      }
+    );
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { code?: string; message?: string };
+    assert.equal(body.code, 'invalid_payload');
+    assert.equal(body.message, 'payload has unsupported field(s) for gltf.convert: sourceAssetId');
+  }
+
+  {
+    const response = await POST(
+      new Request('http://localhost/api/projects/project-a/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'texture.preflight', payload: { textureIds: ['atlas', ''] } })
+      }),
+      {
+        params: Promise.resolve({ projectId: 'project-a' })
+      }
+    );
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { code?: string; message?: string };
+    assert.equal(body.code, 'invalid_payload');
+    assert.equal(body.message, 'payload.textureIds must be an array of non-empty strings');
+  }
+
+  {
+    const response = await POST(
+      new Request('http://localhost/api/projects/project-a/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'texture.preflight',
+          payload: { textureIds: ['atlas'], maxDimension: 1024, allowNonPowerOfTwo: false }
+        })
+      }),
+      {
+        params: Promise.resolve({ projectId: 'project-a' })
+      }
+    );
+    assert.equal(response.status, 202);
+    const body = (await response.json()) as { job?: { kind?: string; payload?: { textureIds?: string[] } } };
+    assert.equal(body.job?.kind, 'texture.preflight');
+    assert.deepEqual(body.job?.payload?.textureIds, ['atlas']);
   }
 
   {

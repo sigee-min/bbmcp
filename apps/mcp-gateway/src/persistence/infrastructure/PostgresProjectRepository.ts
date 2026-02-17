@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import type { PersistedProjectRecord, ProjectRepository, ProjectRepositoryScope } from '@ashfox/backend-core';
+import { quoteSqlIdentifier } from './validation';
 
 export interface PostgresProjectRepositoryOptions {
   connectionString: string;
@@ -46,15 +47,6 @@ type PostgresMigration = {
   upSql: string;
 };
 
-const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
-
-const quoteIdentifier = (value: string, field: 'schema' | 'table'): string => {
-  if (!IDENTIFIER_PATTERN.test(value)) {
-    throw new Error(`${field} must match ${IDENTIFIER_PATTERN.source}.`);
-  }
-  return `"${value}"`;
-};
-
 const normalizeTimestamp = (value: unknown): string => {
   if (value instanceof Date) return value.toISOString();
   if (typeof value === 'string') {
@@ -83,10 +75,10 @@ export class PostgresProjectRepository implements ProjectRepository {
 
   constructor(options: PostgresProjectRepositoryOptions) {
     this.options = options;
-    this.schemaSql = quoteIdentifier(options.schema, 'schema');
-    const tableNameSql = quoteIdentifier(options.tableName, 'table');
+    this.schemaSql = quoteSqlIdentifier(options.schema, 'schema');
+    const tableNameSql = quoteSqlIdentifier(options.tableName, 'table');
     this.tableSql = `${this.schemaSql}.${tableNameSql}`;
-    const migrationsTableSql = quoteIdentifier(options.migrationsTableName, 'table');
+    const migrationsTableSql = quoteSqlIdentifier(options.migrationsTableName, 'table');
     this.migrationsTableSql = `${this.schemaSql}.${migrationsTableSql}`;
   }
 

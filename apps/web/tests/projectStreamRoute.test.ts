@@ -125,4 +125,42 @@ module.exports = async () => {
       abortController.abort();
     }
   }
+
+  {
+    const beforeEvents = await store.getProjectEventsSince('project-c', 0);
+    const lastSeqBefore = beforeEvents.at(-1)?.seq ?? 0;
+
+    const submitted = await store.submitJob({
+      projectId: 'project-c',
+      kind: 'gltf.convert'
+    });
+    const claimed = await store.claimNextJob('stream-worker');
+    assert.equal(claimed?.id, submitted.id);
+    const completed = await store.completeJob(submitted.id, {
+      kind: 'gltf.convert',
+      status: 'converted'
+    });
+    assert.equal(completed?.status, 'completed');
+
+    const afterEvents = await store.getProjectEventsSince('project-c', lastSeqBefore);
+    const completionSeq = afterEvents.at(-1)?.seq;
+    assert.equal(typeof completionSeq, 'number');
+
+    const { response, abortController } = await getProjectStream('project-c', {
+      queryLastEventId: (completionSeq ?? 1) - 1
+    });
+    try {
+      const frame = await readFirstFrame(response);
+      const parsed = parseFrame(frame);
+      const payload = parsed.payload as {
+        hasGeometry?: boolean;
+        stats?: { bones?: number; cubes?: number };
+      };
+      assert.equal(payload.hasGeometry, false);
+      assert.equal(payload.stats?.bones, 0);
+      assert.equal(payload.stats?.cubes, 0);
+    } finally {
+      abortController.abort();
+    }
+  }
 };

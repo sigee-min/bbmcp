@@ -33,7 +33,7 @@ export class RenderService {
 
   private ensureTmpStore(): ToolError | null {
     if (!this.tmpStore) {
-      return { code: 'not_implemented', message: TMP_STORE_UNAVAILABLE };
+      return { code: 'invalid_state', message: TMP_STORE_UNAVAILABLE };
     }
     return null;
   }
@@ -44,7 +44,7 @@ export class RenderService {
     options: { nameHint: string; prefix: string }
   ): UsecaseResult<{ path: string; byteLength: number }> {
     if (!dataUri) {
-      return fail({ code: 'not_implemented', message: missingMessage });
+      return fail({ code: 'invalid_state', message: missingMessage });
     }
     const tmpErr = this.ensureTmpStore();
     if (tmpErr) return fail(tmpErr);
@@ -55,7 +55,7 @@ export class RenderService {
 
   renderPreview(payload: RenderPreviewPayload): UsecaseResult<RenderPreviewResult> {
     if (!this.allowRenderPreview) {
-      return fail({ code: 'not_implemented', message: PREVIEW_UNSUPPORTED_NO_RENDER });
+      return fail({ code: 'invalid_state', message: PREVIEW_UNSUPPORTED_NO_RENDER });
     }
     return withActiveOnly(this.ensureActive, () => {
       const { saveToTmp, tmpName, tmpPrefix, ...previewPayload } = payload;
@@ -66,7 +66,7 @@ export class RenderService {
       if (result.kind === 'single') {
         const image = result.image;
         if (!image) {
-          return fail({ code: 'not_implemented', message: PREVIEW_IMAGE_DATA_UNAVAILABLE });
+          return fail({ code: 'invalid_state', message: PREVIEW_IMAGE_DATA_UNAVAILABLE });
         }
         const saved = this.savePreviewDataUri(image?.dataUri, PREVIEW_IMAGE_DATA_UNAVAILABLE, {
           nameHint: tmpName ?? 'preview',
@@ -88,7 +88,7 @@ export class RenderService {
       }
       const frames = Array.isArray(result.frames) ? result.frames : [];
       if (frames.length === 0) {
-        return fail({ code: 'not_implemented', message: PREVIEW_FRAMES_UNAVAILABLE });
+        return fail({ code: 'invalid_state', message: PREVIEW_FRAMES_UNAVAILABLE });
       }
       const savedFrames: RenderPreviewResult['saved'] = { frames: [] };
       for (const frame of frames) {
@@ -110,5 +110,3 @@ export class RenderService {
     });
   }
 }
-
-

@@ -18,6 +18,16 @@ const createDispatcher = () => {
           counts: { bones: 0, cubes: 0, textures: 0, animations: 0 }
         }
       }),
+    preflightTexture: (_payload: unknown) =>
+      ok({
+        uvUsageId: 'usage-1',
+        usageSummary: {
+          textureCount: 1,
+          cubeCount: 0,
+          faceCount: 0,
+          unresolvedCount: 0
+        }
+      }),
     getProjectDiff: (_payload: unknown) => ok({ diff: { sinceRevision: 'r0', currentRevision: 'r1', counts: {} } }),
     reloadPlugins: (_payload: unknown) => ok({ ok: true }),
     renderPreview: (_payload: unknown) => ok({ kind: 'single', frameCount: 1, images: [] }),
@@ -44,3 +54,16 @@ const createDispatcher = () => {
   })());
 }
 
+// response handler path (preflight)
+{
+  registerAsync((async () => {
+    const dispatcher = createDispatcher();
+    const res = await dispatcher.handle('preflight_texture', { includeUsage: false } as ToolPayloadMap['preflight_texture']);
+    assert.equal(res.ok, true);
+    if (res.ok) {
+      const data = res.data as ToolResultMap['preflight_texture'];
+      assert.equal(data.uvUsageId, 'usage-1');
+      assert.equal(data.usageSummary.textureCount, 1);
+    }
+  })());
+}

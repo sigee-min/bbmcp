@@ -1,4 +1,4 @@
-import type { NativeProjectSnapshot } from '../../../../../lib/nativePipelineStore';
+import type { NativeProjectSnapshot } from '@ashfox/native-pipeline/types';
 
 export const buildSnapshotPayload = (project: NativeProjectSnapshot, revision: number) => ({
   projectId: project.projectId,

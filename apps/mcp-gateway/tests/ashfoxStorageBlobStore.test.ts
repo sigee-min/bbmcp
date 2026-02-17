@@ -108,5 +108,16 @@ registerAsync(
       key: 'demo/model.json'
     });
     assert.equal(missing, null);
+
+    await assert.rejects(
+      () =>
+        blobStore.put({
+          bucket: '',
+          key: 'demo/model.json',
+          bytes: Buffer.from('x', 'utf8'),
+          contentType: 'application/json'
+        }),
+      /bucket must be a non-empty string\./
+    );
   })()
 );

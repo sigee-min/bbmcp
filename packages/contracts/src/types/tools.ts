@@ -123,6 +123,7 @@ export type {
 export interface ToolPayloadMap {
   list_capabilities: Record<string, never>;
   get_project_state: GetProjectStatePayload;
+  preflight_texture: PreflightTexturePayload;
   read_texture: ReadTexturePayload;
   export_trace_log: ExportTraceLogPayload;
   reload_plugins: ReloadPluginsPayload;

@@ -20,6 +20,10 @@ export type BlockbenchTraceLogWriterOptions = {
 
 const DEFAULT_FILE_NAME = 'ashfox-trace.ndjson';
 
+type TraceFsModule = FsPathPolicyModule & {
+  writeFileSync?: (path: string, data: string) => void;
+};
+
 export class BlockbenchTraceLogWriter implements TraceLogWriter {
   private readonly mode: TraceLogWriteMode;
   private readonly destPath?: string;
@@ -34,14 +38,20 @@ export class BlockbenchTraceLogWriter implements TraceLogWriter {
   write(text: string): ToolError | null {
     const globals = readBlockbenchGlobals();
     const blockbench = globals.Blockbench;
+    const fs = loadNativeModule<TraceFsModule>('fs', { optional: true });
+    const path = loadNativeModule<PathPolicyModule>('path', { optional: true });
     if (!blockbench) {
-      return toolError('not_implemented', 'Blockbench API unavailable for trace log write.', {
+      const nativeOnlyPath = resolveTraceLogPath(this.destPath, this.fileName, null, fs, path);
+      if ((this.mode === 'writeFile' || this.mode === 'auto') && nativeOnlyPath && typeof fs?.writeFileSync === 'function') {
+        const nativeErr = writeTraceLogNativeFile(fs, nativeOnlyPath, text, this.fileName, path);
+        if (!nativeErr) return null;
+        if (this.mode === 'writeFile') return nativeErr;
+      }
+      return toolError('invalid_state', 'Blockbench API unavailable for trace log write.', {
         reason: 'blockbench_missing'
       });
     }
 
-    const fs = loadNativeModule<FsPathPolicyModule>('fs', { optional: true });
-    const path = loadNativeModule<PathPolicyModule>('path', { optional: true });
     const resolvedPath = resolveTraceLogPath(
       this.destPath,
       this.fileName,
@@ -61,9 +71,14 @@ export class BlockbenchTraceLogWriter implements TraceLogWriter {
         if (!writeErr) return null;
         writeError = writeErr;
         if (this.mode === 'writeFile') return writeErr;
+      } else if (resolvedPath && typeof fs?.writeFileSync === 'function') {
+        const nativeErr = writeTraceLogNativeFile(fs, resolvedPath, text, this.fileName, path);
+        if (!nativeErr) return null;
+        writeError = nativeErr;
+        if (this.mode === 'writeFile') return nativeErr;
       }
       if (this.mode === 'writeFile') {
-        return toolError('not_implemented', 'Blockbench writeFile unavailable or path not resolved.', {
+        return toolError('invalid_state', 'Blockbench writeFile unavailable or path not resolved.', {
           reason: 'writefile_unavailable',
           ...(resolvedPath ? {} : { missingPath: true })
         });
@@ -80,7 +95,7 @@ export class BlockbenchTraceLogWriter implements TraceLogWriter {
       return writeError;
     }
 
-    return toolError('not_implemented', 'Blockbench exportFile unavailable for trace log write.', {
+    return toolError('invalid_state', 'Blockbench exportFile unavailable for trace log write.', {
       reason: 'export_unavailable'
     });
   }
@@ -138,6 +153,44 @@ const writeTraceLogFile = (
   }
 };
 
+const writeTraceLogNativeFile = (
+  fs: TraceFsModule,
+  resolvedPath: string,
+  text: string,
+  fileName: string,
+  path?: PathPolicyModule | null
+): ToolError | null => {
+  const writeFileSync = fs.writeFileSync;
+  if (typeof writeFileSync !== 'function') {
+    return toolError('invalid_state', 'Native filesystem write unavailable for trace log write.', {
+      reason: 'native_write_unavailable'
+    });
+  }
+  try {
+    writeFileSync(resolvedPath, text);
+    return null;
+  } catch (err) {
+    if (isEisdirError(err)) {
+      const fallbackPath = joinPath(resolvedPath, fileName, path);
+      if (fallbackPath !== resolvedPath) {
+        try {
+          writeFileSync(fallbackPath, text);
+          return null;
+        } catch (retryErr) {
+          return toolError('io_error', errorMessage(retryErr, 'Trace log write failed.'), {
+            reason: 'trace_log_write_failed',
+            path: fallbackPath
+          });
+        }
+      }
+    }
+    return toolError('io_error', errorMessage(err, 'Trace log write failed.'), {
+      reason: 'trace_log_write_failed',
+      path: resolvedPath
+    });
+  }
+};
+
 const writeTraceLogExport = (
   exportFile: (options: { content: string; name: string }) => void,
   text: string,
@@ -153,7 +206,6 @@ const writeTraceLogExport = (
     });
   }
 };
-
 
 
 

@@ -12,7 +12,7 @@ import { handleSessionDelete, handleSseGet } from './routerHttpHandlers';
 import { handleMessage } from './routerRpcHandlers';
 import { getSessionFromHeaders, resolveSession } from './routerSession';
 import { ResourceStore } from '../../ports/resources';
-import type { MetricsRegistry } from '../../observability/metrics';
+import type { MetricsRegistry } from '../../observability';
 import {
   MCP_CONTENT_TYPE_REQUIRED,
   MCP_METHOD_NOT_ALLOWED,
@@ -204,5 +204,4 @@ export class McpRouter {
     return { kind: 'empty', status, headers };
   }
 }
-
 

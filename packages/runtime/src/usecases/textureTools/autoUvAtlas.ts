@@ -85,7 +85,7 @@ export const runAutoUvAtlas = (
 
     const textureRenderer = toReprojectTextureRenderer(ctx.textureRenderer);
     if (!textureRenderer) {
-      return fail({ code: 'not_implemented', message: TEXTURE_AUTO_UV_REPROJECT_UNAVAILABLE });
+      return fail({ code: 'invalid_state', message: TEXTURE_AUTO_UV_REPROJECT_UNAVAILABLE });
     }
     const applyRes = applyAutoUvAtlasPlan({
       ctx,
@@ -104,5 +104,4 @@ export const runAutoUvAtlas = (
     });
   });
 };
-
 

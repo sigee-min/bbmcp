@@ -71,7 +71,7 @@ const cubes: Cube[] = [
     { width: 16, height: 16 }
   );
   assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.error.code, 'not_implemented');
+  if (!res.ok) assert.equal(res.error.code, 'invalid_state');
 }
 
 {

@@ -23,6 +23,7 @@ import {
   renameEntity,
   withUndo
 } from '../blockbenchUtils';
+import { withMappedAdapterError } from '../adapterErrors';
 import { findGroup } from '../outlinerLookup';
 import {
   type AnimatorLike,
@@ -48,13 +49,16 @@ const runAnimationCommand = (
   options: { message: string; logLabel: string; context: string },
   run: () => ToolError | null
 ): ToolError | null => {
-  try {
-    return run();
-  } catch (err) {
-    const message = errorMessage(err, options.message);
-    log.error(options.logLabel, { message });
-    return toolError('unknown', message, { reason: 'adapter_exception', context: options.context });
-  }
+  return withMappedAdapterError(
+    log,
+    {
+      context: options.context,
+      fallbackMessage: options.message,
+      logLabel: options.logLabel
+    },
+    run,
+    (error) => error
+  );
 };
 
 export const runCreateAnimation = (log: Logger, params: AnimationCommand): ToolError | null => {
@@ -68,7 +72,7 @@ export const runCreateAnimation = (log: Logger, params: AnimationCommand): ToolE
     () => {
       const { Animation: AnimationCtor } = readGlobals();
       if (typeof AnimationCtor === 'undefined') {
-        return { code: 'not_implemented', message: ADAPTER_ANIMATION_API_UNAVAILABLE };
+        return { code: 'invalid_state', message: ADAPTER_ANIMATION_API_UNAVAILABLE };
       }
     withUndo({ animations: true }, 'Create animation', () => {
       const anim = new AnimationCtor({
@@ -181,7 +185,7 @@ export const runSetKeyframes = (log: Logger, params: KeyframeCommand): ToolError
       typeof clip.getBoneAnimator === 'function' ||
       typeof (group as { constructor?: { animator?: unknown } }).constructor?.animator === 'function';
     if (!canResolve) {
-      return { code: 'not_implemented', message: ADAPTER_ANIMATOR_API_UNAVAILABLE };
+      return { code: 'invalid_state', message: ADAPTER_ANIMATOR_API_UNAVAILABLE };
     }
     let resolveError: ToolError | null = null;
     withUndo({ animations: true, keyframes: [] }, 'Set keyframes', () => {
@@ -189,7 +193,7 @@ export const runSetKeyframes = (log: Logger, params: KeyframeCommand): ToolError
         clip.select?.();
         const animator = resolveBoneAnimator(clip, group);
         if (!animator) {
-          resolveError = { code: 'not_implemented', message: ADAPTER_ANIMATOR_API_UNAVAILABLE };
+          resolveError = { code: 'invalid_state', message: ADAPTER_ANIMATOR_API_UNAVAILABLE };
           return;
         }
         const channelKey = resolveAnimationChannelKey(params.channel);
@@ -250,14 +254,14 @@ export const runSetTriggerKeyframes = (log: Logger, params: TriggerKeyframeComma
     const canResolve =
       hasEffectAnimator(clip) || typeof globals.EffectAnimator === 'function';
     if (!canResolve) {
-      return { code: 'not_implemented', message: ADAPTER_ANIMATOR_API_UNAVAILABLE };
+      return { code: 'invalid_state', message: ADAPTER_ANIMATOR_API_UNAVAILABLE };
     }
     let resolveError: ToolError | null = null;
     withUndo({ animations: true, keyframes: [] }, 'Set trigger keyframes', () => {
       clip.select?.();
       const animator = resolveEffectAnimator(clip, globals);
       if (!animator) {
-        resolveError = { code: 'not_implemented', message: ADAPTER_ANIMATOR_API_UNAVAILABLE };
+        resolveError = { code: 'invalid_state', message: ADAPTER_ANIMATOR_API_UNAVAILABLE };
         return;
       }
       sanitizeClipKeyframes(clip);
@@ -339,4 +343,3 @@ export const getAnimations = (): AnimationClip[] => {
   if (Array.isArray(globals.Animation?.all)) return globals.Animation.all;
   return [];
 };
-

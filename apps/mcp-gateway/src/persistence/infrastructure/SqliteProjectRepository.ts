@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { PersistedProjectRecord, ProjectRepository, ProjectRepositoryScope } from '@ashfox/backend-core';
 import type { SqliteRepositoryConfig } from '../config';
+import { quoteSqlIdentifier } from './validation';
 
 type SqliteStatement = {
   run: (...params: unknown[]) => unknown;
@@ -38,15 +39,6 @@ type SqliteMigration = {
   version: number;
   name: string;
   upSql: string;
-};
-
-const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
-
-const quoteIdentifier = (value: string): string => {
-  if (!IDENTIFIER_PATTERN.test(value)) {
-    throw new Error(`table must match ${IDENTIFIER_PATTERN.source}.`);
-  }
-  return `"${value}"`;
 };
 
 const ensureIso = (value: unknown): string => {
@@ -93,8 +85,8 @@ export class SqliteProjectRepository implements ProjectRepository {
 
   constructor(config: SqliteRepositoryConfig) {
     this.filePath = path.resolve(config.filePath);
-    this.tableSql = quoteIdentifier(config.tableName);
-    this.migrationsTableSql = quoteIdentifier(config.migrationsTableName);
+    this.tableSql = quoteSqlIdentifier(config.tableName, 'table');
+    this.migrationsTableSql = quoteSqlIdentifier(config.migrationsTableName, 'table');
   }
 
   private getDatabase(): SqliteDatabase {

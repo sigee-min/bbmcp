@@ -59,7 +59,7 @@ class FakeGroup {
         pivot: [0, 0, 0]
       });
       assert.notEqual(err, null);
-      assert.equal(err?.code, 'not_implemented');
+      assert.equal(err?.code, 'invalid_state');
     }
   );
 }
@@ -206,4 +206,3 @@ class FakeGroup {
     }
   );
 }
-

@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 
-import { handleResourceTemplatesList, handleResourcesList, handleResourcesRead } from '../../../packages/runtime/src/transport/mcp/routerRpcResources';
-import type { RpcContext } from '../../../packages/runtime/src/transport/mcp/routerRpcTypes';
-import type { ToolExecutor } from '../../../packages/runtime/src/transport/mcp/executor';
-import type { ToolRegistry } from '../../../packages/runtime/src/transport/mcp/tools';
-import { SessionStore } from '../../../packages/runtime/src/transport/mcp/session';
-import { MCP_RESOURCE_NOT_FOUND, MCP_URI_REQUIRED } from '../../../packages/runtime/src/shared/messages';
+import {
+  handleResourceTemplatesList,
+  handleResourcesList,
+  handleResourcesRead,
+  MCP_RESOURCE_NOT_FOUND,
+  MCP_URI_REQUIRED,
+  SessionStore
+} from '@ashfox/runtime/conformance';
+import type { RpcContext, ToolExecutor, ToolRegistry } from '@ashfox/runtime/conformance';
 
 const noopLog = {
   debug: () => undefined,

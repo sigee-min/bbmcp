@@ -8,7 +8,7 @@ import {
   type OrchestrationDeps,
   type ServiceStatus,
   type SmokeSummary
-} from '../src/local/orchestration';
+} from './support/local/orchestration';
 import { registerAsync } from './helpers';
 
 const requiredEnv = [

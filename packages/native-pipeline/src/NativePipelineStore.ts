@@ -10,9 +10,9 @@ import {
 } from './jobRepository';
 import { ensureProject, getProject as readProject, listProjects as readProjects, seedProjects } from './projectRepository';
 import { createNativePipelineState, resetNativePipelineState } from './state';
-import type { NativeJob, NativeJobSubmitInput, NativeProjectEvent, NativeProjectSnapshot } from './types';
+import type { NativeJob, NativeJobResult, NativeJobSubmitInput, NativeProjectEvent, NativeProjectSnapshot } from './types';
 
-export type NativePipelineQueueStorePort = QueueStorePort<NativeJob, NativeJobSubmitInput>;
+export type NativePipelineQueueStorePort = QueueStorePort<NativeJob, NativeJobSubmitInput, NativeJobResult>;
 
 export type NativePipelineProjectStorePort = ProjectSnapshotStorePort<NativeProjectSnapshot>;
 
@@ -66,7 +66,7 @@ export class NativePipelineStore implements NativePipelineStorePort {
     return claimNativeJob(this.state, workerId, this.emitProjectSnapshot);
   }
 
-  async completeJob(jobId: string, result?: Record<string, unknown>): Promise<NativeJob | null> {
+  async completeJob(jobId: string, result?: NativeJobResult): Promise<NativeJob | null> {
     return completeNativeJob(this.state, jobId, result, this.emitProjectSnapshot);
   }
 

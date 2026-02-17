@@ -23,7 +23,7 @@ const withGlobals = (overrides: TestGlobals, run: () => void) => {
   const host = new BlockbenchHost();
   withGlobals({}, () => {
     const error = host.schedulePluginReload(100);
-    assert.equal(error?.code, 'not_implemented');
+    assert.equal(error?.code, 'invalid_state');
   });
 }
 

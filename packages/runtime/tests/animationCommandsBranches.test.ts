@@ -71,7 +71,7 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
   );
 }
 
-// Trigger keyframe path should return not_implemented when no effect animator is available.
+// Trigger keyframe path should return invalid_state when no effect animator is available.
 {
   const clip = {
     name: 'idle',
@@ -95,7 +95,7 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
         keys: [{ time: 0, value: 'step' }]
       });
       assert.notEqual(err, null);
-      assert.equal(err?.code, 'not_implemented');
+      assert.equal(err?.code, 'invalid_state');
     }
   );
 }
@@ -262,4 +262,3 @@ const withGlobals = (overrides: Record<string, unknown>, fn: () => void) => {
     }
   );
 }
-

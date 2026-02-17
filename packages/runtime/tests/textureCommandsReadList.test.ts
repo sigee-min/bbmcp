@@ -59,7 +59,7 @@ class NoCanvasTexture {
 {
   withGlobals({ Texture: undefined }, () => {
     const res = runReadTexture(noopLog, { name: 'missing' });
-    assert.equal(res.error?.code, 'not_implemented');
+    assert.equal(res.error?.code, 'invalid_state');
   });
 }
 
@@ -77,7 +77,7 @@ class NoCanvasTexture {
   tex.add();
   withGlobals({ Texture: FakeTexture }, () => {
     const res = runReadTexture(noopLog, { name: 'atlas' });
-    assert.deepEqual(res.error, { code: 'not_implemented', message: ADAPTER_TEXTURE_DATA_UNAVAILABLE });
+    assert.deepEqual(res.error, { code: 'invalid_state', message: ADAPTER_TEXTURE_DATA_UNAVAILABLE });
   });
 }
 
@@ -178,7 +178,7 @@ class NoCanvasTexture {
       width: 16,
       height: 16
     });
-    assert.deepEqual(err, { code: 'not_implemented', message: ADAPTER_TEXTURE_CANVAS_UNAVAILABLE });
+    assert.deepEqual(err, { code: 'invalid_state', message: ADAPTER_TEXTURE_CANVAS_UNAVAILABLE });
   });
 }
 
@@ -219,4 +219,3 @@ class NoCanvasTexture {
     ]);
   });
 }
-

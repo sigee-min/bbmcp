@@ -8,7 +8,7 @@ import { createMcpHttpServer } from './transport/mcp/httpServer';
 import { startMcpNetServer } from './transport/mcp/netServer';
 import { normalizePath } from './transport/mcp/routerUtils';
 import { ResourceStore } from './ports/resources';
-import type { MetricsRegistry } from './observability/metrics';
+import type { MetricsRegistry } from './observability';
 import type { ToolRegistry } from './transport/mcp/tools';
 import {
   CONFIG_HOST_REQUIRED,
@@ -131,6 +131,5 @@ export function startServer(
   log.warn(SERVER_NO_TRANSPORT);
   return null;
 }
-
 
 

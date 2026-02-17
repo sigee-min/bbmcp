@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { PersistedProjectRecord, ProjectRepository, ProjectRepositoryScope } from '@ashfox/backend-core';
 import type { AppwriteDatabaseConfig } from '../config';
+import { appwriteTimeoutError } from './validation';
 
 export interface AppwriteProjectRepositoryOptions {
   fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
@@ -241,7 +242,7 @@ export class AppwriteProjectRepository implements ProjectRepository {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Appwrite request timed out after ${this.config.requestTimeoutMs}ms (${method} ${path}).`);
+        throw appwriteTimeoutError(this.config.requestTimeoutMs, method, path);
       }
       throw error;
     } finally {

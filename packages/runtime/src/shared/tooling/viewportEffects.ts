@@ -7,6 +7,7 @@ export type ViewportEffect = typeof VIEWPORT_EFFECTS[number];
 export const TOOL_VIEWPORT_EFFECTS: Record<ToolName, ViewportEffect> = {
   list_capabilities: 'none',
   get_project_state: 'none',
+  preflight_texture: 'none',
   read_texture: 'none',
   export_trace_log: 'none',
   reload_plugins: 'none',

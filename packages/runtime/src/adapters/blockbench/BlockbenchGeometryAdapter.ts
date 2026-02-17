@@ -80,7 +80,7 @@ export class BlockbenchGeometryAdapter {
         const cubeApi = getCubeApi();
         const textureApi = getTextureApi();
         if ('error' in cubeApi || 'error' in textureApi) {
-          return { error: { code: 'not_implemented', message: ADAPTER_CUBE_TEXTURE_API_UNAVAILABLE } };
+          return { error: { code: 'invalid_state', message: ADAPTER_CUBE_TEXTURE_API_UNAVAILABLE } };
         }
         const { TextureCtor } = textureApi;
         const textures = Array.isArray(TextureCtor.all) ? TextureCtor.all : [];
@@ -123,6 +123,5 @@ export class BlockbenchGeometryAdapter {
     }
   }
 }
-
 
 

@@ -147,7 +147,7 @@ class NoCanvasTexture {
   assert.equal(secondCalls, 1);
 }
 
-// Missing canvas/edit support should report not_implemented on import.
+// Missing canvas/edit support should report invalid_state on import.
 {
   NoCanvasTexture.all = [];
   withGlobals(
@@ -165,7 +165,7 @@ class NoCanvasTexture {
         height: 16
       });
       assert.notEqual(err, null);
-      assert.equal(err?.code, 'not_implemented');
+      assert.equal(err?.code, 'invalid_state');
     }
   );
 }
@@ -222,5 +222,4 @@ class NoCanvasTexture {
     }
   );
 }
-
 

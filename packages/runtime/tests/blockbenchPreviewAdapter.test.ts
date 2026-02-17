@@ -62,7 +62,7 @@ const createCanvas = (dataUrl = 'data:image/png;base64,QQ==', width = 16, height
     },
     () => {
       const result = adapter.renderPreview({ mode: 'fixed' });
-      assert.equal(result.error?.code, 'not_implemented');
+      assert.equal(result.error?.code, 'invalid_state');
     }
   );
 }
@@ -81,7 +81,7 @@ const createCanvas = (dataUrl = 'data:image/png;base64,QQ==', width = 16, height
     },
     () => {
       const missingControls = adapter.renderPreview({ mode: 'fixed', angle: [10, 20] });
-      assert.equal(missingControls.error?.code, 'not_implemented');
+      assert.equal(missingControls.error?.code, 'invalid_state');
 
       const missingClip = adapter.renderPreview({ mode: 'fixed', timeSeconds: 1 });
       assert.equal(missingClip.error?.code, 'invalid_payload');

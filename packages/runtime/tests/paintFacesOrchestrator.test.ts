@@ -138,7 +138,7 @@ const createContext = (options?: {
   );
   assert.equal(res.ok, false);
   if (!res.ok) {
-    assert.equal(res.error.code, 'not_implemented');
+    assert.equal(res.error.code, 'invalid_state');
     assert.ok(res.error.message.startsWith('texture renderer unavailable'));
   }
 }

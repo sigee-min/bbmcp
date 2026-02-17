@@ -1,3 +1,5 @@
+import type { ToolName } from './shared';
+
 export type Limits = {
   maxCubes: number;
   maxTextureSize: number;
@@ -63,10 +65,19 @@ export interface ExportTargetCapability {
   available: boolean;
 }
 
+export interface ToolAvailabilityCapability {
+  available: boolean;
+  reason?: string;
+  note?: string;
+}
+
+export type ToolAvailabilityMap = Partial<Record<ToolName, ToolAvailabilityCapability>>;
+
 export interface Capabilities {
   pluginVersion: string;
   toolSchemaVersion?: string;
   toolRegistry?: ToolRegistryInfo;
+  toolAvailability?: ToolAvailabilityMap;
   blockbenchVersion: string;
   authoring: AuthoringCapability;
   exportTargets?: ExportTargetCapability[];

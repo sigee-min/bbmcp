@@ -1,4 +1,13 @@
-export * from './types';
-export * from './NativePipelineStore';
-export * from './PersistentNativePipelineStore';
-export * from './store';
+export type {
+  NativeJob
+} from './types';
+
+export type {
+  NativePipelineQueueStorePort
+} from './NativePipelineStore';
+
+export type {
+  NativePipelineStoreFactoryResult
+} from './store';
+
+export { configureNativePipelineStoreFactory, getNativePipelineStore } from './store';

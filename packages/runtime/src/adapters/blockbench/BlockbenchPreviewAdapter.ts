@@ -70,17 +70,17 @@ export class BlockbenchPreviewAdapter {
       preview?.renderer?.domElement ??
       readGlobals().document?.querySelector?.('canvas')) as HTMLCanvasElement | null;
     if (!canvas || !canvas.toDataURL) {
-      return { error: { code: 'not_implemented', message: ADAPTER_PREVIEW_CANVAS_UNAVAILABLE } };
+      return { error: { code: 'invalid_state', message: ADAPTER_PREVIEW_CANVAS_UNAVAILABLE } };
     }
     if (!canvas.width || !canvas.height) {
-      return { error: { code: 'not_implemented', message: ADAPTER_PREVIEW_CANVAS_NO_SIZE } };
+      return { error: { code: 'invalid_state', message: ADAPTER_PREVIEW_CANVAS_NO_SIZE } };
     }
     const controls = (preview?.controls ?? null) as ControlsLike | null;
     const camera = (preview?.camera ?? null) as CameraLike | null;
     if (params.angle && !controls) {
       return {
         error: {
-          code: 'not_implemented',
+          code: 'invalid_state',
           message: ADAPTER_PREVIEW_CONTROLS_UNAVAILABLE,
           fix: ADAPTER_PREVIEW_CONTROLS_UNAVAILABLE_FIX
         }
@@ -90,7 +90,7 @@ export class BlockbenchPreviewAdapter {
     if (params.mode === 'turntable' && !controls) {
       return {
         error: {
-          code: 'not_implemented',
+          code: 'invalid_state',
           message: ADAPTER_PREVIEW_TURNTABLE_CONTROLS_UNAVAILABLE,
           fix: ADAPTER_PREVIEW_CONTROLS_UNAVAILABLE_FIX
         }
@@ -154,7 +154,7 @@ export class BlockbenchPreviewAdapter {
       }
 
       if (!controls) {
-        return { error: { code: 'not_implemented', message: ADAPTER_PREVIEW_TURNTABLE_CONTROLS_UNAVAILABLE } };
+        return { error: { code: 'invalid_state', message: ADAPTER_PREVIEW_TURNTABLE_CONTROLS_UNAVAILABLE } };
       }
       const fps = params.fps ?? DEFAULT_TURNTABLE_FPS;
       const durationSeconds = params.durationSeconds ?? DEFAULT_TURNTABLE_SECONDS;
@@ -200,7 +200,6 @@ export class BlockbenchPreviewAdapter {
     }
   }
 }
-
 
 
 

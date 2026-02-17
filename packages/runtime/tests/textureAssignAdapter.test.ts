@@ -94,7 +94,7 @@ class FakeTexture {
     () => {
       const err = adapter.assignTexture({ textureName: 'atlas' });
       assert.notEqual(err, null);
-      assert.equal(err?.code, 'not_implemented');
+      assert.equal(err?.code, 'invalid_state');
     }
   );
 }
@@ -163,7 +163,7 @@ class FakeTexture {
     () => {
       const err = adapter.assignTexture({ textureName: 'atlas' });
       assert.notEqual(err, null);
-      assert.equal(err?.code, 'not_implemented');
+      assert.equal(err?.code, 'invalid_state');
       assert.equal(err?.message, ADAPTER_CUBE_APPLY_TEXTURE_UNAVAILABLE);
     }
   );
@@ -229,4 +229,3 @@ class FakeTexture {
   assert.equal(cube.faces.east.texture, 'tex-uuid');
   assert.equal(cube.faces.down.texture, 'tex-uuid');
 }
-

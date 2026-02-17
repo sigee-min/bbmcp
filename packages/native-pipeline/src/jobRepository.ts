@@ -1,6 +1,14 @@
 import { cloneJob } from './clone';
 import { allocateNativeJobId, type NativePipelineState } from './state';
-import type { NativeJob, NativeJobSubmitInput, NativeProjectSnapshot } from './types';
+import {
+  normalizeNativeJobPayload,
+  normalizeNativeJobResult,
+  normalizeSupportedNativeJobKind,
+  type NativeJob,
+  type NativeJobResult,
+  type NativeJobSubmitInput,
+  type NativeProjectSnapshot
+} from './types';
 
 const nowIso = (): string => new Date().toISOString();
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -12,9 +20,6 @@ const MAX_RETRY_BACKOFF_MS = 5_000;
 
 type ResolveProject = (projectId: string) => NativeProjectSnapshot;
 type EmitSnapshot = (project: NativeProjectSnapshot) => void;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 const clampInteger = (value: unknown, fallback: number, min: number, max: number): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
@@ -33,6 +38,37 @@ const computeRetryBackoffMs = (attemptCount: number): number => {
   const exponent = Math.max(0, attemptCount - 1);
   const backoff = 250 * 2 ** exponent;
   return Math.min(MAX_RETRY_BACKOFF_MS, backoff);
+};
+
+const toIntegerOrNull = (value: unknown): number | null => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value)) return null;
+  return value;
+};
+
+const clampNonNegative = (value: number): number => Math.max(0, Math.trunc(value));
+
+const applyCompletedJobProjection = (project: NativeProjectSnapshot, job: NativeJob): void => {
+  if (job.kind !== 'gltf.convert') {
+    return;
+  }
+
+  const bonesDelta = toIntegerOrNull(job.result?.geometryDelta?.bones);
+  const cubesDelta = toIntegerOrNull(job.result?.geometryDelta?.cubes);
+  if (bonesDelta !== null) {
+    project.stats.bones = clampNonNegative(project.stats.bones + bonesDelta);
+  }
+  if (cubesDelta !== null) {
+    project.stats.cubes = clampNonNegative(project.stats.cubes + cubesDelta);
+  }
+
+  if (typeof job.result?.hasGeometry === 'boolean') {
+    project.hasGeometry = job.result.hasGeometry;
+    return;
+  }
+
+  if ((bonesDelta ?? 0) > 0 || (cubesDelta ?? 0) > 0) {
+    project.hasGeometry = true;
+  }
 };
 
 const recoverExpiredRunningJobs = (state: NativePipelineState): void => {
@@ -68,17 +104,32 @@ export const submitJob = (
   emitProjectSnapshot: EmitSnapshot
 ): NativeJob => {
   const project = resolveProject(input.projectId);
-  const job: NativeJob = {
+  const kind = normalizeSupportedNativeJobKind(input.kind);
+  const baseJob = {
     id: allocateNativeJobId(state),
     projectId: project.projectId,
-    kind: input.kind,
-    ...(isRecord(input.payload) ? { payload: { ...input.payload } } : {}),
-    status: 'queued',
+    status: 'queued' as const,
     attemptCount: 0,
     maxAttempts: clampInteger(input.maxAttempts, DEFAULT_MAX_ATTEMPTS, 1, MAX_ATTEMPTS_LIMIT),
     leaseMs: clampInteger(input.leaseMs, DEFAULT_LEASE_MS, MIN_LEASE_MS, MAX_LEASE_MS),
     createdAt: nowIso()
   };
+  let job: NativeJob;
+  if (kind === 'gltf.convert') {
+    const payload = normalizeNativeJobPayload('gltf.convert', input.payload);
+    job = {
+      ...baseJob,
+      kind: 'gltf.convert',
+      ...(payload ? { payload } : {})
+    };
+  } else {
+    const payload = normalizeNativeJobPayload('texture.preflight', input.payload);
+    job = {
+      ...baseJob,
+      kind: 'texture.preflight',
+      ...(payload ? { payload } : {})
+    };
+  }
 
   state.jobs.set(job.id, job);
   enqueueUnique(state, job.id);
@@ -137,14 +188,16 @@ export const claimNextJob = (
 export const completeJob = (
   state: NativePipelineState,
   jobId: string,
-  result: Record<string, unknown> | undefined,
+  result: NativeJobResult | undefined,
   emitProjectSnapshot: EmitSnapshot
 ): NativeJob | null => {
   const job = state.jobs.get(jobId);
   if (!job) return null;
 
+  const normalizedResult = normalizeNativeJobResult(job.kind, result);
+
   job.status = 'completed';
-  job.result = result ? { ...result } : undefined;
+  job.result = normalizedResult;
   job.completedAt = nowIso();
   delete job.nextRetryAt;
   delete job.leaseExpiresAt;
@@ -153,8 +206,7 @@ export const completeJob = (
   const project = state.projects.get(job.projectId);
   if (project) {
     project.revision += 1;
-    project.hasGeometry = true;
-    project.stats.cubes += 1;
+    applyCompletedJobProjection(project, job);
     project.activeJob = { id: job.id, status: 'completed' };
     emitProjectSnapshot(project);
   }

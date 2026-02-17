@@ -77,7 +77,7 @@ export const resolveTextureForPaintFaces = (
   let resolvedTexture = byId ?? byName ?? null;
   if (!resolvedTexture) {
     if (!ctx.createBlankTexture) {
-      return fail({ code: 'not_implemented', message: TEXTURE_RENDERER_UNAVAILABLE });
+      return fail({ code: 'invalid_state', message: TEXTURE_RENDERER_UNAVAILABLE });
     }
     const fallbackResolution = ctx.editor.getProjectTextureResolution() ?? { width: 16, height: 16 };
     const createWidth = Number(payload.width ?? fallbackResolution.width);
@@ -120,4 +120,3 @@ export const resolveTextureForPaintFaces = (
   }
   return ok(resolvedTexture);
 };
-

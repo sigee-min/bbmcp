@@ -2,6 +2,12 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import type { BlobPointer, BlobReadResult, BlobStore, BlobWriteInput } from '@ashfox/backend-core';
 import type { AppwriteBlobStoreConfig } from '../config';
+import {
+  appwriteTimeoutError,
+  normalizeBlobBucket,
+  normalizeBlobKey,
+  normalizeBlobPrefix
+} from './validation';
 
 export interface AppwriteBlobStoreOptions {
   fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
@@ -33,28 +39,9 @@ const APPWRITE_CHUNK_BYTES = 5 * 1024 * 1024;
 
 const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '');
 
-const normalizeBucket = (value: string): string => {
-  const normalized = value.trim();
-  if (!normalized) throw new Error('bucket must be a non-empty string.');
-  if (normalized.includes('/')) throw new Error('bucket must not include "/".');
-  return normalized;
-};
-
-const normalizeKey = (value: string): string => {
-  const normalized = value.trim().replace(/\\/g, '/').replace(/^\/+/, '');
-  if (!normalized) throw new Error('key must be a non-empty string.');
-  return normalized;
-};
-
-const normalizePrefix = (value: string | undefined): string | undefined => {
-  if (!value) return undefined;
-  const normalized = value.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-  return normalized ? normalized : undefined;
-};
-
 const toStorageKey = (key: string, keyPrefix: string | undefined): string => {
-  const normalizedKey = normalizeKey(key);
-  const normalizedPrefix = normalizePrefix(keyPrefix);
+  const normalizedKey = normalizeBlobKey(key);
+  const normalizedPrefix = normalizeBlobPrefix(keyPrefix);
   if (!normalizedPrefix) return normalizedKey;
   return `${normalizedPrefix}/${normalizedKey}`;
 };
@@ -128,7 +115,7 @@ export class AppwriteBlobStore implements BlobStore {
     this.config = {
       ...config,
       baseUrl: normalizeBaseUrl(config.baseUrl),
-      keyPrefix: normalizePrefix(config.keyPrefix)
+      keyPrefix: normalizeBlobPrefix(config.keyPrefix)
     };
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.filesPath = `/storage/buckets/${encodeURIComponent(this.config.bucketId)}/files`;
@@ -171,7 +158,7 @@ export class AppwriteBlobStore implements BlobStore {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Appwrite request timed out after ${this.config.requestTimeoutMs}ms (${method} ${pathValue}).`);
+        throw appwriteTimeoutError(this.config.requestTimeoutMs, method, pathValue);
       }
       throw error;
     } finally {
@@ -311,8 +298,8 @@ export class AppwriteBlobStore implements BlobStore {
   }
 
   async put(input: BlobWriteInput): Promise<BlobPointer> {
-    const bucket = normalizeBucket(input.bucket);
-    const key = normalizeKey(input.key);
+    const bucket = normalizeBlobBucket(input.bucket);
+    const key = normalizeBlobKey(input.key);
     const fileId = toFileId(bucket, key, this.config.keyPrefix);
     const namespacedKey = toNamespaceKey(bucket, key, this.config.keyPrefix);
     const fileName = path.posix.basename(namespacedKey) || `${fileId}.bin`;
@@ -353,8 +340,8 @@ export class AppwriteBlobStore implements BlobStore {
   }
 
   async get(pointer: BlobPointer): Promise<BlobReadResult | null> {
-    const bucket = normalizeBucket(pointer.bucket);
-    const key = normalizeKey(pointer.key);
+    const bucket = normalizeBlobBucket(pointer.bucket);
+    const key = normalizeBlobKey(pointer.key);
     const fileId = toFileId(bucket, key, this.config.keyPrefix);
     const metadataResponse = await this.request('GET', this.buildFilePath(fileId));
     if (metadataResponse.status === 404) return null;
@@ -385,8 +372,8 @@ export class AppwriteBlobStore implements BlobStore {
   }
 
   async delete(pointer: BlobPointer): Promise<void> {
-    const bucket = normalizeBucket(pointer.bucket);
-    const key = normalizeKey(pointer.key);
+    const bucket = normalizeBlobBucket(pointer.bucket);
+    const key = normalizeBlobKey(pointer.key);
     const fileId = toFileId(bucket, key, this.config.keyPrefix);
     await this.deleteFileById(fileId);
     await this.deleteMetadata(fileId);

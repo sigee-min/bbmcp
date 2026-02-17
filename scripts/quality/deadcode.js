@@ -21,6 +21,7 @@ if (run.status !== 0) {
 
 const output = run.stdout || '';
 const ignoredDeadcodePaths = [
+  '/packages/runtime/src/conformance/',
   '/packages/runtime/src/types.ts:',
   '/packages/runtime/src/types/',
   '/packages/contracts/src/types/'
@@ -45,4 +46,3 @@ if (lines.length > 0) {
 }
 
 console.log('ashfox deadcode gate ok');
-

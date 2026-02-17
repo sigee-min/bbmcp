@@ -12,12 +12,6 @@ import {
 const DEFAULT_PROJECT_ID = 'default-project';
 const DEFAULT_TENANT_ID = 'default-tenant';
 const DEFAULT_ACTOR_ID = 'mcp-gateway';
-const ENGINE_NATIVE_PROD_BLOCKED_TOOLS = new Set<ToolName>([
-  'render_preview',
-  'reload_plugins',
-  'export_trace_log',
-  'paint_faces'
-]);
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
   if (!value || typeof value !== 'object') return null;
@@ -56,20 +50,17 @@ export interface GatewayDispatcherOptions {
   registry: BackendRegistry;
   lockManager?: ProjectLockManager;
   defaultBackend: BackendKind;
-  nativeProdGuard?: boolean;
 }
 
 export class GatewayDispatcher implements Dispatcher {
   private readonly registry: BackendRegistry;
   private readonly lockManager: ProjectLockManager;
   private readonly defaultBackend: BackendKind;
-  private readonly nativeProdGuard: boolean;
 
   constructor(options: GatewayDispatcherOptions) {
     this.registry = options.registry;
     this.lockManager = options.lockManager ?? new ProjectLockManager();
     this.defaultBackend = options.defaultBackend;
-    this.nativeProdGuard = options.nativeProdGuard !== false;
   }
 
   async handle<TName extends ToolName>(
@@ -83,14 +74,6 @@ export class GatewayDispatcher implements Dispatcher {
         `Requested backend is unavailable. Registered backends: ${this.registry.listKinds().join(', ') || 'none'}.`,
         'Register the backend and retry.',
         { defaultBackend: this.defaultBackend }
-      ) as ToolResponse<ToolResultMap[TName]>;
-    }
-    if (this.nativeProdGuard && selection.kind === 'engine' && ENGINE_NATIVE_PROD_BLOCKED_TOOLS.has(name)) {
-      return backendToolError(
-        'invalid_state',
-        `Tool '${name}' is disabled in native production profile.`,
-        'Use supported native workflows (for example export/get_project_state), or disable guard explicitly for non-prod usage.',
-        { backend: selection.kind, tool: name, nativeProdGuard: true }
       ) as ToolResponse<ToolResultMap[TName]>;
     }
     const backend = selection.backend;

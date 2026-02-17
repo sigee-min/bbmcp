@@ -18,7 +18,17 @@ import {
 import type { NativePipelineStorePort } from './NativePipelineStore';
 import { ensureProject, getProject as readProject, listProjects as readProjects, seedProjects } from './projectRepository';
 import { createNativePipelineState, resetNativePipelineState, type NativePipelineState } from './state';
-import type { NativeJob, NativeJobStatus, NativeJobSubmitInput, NativeProjectEvent, NativeProjectSnapshot } from './types';
+import {
+  isSupportedNativeJobKind,
+  normalizeNativeJobPayload,
+  normalizeNativeJobResult,
+  type NativeJob,
+  type NativeJobResult,
+  type NativeJobStatus,
+  type NativeJobSubmitInput,
+  type NativeProjectEvent,
+  type NativeProjectSnapshot
+} from './types';
 
 const PERSISTED_STATE_VERSION = 1;
 const DEFAULT_STATE_SCOPE: ProjectRepositoryScope = {
@@ -231,17 +241,17 @@ const asProjectSnapshot = (value: unknown): NativeProjectSnapshot | null => {
 const asNativeJob = (value: unknown): NativeJob | null => {
   if (!isRecord(value)) return null;
   if (typeof value.id !== 'string' || typeof value.projectId !== 'string' || typeof value.kind !== 'string') return null;
+  if (!isSupportedNativeJobKind(value.kind)) return null;
   if (!isNativeJobStatus(value.status)) return null;
   if (typeof value.attemptCount !== 'number' || !Number.isFinite(value.attemptCount)) return null;
   if (typeof value.maxAttempts !== 'number' || !Number.isFinite(value.maxAttempts)) return null;
   if (typeof value.leaseMs !== 'number' || !Number.isFinite(value.leaseMs)) return null;
   if (typeof value.createdAt !== 'string') return null;
 
-  return {
+  const kind = value.kind;
+  const baseJob = {
     id: value.id,
     projectId: value.projectId,
-    kind: value.kind,
-    ...(isRecord(value.payload) ? { payload: { ...value.payload } } : {}),
     status: value.status,
     attemptCount: Math.trunc(value.attemptCount),
     maxAttempts: Math.trunc(value.maxAttempts),
@@ -252,10 +262,33 @@ const asNativeJob = (value: unknown): NativeJob | null => {
     ...(typeof value.nextRetryAt === 'string' ? { nextRetryAt: value.nextRetryAt } : {}),
     ...(typeof value.completedAt === 'string' ? { completedAt: value.completedAt } : {}),
     ...(typeof value.workerId === 'string' ? { workerId: value.workerId } : {}),
-    ...(isRecord(value.result) ? { result: { ...value.result } } : {}),
     ...(typeof value.error === 'string' ? { error: value.error } : {}),
     ...(value.deadLetter === true ? { deadLetter: true } : {})
   };
+
+  try {
+    if (kind === 'gltf.convert') {
+      const payload = normalizeNativeJobPayload('gltf.convert', value.payload);
+      const result = normalizeNativeJobResult('gltf.convert', value.result);
+      return {
+        ...baseJob,
+        kind: 'gltf.convert',
+        ...(payload ? { payload } : {}),
+        ...(result ? { result } : {})
+      };
+    }
+
+    const payload = normalizeNativeJobPayload('texture.preflight', value.payload);
+    const result = normalizeNativeJobResult('texture.preflight', value.result);
+    return {
+      ...baseJob,
+      kind: 'texture.preflight',
+      ...(payload ? { payload } : {}),
+      ...(result ? { result } : {})
+    };
+  } catch {
+    return null;
+  }
 };
 
 const asProjectEvent = (value: unknown): NativeProjectEvent | null => {
@@ -423,7 +456,7 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
     return this.withMutation((state) => claimNativeJob(state, workerId, (project) => appendProjectSnapshotEvent(state, project)));
   }
 
-  async completeJob(jobId: string, result?: Record<string, unknown>): Promise<NativeJob | null> {
+  async completeJob(jobId: string, result?: NativeJobResult): Promise<NativeJob | null> {
     return this.withMutation((state) => completeNativeJob(state, jobId, result, (project) => appendProjectSnapshotEvent(state, project)));
   }
 

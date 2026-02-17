@@ -139,7 +139,7 @@ const createContext = (options?: {
     'atlas'
   );
   assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.error.code, 'not_implemented');
+  if (!res.ok) assert.equal(res.error.code, 'invalid_state');
 }
 
 {

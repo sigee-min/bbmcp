@@ -14,28 +14,25 @@ Environment variables:
 - `ASHFOX_GATEWAY_BACKEND` (`engine` | `blockbench`, default `engine`)
 - `ASHFOX_PERSISTENCE_FAIL_FAST` (default `true`; if `false`, start even when persistence readiness is degraded)
 - `ASHFOX_PERSISTENCE_PRESET` (`local` | `selfhost` | `ashfox` | `appwrite`, default `local`)
-- `ASHFOX_DB_PROVIDER` (`sqlite` | `postgres` | `ashfox` | `appwrite`) overrides preset DB selection
-- `ASHFOX_STORAGE_PROVIDER` (`fs` | `s3` | `ashfox` | `appwrite`) overrides preset storage selection
-- `ASHFOX_STORAGE_FS_ROOT` (default `.ashfox/storage`) when `ASHFOX_STORAGE_PROVIDER=fs`
-- `ASHFOX_DB_SQLITE_PATH` (default `.ashfox/local/ashfox.sqlite`) when `ASHFOX_DB_PROVIDER=sqlite`
+- `ASHFOX_DB_SQLITE_PATH` (default `.ashfox/local/ashfox.sqlite`) when `ASHFOX_PERSISTENCE_PRESET=local`
 - `ASHFOX_DB_SQLITE_TABLE` (default `ashfox_projects`)
 - `ASHFOX_DB_SQLITE_MIGRATIONS_TABLE` (default `ashfox_schema_migrations`)
-- `ASHFOX_DB_POSTGRES_URL` (default `postgresql://ashfox:ashfox@postgres:5432/ashfox`)
+- `ASHFOX_STORAGE_DB_SQLITE_PATH` (default follows `ASHFOX_DB_SQLITE_PATH`) when `ASHFOX_PERSISTENCE_PRESET=local`
+- `ASHFOX_STORAGE_DB_SQLITE_TABLE` (default `ashfox_blobs`)
+- `ASHFOX_DB_POSTGRES_URL` (default `postgresql://ashfox:ashfox@postgres:5432/ashfox`) when `ASHFOX_PERSISTENCE_PRESET=selfhost`
 - `ASHFOX_DB_POSTGRES_SCHEMA` / `ASHFOX_DB_POSTGRES_TABLE` (default `public` / `ashfox_projects`)
 - `ASHFOX_DB_POSTGRES_MIGRATIONS_TABLE` (default `ashfox_schema_migrations`)
-- `ASHFOX_DB_ASHFOX_URL` (optional direct connection string override)
+- `ASHFOX_STORAGE_DB_POSTGRES_URL` (default follows `ASHFOX_DB_POSTGRES_URL`) when `ASHFOX_PERSISTENCE_PRESET=selfhost`
+- `ASHFOX_STORAGE_DB_POSTGRES_SCHEMA` / `ASHFOX_STORAGE_DB_POSTGRES_TABLE` (default follows DB schema / `ashfox_blobs`)
+- `ASHFOX_DB_ASHFOX_URL` (optional direct connection string override) when `ASHFOX_PERSISTENCE_PRESET=ashfox`
 - `ASHFOX_DB_ASHFOX_HOST` (default `database.sigee.xyx`)
 - `ASHFOX_DB_ASHFOX_PORT` (default `5432`)
 - `ASHFOX_DB_ASHFOX_USER` / `ASHFOX_DB_ASHFOX_PASSWORD` / `ASHFOX_DB_ASHFOX_NAME` (default `postgres` / empty / `postgres`)
 - `ASHFOX_DB_ASHFOX_SSL` (default `true`)
 - `ASHFOX_DB_ASHFOX_MIGRATIONS_TABLE` (default `ashfox_schema_migrations`)
-- `ASHFOX_STORAGE_S3_REGION` (default `us-east-1`)
-- `ASHFOX_STORAGE_S3_ENDPOINT` (optional, for self-host/minio)
-- `ASHFOX_STORAGE_S3_ACCESS_KEY_ID` / `ASHFOX_STORAGE_S3_SECRET_ACCESS_KEY` (required for `s3`)
-- `ASHFOX_STORAGE_S3_SESSION_TOKEN` (optional)
-- `ASHFOX_STORAGE_S3_FORCE_PATH_STYLE` (default `true`)
-- `ASHFOX_STORAGE_S3_KEY_PREFIX` (optional)
-- `ASHFOX_STORAGE_ASHFOX_URL` (default `https://database.sigee.xyx`)
+- `ASHFOX_STORAGE_DB_ASHFOX_URL` (default follows `ASHFOX_DB_ASHFOX_URL`) when `ASHFOX_PERSISTENCE_PRESET=ashfox`
+- `ASHFOX_STORAGE_DB_ASHFOX_SCHEMA` / `ASHFOX_STORAGE_DB_ASHFOX_TABLE` (default follows DB schema / `ashfox_blobs`)
+- `ASHFOX_STORAGE_ASHFOX_URL` (default `https://database.sigee.xyx`) when `ASHFOX_PERSISTENCE_PRESET=ashfox`
 - `ASHFOX_STORAGE_ASHFOX_SERVICE_KEY` (required for `ashfox`)
 - `ASHFOX_STORAGE_ASHFOX_KEY_PREFIX` (optional)
 - `ASHFOX_STORAGE_ASHFOX_UPSERT` (default `true`)
@@ -43,10 +40,10 @@ Environment variables:
 - `ASHFOX_APPWRITE_PROJECT_ID` / `ASHFOX_APPWRITE_API_KEY` (shared fallback)
 - `ASHFOX_APPWRITE_TIMEOUT_MS` (default `15000`)
 - `ASHFOX_APPWRITE_RESPONSE_FORMAT` (default `1.8.0`)
-- `ASHFOX_DB_APPWRITE_URL` / `ASHFOX_DB_APPWRITE_PROJECT_ID` / `ASHFOX_DB_APPWRITE_API_KEY` (required for `appwrite` DB unless shared fallback is set)
+- `ASHFOX_DB_APPWRITE_URL` / `ASHFOX_DB_APPWRITE_PROJECT_ID` / `ASHFOX_DB_APPWRITE_API_KEY` (required when `ASHFOX_PERSISTENCE_PRESET=appwrite` unless shared fallback is set)
 - `ASHFOX_DB_APPWRITE_DATABASE_ID` / `ASHFOX_DB_APPWRITE_COLLECTION_ID` (default `ashfox` / `ashfox_projects`)
 - `ASHFOX_DB_APPWRITE_TIMEOUT_MS` / `ASHFOX_DB_APPWRITE_RESPONSE_FORMAT` (optional overrides)
-- `ASHFOX_STORAGE_APPWRITE_URL` / `ASHFOX_STORAGE_APPWRITE_PROJECT_ID` / `ASHFOX_STORAGE_APPWRITE_API_KEY` (required for `appwrite` storage unless shared fallback is set)
+- `ASHFOX_STORAGE_APPWRITE_URL` / `ASHFOX_STORAGE_APPWRITE_PROJECT_ID` / `ASHFOX_STORAGE_APPWRITE_API_KEY` (required when `ASHFOX_PERSISTENCE_PRESET=appwrite` unless shared fallback is set)
 - `ASHFOX_STORAGE_APPWRITE_BUCKET_ID` (default `ashfox_blobs`)
 - `ASHFOX_STORAGE_APPWRITE_KEY_PREFIX` (optional)
 - `ASHFOX_STORAGE_APPWRITE_UPSERT` (default `true`)
@@ -62,14 +59,10 @@ Appwrite schema prerequisites:
 - Adapter uses deterministic 36-char IDs for Appwrite document/file constraints and chunk upload for files larger than 5MB
 
 Current persistence adapter status:
-- `local` preset: `sqlite` + `fs` (zero-config)
-- `postgres`: implemented (`pg`)
-- `ashfox` managed DB: implemented (`pg`, default host `database.sigee.xyx`)
-- `appwrite` database: implemented (Databases API)
-- `fs` storage: implemented
-- `s3` storage: implemented (`@aws-sdk/client-s3`)
-- `ashfox` managed storage: implemented (Ashfox storage HTTP API)
-- `appwrite` storage: implemented (Storage API + optional metadata collection)
+- `local` preset: `sqlite` + `db` (zero-config)
+- `selfhost` preset: `postgres` + `db`
+- `ashfox` preset: `ashfox` managed DB + storage
+- `appwrite` preset: Appwrite DB + storage
 
 Preset sample env files:
 - `deploy/env/presets/local.env.example`

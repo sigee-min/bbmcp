@@ -14,8 +14,6 @@ import { registerAsync } from './helpers';
 const requiredEnv = [
   'ASHFOX_PERSISTENCE_PRESET',
   'ASHFOX_PERSISTENCE_FAIL_FAST',
-  'ASHFOX_STORAGE_PROVIDER',
-  'ASHFOX_STORAGE_FS_ROOT',
   'ASHFOX_GATEWAY_BACKEND',
   'ASHFOX_HOST',
   'ASHFOX_PORT',

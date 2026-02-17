@@ -1,58 +1,56 @@
+x-ashfox-persistence-env: &ashfox-persistence-env
+  ASHFOX_PERSISTENCE_PRESET: ${ASHFOX_PERSISTENCE_PRESET:-selfhost}
+  ASHFOX_DB_POSTGRES_URL: ${ASHFOX_DB_POSTGRES_URL:-postgresql://ashfox:ashfox@postgres:5432/ashfox}
+
 services:
   web:
-    build:
-      context: ..
-      dockerfile: apps/web/Dockerfile
-    container_name: ashfox-web
+    image: ${ASHFOX_WEB_IMAGE:-ashfox/web:local}
+    restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=8686
+      NODE_ENV: production
+      PORT: "8686"
+      <<: *ashfox-persistence-env
     ports:
-      - '8686:8686'
+      - "${ASHFOX_WEB_PORT:-8686}:8686"
+    depends_on:
+      - postgres
 
   mcp-gateway:
-    build:
-      context: ..
-      dockerfile: apps/mcp-gateway/Dockerfile
-    container_name: ashfox-mcp-gateway
+    image: ${ASHFOX_GATEWAY_IMAGE:-ashfox/mcp-gateway:local}
+    restart: unless-stopped
     environment:
-      - ASHFOX_HOST=0.0.0.0
-      - ASHFOX_PORT=8787
-      - ASHFOX_PATH=/mcp
-      - ASHFOX_GATEWAY_BACKEND=engine
-      - ASHFOX_PERSISTENCE_PRESET=local
-      - ASHFOX_DB_PROVIDER=postgres
-      - ASHFOX_DB_POSTGRES_URL=postgresql://ashfox:ashfox@postgres:5432/ashfox
-      - ASHFOX_STORAGE_PROVIDER=fs
-      - ASHFOX_STORAGE_FS_ROOT=/tmp/ashfox-storage
+      ASHFOX_HOST: 0.0.0.0
+      ASHFOX_PORT: "${ASHFOX_GATEWAY_PORT:-8787}"
+      ASHFOX_PATH: ${ASHFOX_GATEWAY_PATH:-/mcp}
+      ASHFOX_GATEWAY_BACKEND: ${ASHFOX_GATEWAY_BACKEND:-engine}
+      <<: *ashfox-persistence-env
     ports:
-      - '8787:8787'
+      - "${ASHFOX_GATEWAY_PORT:-8787}:${ASHFOX_GATEWAY_PORT:-8787}"
     depends_on:
       - postgres
 
   worker:
-    build:
-      context: ..
-      dockerfile: apps/worker/Dockerfile
-    container_name: ashfox-worker
+    image: ${ASHFOX_WORKER_IMAGE:-ashfox/worker:local}
+    restart: unless-stopped
     environment:
-      - ASHFOX_WORKER_HEARTBEAT_MS=5000
-      - ASHFOX_WORKER_POLL_MS=1200
-      - ASHFOX_WORKER_NATIVE_PIPELINE=1
-      - ASHFOX_PERSISTENCE_PRESET=local
-      - ASHFOX_DB_PROVIDER=postgres
-      - ASHFOX_DB_POSTGRES_URL=postgresql://ashfox:ashfox@postgres:5432/ashfox
-      - ASHFOX_STORAGE_PROVIDER=fs
-      - ASHFOX_STORAGE_FS_ROOT=/tmp/ashfox-storage
+      ASHFOX_WORKER_HEARTBEAT_MS: "${ASHFOX_WORKER_HEARTBEAT_MS:-5000}"
+      ASHFOX_WORKER_POLL_MS: "${ASHFOX_WORKER_POLL_MS:-1200}"
+      ASHFOX_WORKER_NATIVE_PIPELINE: "${ASHFOX_WORKER_NATIVE_PIPELINE:-1}"
+      <<: *ashfox-persistence-env
     depends_on:
       - postgres
 
   postgres:
     image: postgres:16-alpine
-    container_name: ashfox-postgres
+    restart: unless-stopped
     environment:
-      - POSTGRES_DB=ashfox
-      - POSTGRES_USER=ashfox
-      - POSTGRES_PASSWORD=ashfox
+      POSTGRES_DB: ${POSTGRES_DB:-ashfox}
+      POSTGRES_USER: ${POSTGRES_USER:-ashfox}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ashfox}
     ports:
-      - '5432:5432'
+      - "${ASHFOX_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ashfox-postgres:/var/lib/postgresql/data
+
+volumes:
+  ashfox-postgres:

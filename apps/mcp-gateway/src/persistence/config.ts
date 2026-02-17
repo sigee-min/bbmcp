@@ -18,6 +18,21 @@ export interface SqliteRepositoryConfig {
   provider: DatabaseProvider;
 }
 
+export interface PostgresDbBlobStoreConfig {
+  connectionString: string;
+  schema: string;
+  tableName: string;
+  maxConnections: number;
+  provider: DatabaseProvider;
+  host: string;
+}
+
+export interface SqliteDbBlobStoreConfig {
+  filePath: string;
+  tableName: string;
+  provider: DatabaseProvider;
+}
+
 export interface S3BlobStoreConfig {
   region: string;
   endpoint?: string;
@@ -61,10 +76,10 @@ export interface AppwriteBlobStoreConfig extends AppwriteCommonConfig {
 }
 
 const DEFAULT_PRESET: PersistencePreset = 'local';
-const DEFAULT_STORAGE_ROOT = path.resolve('.ashfox', 'storage');
 const DEFAULT_POSTGRES_URL = 'postgresql://ashfox:ashfox@postgres:5432/ashfox';
 const DEFAULT_SQLITE_PATH = path.resolve('.ashfox', 'local', 'ashfox.sqlite');
 const DEFAULT_MIGRATIONS_TABLE = 'ashfox_schema_migrations';
+const DEFAULT_DB_BLOB_TABLE = 'ashfox_blobs';
 const DEFAULT_ASHFOX_DB_HOST = 'database.sigee.xyx';
 const DEFAULT_ASHFOX_STORAGE_URL = 'https://database.sigee.xyx';
 const DEFAULT_APPWRITE_URL = 'https://cloud.appwrite.io/v1';
@@ -76,8 +91,8 @@ const DEFAULT_APPWRITE_BLOB_METADATA_COLLECTION_ID = 'ashfox_blob_metadata';
 
 const PRESET_SELECTIONS: Record<PersistencePreset, { databaseProvider: DatabaseProvider; storageProvider: StorageProvider }> =
   {
-    local: { databaseProvider: 'sqlite', storageProvider: 'fs' },
-    selfhost: { databaseProvider: 'postgres', storageProvider: 's3' },
+    local: { databaseProvider: 'sqlite', storageProvider: 'db' },
+    selfhost: { databaseProvider: 'postgres', storageProvider: 'db' },
     ashfox: { databaseProvider: 'ashfox', storageProvider: 'ashfox' },
     appwrite: { databaseProvider: 'appwrite', storageProvider: 'appwrite' }
   };
@@ -118,22 +133,6 @@ const parsePreset = (value: string | undefined): PersistencePreset | null => {
   return null;
 };
 
-const parseDatabaseProvider = (value: string | undefined): DatabaseProvider | null => {
-  const normalized = normalize(value);
-  if (normalized === 'sqlite' || normalized === 'postgres' || normalized === 'ashfox' || normalized === 'appwrite') {
-    return normalized;
-  }
-  return null;
-};
-
-const parseStorageProvider = (value: string | undefined): StorageProvider | null => {
-  const normalized = normalize(value);
-  if (normalized === 'fs' || normalized === 's3' || normalized === 'ashfox' || normalized === 'appwrite') {
-    return normalized;
-  }
-  return null;
-};
-
 const normalizeUrlBase = (value: string): string => value.replace(/\/+$/, '');
 
 const buildPostgresUrl = (input: {
@@ -162,19 +161,11 @@ const parseHostFromConnection = (connectionString: string, fallbackHost: string)
 export const resolvePersistenceSelection = (env: NodeJS.ProcessEnv): PersistenceSelection => {
   const preset = parsePreset(env.ASHFOX_PERSISTENCE_PRESET) ?? DEFAULT_PRESET;
   const presetSelection = PRESET_SELECTIONS[preset];
-  const databaseProvider = parseDatabaseProvider(env.ASHFOX_DB_PROVIDER) ?? presetSelection.databaseProvider;
-  const storageProvider = parseStorageProvider(env.ASHFOX_STORAGE_PROVIDER) ?? presetSelection.storageProvider;
   return {
     preset,
-    databaseProvider,
-    storageProvider
+    databaseProvider: presetSelection.databaseProvider,
+    storageProvider: presetSelection.storageProvider
   };
-};
-
-export const resolveStorageRoot = (env: NodeJS.ProcessEnv): string => {
-  const raw = nonEmpty(env.ASHFOX_STORAGE_FS_ROOT);
-  if (!raw) return DEFAULT_STORAGE_ROOT;
-  return path.resolve(raw);
 };
 
 export const resolveSqliteDatabaseConfig = (env: NodeJS.ProcessEnv): SqliteRepositoryConfig => {
@@ -228,6 +219,42 @@ export const resolveAshfoxDatabaseConfig = (env: NodeJS.ProcessEnv): PostgresRep
     maxConnections: parsePositiveInt(env.ASHFOX_DB_ASHFOX_MAX_CONNECTIONS, 10),
     provider: 'ashfox',
     host
+  };
+};
+
+export const resolveSqliteDbBlobStoreConfig = (env: NodeJS.ProcessEnv): SqliteDbBlobStoreConfig => {
+  const fallback = resolveSqliteDatabaseConfig(env);
+  const filePath = path.resolve(nonEmpty(env.ASHFOX_STORAGE_DB_SQLITE_PATH) ?? fallback.filePath);
+  return {
+    filePath,
+    tableName: nonEmpty(env.ASHFOX_STORAGE_DB_SQLITE_TABLE) ?? DEFAULT_DB_BLOB_TABLE,
+    provider: 'sqlite'
+  };
+};
+
+export const resolvePostgresDbBlobStoreConfig = (env: NodeJS.ProcessEnv): PostgresDbBlobStoreConfig => {
+  const fallback = resolvePostgresDatabaseConfig(env);
+  const connectionString = nonEmpty(env.ASHFOX_STORAGE_DB_POSTGRES_URL) ?? fallback.connectionString;
+  return {
+    connectionString,
+    schema: nonEmpty(env.ASHFOX_STORAGE_DB_POSTGRES_SCHEMA) ?? fallback.schema,
+    tableName: nonEmpty(env.ASHFOX_STORAGE_DB_POSTGRES_TABLE) ?? DEFAULT_DB_BLOB_TABLE,
+    maxConnections: parsePositiveInt(env.ASHFOX_STORAGE_DB_POSTGRES_MAX_CONNECTIONS, fallback.maxConnections),
+    provider: 'postgres',
+    host: parseHostFromConnection(connectionString, fallback.host)
+  };
+};
+
+export const resolveAshfoxDbBlobStoreConfig = (env: NodeJS.ProcessEnv): PostgresDbBlobStoreConfig => {
+  const fallback = resolveAshfoxDatabaseConfig(env);
+  const connectionString = nonEmpty(env.ASHFOX_STORAGE_DB_ASHFOX_URL) ?? fallback.connectionString;
+  return {
+    connectionString,
+    schema: nonEmpty(env.ASHFOX_STORAGE_DB_ASHFOX_SCHEMA) ?? fallback.schema,
+    tableName: nonEmpty(env.ASHFOX_STORAGE_DB_ASHFOX_TABLE) ?? DEFAULT_DB_BLOB_TABLE,
+    maxConnections: parsePositiveInt(env.ASHFOX_STORAGE_DB_ASHFOX_MAX_CONNECTIONS, fallback.maxConnections),
+    provider: 'ashfox',
+    host: parseHostFromConnection(connectionString, fallback.host)
   };
 };
 

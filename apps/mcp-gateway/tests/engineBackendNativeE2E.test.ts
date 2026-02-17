@@ -119,7 +119,7 @@ const createInMemoryPersistence = (): PersistencePorts & {
       selection: {
         preset: 'local',
         databaseProvider: 'sqlite',
-        storageProvider: 'fs'
+        storageProvider: 'db'
       },
       database: {
         provider: 'memory_repository',

@@ -6,22 +6,18 @@ module.exports = async () => {
   const keys = [
     'ASHFOX_NATIVE_PIPELINE_BACKEND',
     'ASHFOX_PERSISTENCE_PRESET',
-    'ASHFOX_DB_PROVIDER',
-    'ASHFOX_STORAGE_PROVIDER',
     'ASHFOX_DB_POSTGRES_URL',
-    'ASHFOX_STORAGE_S3_ACCESS_KEY_ID',
-    'ASHFOX_STORAGE_S3_SECRET_ACCESS_KEY'
+    'ASHFOX_DB_ASHFOX_URL',
+    'ASHFOX_STORAGE_ASHFOX_SERVICE_KEY'
   ] as const;
   const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]])) as Record<string, string | undefined>;
 
   try {
     process.env.ASHFOX_NATIVE_PIPELINE_BACKEND = 'memory';
     process.env.ASHFOX_PERSISTENCE_PRESET = 'local';
-    delete process.env.ASHFOX_DB_PROVIDER;
-    delete process.env.ASHFOX_STORAGE_PROVIDER;
     delete process.env.ASHFOX_DB_POSTGRES_URL;
-    delete process.env.ASHFOX_STORAGE_S3_ACCESS_KEY_ID;
-    delete process.env.ASHFOX_STORAGE_S3_SECRET_ACCESS_KEY;
+    delete process.env.ASHFOX_DB_ASHFOX_URL;
+    delete process.env.ASHFOX_STORAGE_ASHFOX_SERVICE_KEY;
 
     const readyResponse = await GET();
     assert.equal(readyResponse.status, 200);
@@ -46,12 +42,9 @@ module.exports = async () => {
     assert.equal(readyPayload.readiness?.storage?.ready, true);
     assert.equal(typeof readyPayload.timestamp, 'string');
 
-    process.env.ASHFOX_PERSISTENCE_PRESET = 'selfhost';
-    process.env.ASHFOX_DB_PROVIDER = 'postgres';
-    process.env.ASHFOX_STORAGE_PROVIDER = 's3';
-    process.env.ASHFOX_DB_POSTGRES_URL = 'postgresql://selfhost:selfhost@127.0.0.1:5432/ashfox';
-    delete process.env.ASHFOX_STORAGE_S3_ACCESS_KEY_ID;
-    delete process.env.ASHFOX_STORAGE_S3_SECRET_ACCESS_KEY;
+    process.env.ASHFOX_PERSISTENCE_PRESET = 'ashfox';
+    process.env.ASHFOX_DB_ASHFOX_URL = 'postgresql://postgres:secret@database.sigee.xyx:5432/postgres?sslmode=require';
+    delete process.env.ASHFOX_STORAGE_ASHFOX_SERVICE_KEY;
 
     const degradedResponse = await GET();
     assert.equal(degradedResponse.status, 503);
@@ -65,7 +58,7 @@ module.exports = async () => {
       };
     };
     assert.equal(degradedPayload.ok, false);
-    assert.equal(degradedPayload.persistencePreset, 'selfhost');
+    assert.equal(degradedPayload.persistencePreset, 'ashfox');
     assert.equal(degradedPayload.readiness?.availability, 'degraded');
     assert.equal(degradedPayload.readiness?.database?.ready, true);
     assert.equal(degradedPayload.readiness?.storage?.ready, false);

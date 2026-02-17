@@ -206,7 +206,9 @@ If toolRegistry.hash changes, re-run list_capabilities (or tools/list) to refres
 - `packages/backend-core`: backend contracts/registry/locks shared by gateway runtimes
 - `packages/backend-blockbench`: blockbench backend adapter (dispatcher bridge)
 - `packages/backend-engine`: clean-room engine backend
-- `deploy/docker-compose.yml`: multi-service deployment (`web + mcp-gateway + worker`)
+- `deploy/docker-compose.yml`: image-based multi-service deployment (`web + mcp-gateway + worker + postgres`)
+- `deploy/docker-compose.build.yml`: source-build override for local image creation
+- `deploy/.env.example`: deploy-time env/image template
 - `apps/docs/content/docs/en/contributors/project/development-onboarding.mdx`: contributor onboarding for build/test/release
 
 ## Showcase
@@ -265,10 +267,19 @@ npm install
 npm run build
 ```
 
-Docker compose:
+Docker compose (deployment, image-based):
 ```bash
 cd deploy
-docker compose up --build
+cp .env.example .env
+# edit .env and set ASHFOX_*_IMAGE to published registry tags
+docker compose up -d
+```
+
+Docker compose (local source build override):
+```bash
+cd deploy
+cp .env.example .env
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 ## Release Automation

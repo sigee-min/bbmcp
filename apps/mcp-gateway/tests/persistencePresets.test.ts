@@ -16,7 +16,7 @@ registerAsync(
       assert.deepEqual(persistence.health.selection, {
         preset: 'local',
         databaseProvider: 'sqlite',
-        storageProvider: 'fs'
+        storageProvider: 'db'
       });
       assert.equal(persistence.health.database.ready, true);
       assert.equal(persistence.health.storage.ready, true);
@@ -24,27 +24,37 @@ registerAsync(
       assert.equal(dbDetails.adapter, 'sqlite_repository');
       assert.ok(typeof dbDetails.filePath === 'string' && dbDetails.filePath.length > 0);
       const storageDetails = getDetails(persistence.health.storage.details);
-      assert.ok(typeof storageDetails.rootDir === 'string' && storageDetails.rootDir.length > 0);
+      assert.equal(storageDetails.adapter, 'sqlite_database_blob_store');
+      assert.ok(typeof storageDetails.filePath === 'string' && storageDetails.filePath.length > 0);
+    }
+
+    {
+      const persistence = createGatewayPersistence({
+        ASHFOX_PERSISTENCE_PRESET: 'local',
+        ASHFOX_DB_PROVIDER: 'postgres',
+        ASHFOX_STORAGE_PROVIDER: 's3'
+      });
+      assert.deepEqual(persistence.health.selection, {
+        preset: 'local',
+        databaseProvider: 'sqlite',
+        storageProvider: 'db'
+      });
     }
 
     {
       const persistence = createGatewayPersistence({
         ASHFOX_PERSISTENCE_PRESET: 'selfhost',
-        ASHFOX_DB_POSTGRES_URL: 'postgresql://selfhost:selfhost@127.0.0.1:5432/ashfox',
-        ASHFOX_STORAGE_S3_ENDPOINT: 'https://s3.example.internal',
-        ASHFOX_STORAGE_S3_REGION: 'us-east-1',
-        ASHFOX_STORAGE_S3_ACCESS_KEY_ID: 'test-access',
-        ASHFOX_STORAGE_S3_SECRET_ACCESS_KEY: 'test-secret'
+        ASHFOX_DB_POSTGRES_URL: 'postgresql://selfhost:selfhost@127.0.0.1:5432/ashfox'
       });
       assert.deepEqual(persistence.health.selection, {
         preset: 'selfhost',
         databaseProvider: 'postgres',
-        storageProvider: 's3'
+        storageProvider: 'db'
       });
       assert.equal(persistence.health.database.ready, true);
       assert.equal(persistence.health.storage.ready, true);
       const details = getDetails(persistence.health.storage.details);
-      assert.equal(details.adapter, 's3_storage');
+      assert.equal(details.adapter, 'postgres_database_blob_store');
     }
 
     {

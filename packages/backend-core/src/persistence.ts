@@ -1,6 +1,6 @@
 export type DatabaseProvider = 'sqlite' | 'postgres' | 'ashfox' | 'appwrite';
 
-export type StorageProvider = 'fs' | 's3' | 'ashfox' | 'appwrite';
+export type StorageProvider = 'db' | 's3' | 'ashfox' | 'appwrite';
 
 export type PersistencePreset = 'local' | 'selfhost' | 'ashfox' | 'appwrite';
 

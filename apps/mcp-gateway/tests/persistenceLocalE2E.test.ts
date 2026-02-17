@@ -31,12 +31,10 @@ registerAsync(
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'ashfox-local-persistence-'));
     try {
       const sqlitePath = path.join(tempRoot, 'state', 'ashfox.sqlite');
-      const storageRoot = path.join(tempRoot, 'storage');
       const persistence = createGatewayPersistence(
         {
           ASHFOX_PERSISTENCE_PRESET: 'local',
-          ASHFOX_DB_SQLITE_PATH: sqlitePath,
-          ASHFOX_STORAGE_FS_ROOT: storageRoot
+          ASHFOX_DB_SQLITE_PATH: sqlitePath
         },
         { failFast: true }
       );

@@ -2,20 +2,23 @@ import type { BlobStore, PersistencePorts, ProjectRepository, ProviderReadiness 
 import {
   resolveAppwriteBlobStoreConfig,
   resolveAppwriteDatabaseConfig,
+  resolveAshfoxDbBlobStoreConfig,
   resolveAshfoxBlobStoreConfig,
   resolveAshfoxDatabaseConfig,
   resolvePersistenceSelection,
+  resolvePostgresDbBlobStoreConfig,
   resolvePostgresDatabaseConfig,
+  resolveSqliteDbBlobStoreConfig,
   resolveSqliteDatabaseConfig,
-  resolveS3BlobStoreConfig,
-  resolveStorageRoot
+  resolveS3BlobStoreConfig
 } from './config';
 import { AppwriteBlobStore } from './infrastructure/AppwriteBlobStore';
 import { AppwriteProjectRepository } from './infrastructure/AppwriteProjectRepository';
 import { AshfoxStorageBlobStore } from './infrastructure/AshfoxStorageBlobStore';
-import { FileSystemBlobStore } from './infrastructure/FileSystemBlobStore';
+import { PostgresDbBlobStore } from './infrastructure/PostgresDbBlobStore';
 import { PostgresProjectRepository } from './infrastructure/PostgresProjectRepository';
 import { S3BlobStore } from './infrastructure/S3BlobStore';
+import { SqliteDbBlobStore } from './infrastructure/SqliteDbBlobStore';
 import { SqliteProjectRepository } from './infrastructure/SqliteProjectRepository';
 import { UnsupportedBlobStore, UnsupportedProjectRepository } from './infrastructure/UnsupportedAdapters';
 
@@ -90,7 +93,7 @@ const createProjectRepository = (
       return {
         port: new UnsupportedProjectRepository(
           selection.databaseProvider,
-          'node:sqlite runtime is unavailable. Use Node 22+ or switch ASHFOX_DB_PROVIDER.'
+          'node:sqlite runtime is unavailable. Use Node 22+ or switch ASHFOX_PERSISTENCE_PRESET.'
         ),
         readiness: {
           provider: selection.databaseProvider,
@@ -189,14 +192,89 @@ const createBlobStore = (
   selection: ReturnType<typeof resolvePersistenceSelection>,
   env: NodeJS.ProcessEnv
 ): BuiltPort<BlobStore> => {
-  if (selection.storageProvider === 'fs') {
-    const rootDir = resolveStorageRoot(env);
+  if (selection.storageProvider === 'db') {
+    if (selection.databaseProvider === 'sqlite') {
+      const sqliteRuntime = resolveSqliteRuntimeAvailability();
+      if (!sqliteRuntime.available) {
+        return {
+          port: new UnsupportedBlobStore(
+            selection.storageProvider,
+            'node:sqlite runtime is unavailable. Use Node 22+ or switch ASHFOX_PERSISTENCE_PRESET.'
+          ),
+          readiness: {
+            provider: selection.storageProvider,
+            ready: false,
+            reason: sqliteRuntime.reason ?? 'sqlite_runtime_unavailable'
+          }
+        };
+      }
+      const config = resolveSqliteDbBlobStoreConfig(env);
+      return {
+        port: new SqliteDbBlobStore(config),
+        readiness: {
+          provider: selection.storageProvider,
+          ready: true,
+          details: {
+            adapter: 'sqlite_database_blob_store',
+            databaseProvider: selection.databaseProvider,
+            filePath: config.filePath,
+            tableName: config.tableName,
+            connectivity: 'embedded'
+          }
+        }
+      };
+    }
+
+    if (selection.databaseProvider === 'postgres') {
+      const config = resolvePostgresDbBlobStoreConfig(env);
+      return {
+        port: new PostgresDbBlobStore(config),
+        readiness: {
+          provider: selection.storageProvider,
+          ready: true,
+          details: {
+            adapter: 'postgres_database_blob_store',
+            databaseProvider: selection.databaseProvider,
+            host: config.host,
+            schema: config.schema,
+            tableName: config.tableName,
+            connectivity: 'deferred_until_first_query'
+          }
+        }
+      };
+    }
+
+    if (selection.databaseProvider === 'ashfox') {
+      const config = resolveAshfoxDbBlobStoreConfig(env);
+      return {
+        port: new PostgresDbBlobStore(config),
+        readiness: {
+          provider: selection.storageProvider,
+          ready: true,
+          details: {
+            adapter: 'ashfox_database_blob_store',
+            databaseProvider: selection.databaseProvider,
+            host: config.host,
+            schema: config.schema,
+            tableName: config.tableName,
+            connectivity: 'deferred_until_first_query'
+          }
+        }
+      };
+    }
+
     return {
-      port: new FileSystemBlobStore(rootDir),
+      port: new UnsupportedBlobStore(
+        selection.storageProvider,
+        `DB storage provider is unavailable for database provider "${selection.databaseProvider}".`
+      ),
       readiness: {
         provider: selection.storageProvider,
-        ready: true,
-        details: { rootDir }
+        ready: false,
+        reason: 'unsupported_database_provider',
+        details: {
+          databaseProvider: selection.databaseProvider
+        }
       }
     };
   }

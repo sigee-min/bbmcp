@@ -19,8 +19,7 @@ registerAsync(
         () =>
           createGatewayPersistence(
             {
-              ASHFOX_PERSISTENCE_PRESET: 'selfhost',
-              ASHFOX_STORAGE_PROVIDER: 's3'
+              ASHFOX_PERSISTENCE_PRESET: 'appwrite'
             },
             { failFast: true }
           ),
@@ -43,18 +42,14 @@ registerAsync(
     }
 
     {
-      assert.throws(
-        () =>
-          createGatewayPersistence(
-            {
-              ASHFOX_PERSISTENCE_PRESET: 'appwrite',
-              ASHFOX_DB_PROVIDER: 'appwrite',
-              ASHFOX_STORAGE_PROVIDER: 'appwrite'
-            },
-            { failFast: true }
-          ),
-        /Persistence startup validation failed/
-      );
+      const persistence = createGatewayPersistence({
+        ASHFOX_PERSISTENCE_PRESET: 'local',
+        ASHFOX_DB_PROVIDER: 'postgres',
+        ASHFOX_STORAGE_PROVIDER: 's3'
+      });
+      assert.equal(persistence.health.selection.preset, 'local');
+      assert.equal(persistence.health.selection.databaseProvider, 'sqlite');
+      assert.equal(persistence.health.selection.storageProvider, 'db');
     }
   })()
 );

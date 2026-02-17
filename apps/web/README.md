@@ -11,8 +11,6 @@ Current scope:
 
 Environment variables:
 - `ASHFOX_PERSISTENCE_PRESET` (default `local`)
-- `ASHFOX_DB_PROVIDER` (default from preset)
-- `ASHFOX_STORAGE_PROVIDER` (default from preset)
 
 Run locally:
 

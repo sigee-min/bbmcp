@@ -1,10 +1,10 @@
-FROM node:22-alpine
+ARG ASHFOX_WORKSPACE_DEPS_IMAGE=ashfox/workspace-deps:local
+FROM ${ASHFOX_WORKSPACE_DEPS_IMAGE}
 
 WORKDIR /workspace
 
 COPY . .
 
-RUN npm install --no-audit --no-fund
 RUN npm --workspace @ashfox/web run build
 
 EXPOSE 8686

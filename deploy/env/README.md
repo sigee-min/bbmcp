@@ -18,3 +18,4 @@ Compose files:
 - `deploy/docker-compose.yml`: deployment-first file (image tags only)
 - `deploy/docker-compose.build.yml`: local source-build override
 - `deploy/.env.example`: runtime variables and image tags template
+- `docker/Dockerfile.workspace-deps`: shared dependency image for local source builds

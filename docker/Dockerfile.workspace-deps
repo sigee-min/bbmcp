@@ -1,0 +1,29 @@
+FROM node:22-alpine
+
+WORKDIR /workspace
+
+COPY package.json package-lock.json ./
+COPY apps/mcp-gateway/package.json apps/mcp-gateway/package.json
+COPY apps/worker/package.json apps/worker/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/runtime/package.json packages/runtime/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/backend-core/package.json packages/backend-core/package.json
+COPY packages/backend-blockbench/package.json packages/backend-blockbench/package.json
+COPY packages/backend-engine/package.json packages/backend-engine/package.json
+COPY packages/native-pipeline/package.json packages/native-pipeline/package.json
+
+RUN npm ci \
+  --workspace @ashfox/mcp-gateway \
+  --workspace @ashfox/worker \
+  --workspace @ashfox/web \
+  --workspace @ashfox/runtime \
+  --workspace @ashfox/contracts \
+  --workspace @ashfox/backend-core \
+  --workspace @ashfox/backend-blockbench \
+  --workspace @ashfox/backend-engine \
+  --workspace @ashfox/native-pipeline \
+  --include-workspace-root \
+  --omit=optional \
+  --no-audit \
+  --no-fund

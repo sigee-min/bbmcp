@@ -279,7 +279,15 @@ Docker compose (local source build override):
 ```bash
 cd deploy
 cp .env.example .env
+# 1) Build shared workspace deps once (avoids repeated npm ci per service)
+docker build -f ../docker/Dockerfile.workspace-deps -t ${ASHFOX_WORKSPACE_DEPS_IMAGE:-ashfox/workspace-deps:local} ..
+# 2) Build and run services
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
+Or run in one command from project root:
+```bash
+bash scripts/docker/up-local-build.sh
 ```
 
 ## Release Automation

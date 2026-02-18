@@ -8,13 +8,13 @@ summary: "Current two-track topology for plugin and server deployments."
 
 This document describes the current two-track architecture scaffold:
 - Track A: Blockbench plugin runtime (`apps/plugin-desktop` + `apps/ashfox`)
-- Track B: server deployment (`apps/web` + `apps/mcp-gateway` + `apps/worker`)
+- Track B: server deployment (`apps/web` + `apps/gateway` + `apps/worker`)
 
 ## Executable Boundaries
 
 - Plugin bundle entry: `apps/plugin-desktop/src/index.ts`
 - Headless/sidecar entry: `apps/ashfox/src/index.ts`
-- MCP gateway entry: `apps/mcp-gateway/src/index.ts`
+- MCP gateway entry: `apps/gateway/src/index.ts`
 - Worker entry: `apps/worker/src/index.ts`
 - Dashboard/API shell: `apps/web/src/app/*`
 - Runtime implementation: `packages/runtime/src/*`
@@ -32,9 +32,9 @@ This document describes the current two-track architecture scaffold:
 apps/
   plugin-desktop/      # Blockbench plugin runtime shell
   ashfox/              # UI-less MCP runtime shell
-  mcp-gateway/         # Multi-backend MCP gateway shell
+  gateway/         # Multi-backend MCP gateway shell
   worker/              # Async worker shell
-  web/                 # Next.js dashboard + API scaffold
+  web/                 # React + Vite dashboard UI
   docs/                # User-facing documentation site
 packages/
   runtime/             # Shared runtime implementation
@@ -44,7 +44,7 @@ packages/
   backend-blockbench/  # Dispatcher-backed blockbench adapter
   backend-engine/      # Clean-room engine adapter scaffold
 deploy/
-  docker-compose.yml   # Multi-service scaffold (web/gateway/worker/db)
+  docker-compose.yml   # Multi-service scaffold (gateway/worker/db, UI served by gateway)
 config/
   quality/             # Quality baselines (coverage, gates)
   specs/               # Blockbench spec snapshots
@@ -60,4 +60,3 @@ scripts/
 4. Keep clean-room execution in `packages/backend-engine` (incremental rollout).
 5. Serialize mutating requests per project in gateway paths to preserve revision safety.
 6. Treat `toolSchemaVersion` as coarse and `toolRegistry.hash` as authoritative for client cache refresh.
-

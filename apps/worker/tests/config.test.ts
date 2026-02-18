@@ -35,7 +35,7 @@ module.exports = () => {
       ASHFOX_WORKER_ID: 'worker-test'
     },
     () => {
-      const config = resolveWorkerRuntimeConfig();
+      const config = resolveWorkerRuntimeConfig(process.env);
       assert.equal(config.logLevel, 'debug');
       assert.equal(config.heartbeatMs, 2500);
       assert.equal(config.pollMs, 1000);
@@ -52,7 +52,7 @@ module.exports = () => {
       ASHFOX_WORKER_ID: ''
     },
     () => {
-      const config = resolveWorkerRuntimeConfig();
+      const config = resolveWorkerRuntimeConfig(process.env);
       assert.equal(config.heartbeatMs, 5000);
       assert.equal(config.pollMs, 1200);
       assert.equal(config.enableNativePipeline, false);

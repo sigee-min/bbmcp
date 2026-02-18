@@ -28,11 +28,11 @@ import type { NativeJob, NativeJobResult, NativeJobSubmitInput, NativeProjectEve
 
 const DEFAULT_STATE_SCOPE: ProjectRepositoryScope = {
   tenantId: 'native-pipeline',
-  projectId: 'pipeline-state-v1'
+  projectId: 'pipeline-state-v2'
 };
 const DEFAULT_LOCK_SCOPE: ProjectRepositoryScope = {
   tenantId: 'native-pipeline',
-  projectId: 'pipeline-lock-v1'
+  projectId: 'pipeline-lock-v2'
 };
 const DEFAULT_LOCK_TTL_MS = 2_000;
 const DEFAULT_LOCK_ACQUIRE_TIMEOUT_MS = 10_000;

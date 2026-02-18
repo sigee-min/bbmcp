@@ -3,6 +3,7 @@ process.env.DISABLE_V8_COMPILE_CACHE = process.env.DISABLE_V8_COMPILE_CACHE || '
 const fs = require('fs');
 const path = require('path');
 const { register } = require('ts-node');
+require('tsconfig-paths/register');
 
 register({
   transpileOnly: true,

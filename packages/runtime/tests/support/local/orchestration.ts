@@ -136,12 +136,12 @@ const REQUIRED_ENV_KEYS = [
   'ASHFOX_WORKER_HEARTBEAT_MS'
 ];
 
-const REQUIRED_SERVICES = ['web', 'mcp-gateway', 'worker', 'postgres'];
+const REQUIRED_SERVICES = ['gateway', 'worker', 'postgres'];
 
 const DEFAULT_SMOKE_CHECKS: SmokeCheck[] = [
   {
-    id: 'web_root',
-    url: 'http://127.0.0.1:8686/',
+    id: 'gateway_root',
+    url: 'http://127.0.0.1:8787/',
     validate: (res) => res.status >= 200 && res.status < 400
   },
   {

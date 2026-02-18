@@ -1,8 +1,18 @@
+import { createHash } from 'node:crypto';
+
 import type { NativeProjectSnapshot } from './types';
+
+const PROJECT_ID_PREFIX = 'prj';
+
+const toSeedProjectId = (name: string): string => {
+  const normalized = name.trim().toLowerCase().replace(/\s+/g, ' ');
+  const digest = createHash('sha256').update(`seed:${normalized}`).digest('hex').slice(0, 12);
+  return `${PROJECT_ID_PREFIX}_${digest}`;
+};
 
 const seeds: NativeProjectSnapshot[] = [
   {
-    projectId: 'project-a',
+    projectId: toSeedProjectId('Forest Fox'),
     name: 'Forest Fox',
     revision: 10,
     hasGeometry: true,
@@ -36,7 +46,7 @@ const seeds: NativeProjectSnapshot[] = [
     }
   },
   {
-    projectId: 'project-b',
+    projectId: toSeedProjectId('Desert Lynx'),
     name: 'Desert Lynx',
     revision: 21,
     hasGeometry: true,
@@ -56,7 +66,7 @@ const seeds: NativeProjectSnapshot[] = [
     }
   },
   {
-    projectId: 'project-c',
+    projectId: toSeedProjectId('Empty Template'),
     name: 'Empty Template',
     revision: 3,
     hasGeometry: false,

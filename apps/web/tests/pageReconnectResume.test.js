@@ -6,7 +6,7 @@ const { createRoot } = require('react-dom/client');
 const { JSDOM } = require('jsdom');
 
 const HomePage = require('../src/app/page').default;
-const { getNativePipelineStore } = require('../src/lib/nativePipelineStore');
+const { createProjectsFixture } = require('./fixtures/projects');
 
 class MockEventSource {
   static instances = [];
@@ -94,8 +94,10 @@ module.exports = async () => {
     return timerId;
   };
 
-  const store = getNativePipelineStore();
-  await store.reset();
+  const seededProjects = createProjectsFixture();
+  const forestFoxProject = seededProjects.find((project) => project.name === 'Forest Fox');
+  assert.ok(forestFoxProject, 'missing seeded project: Forest Fox');
+  const forestFoxProjectId = forestFoxProject.projectId;
   globalThis.clearTimeout = (timerId) => {
     scheduledTimers.delete(timerId);
   };
@@ -105,7 +107,7 @@ module.exports = async () => {
     return new Response(
       JSON.stringify({
         ok: true,
-        projects: await store.listProjects()
+        projects: seededProjects
       }),
       {
         status: 200,
@@ -156,11 +158,11 @@ module.exports = async () => {
 
     const firstStream = MockEventSource.instances.at(-1);
     assert.ok(firstStream);
-    assert.match(firstStream.url, /\/api\/projects\/project-a\/stream\?lastEventId=10$/);
+    assert.equal(firstStream.url, `/api/projects/${forestFoxProjectId}/stream?lastEventId=10`);
 
     await act(async () => {
       firstStream.emitMessage({
-        projectId: 'project-a',
+        projectId: forestFoxProjectId,
         revision: 14,
         hasGeometry: true,
         focusAnchor: [0, 24, 0],
@@ -179,7 +181,7 @@ module.exports = async () => {
     const resumedStream = MockEventSource.instances.at(-1);
     assert.ok(resumedStream);
     assert.notEqual(resumedStream, firstStream);
-    assert.match(resumedStream.url, /\/api\/projects\/project-a\/stream\?lastEventId=14$/);
+    assert.equal(resumedStream.url, `/api/projects/${forestFoxProjectId}/stream?lastEventId=14`);
   } finally {
     await act(async () => {
       root.unmount();

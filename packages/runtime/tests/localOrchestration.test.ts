@@ -24,15 +24,15 @@ const requiredEnv = [
 const buildEnv = (overrides: Record<string, string> = {}) =>
   requiredEnv.map((key) => `${key}=${overrides[key] ?? 'value'}`).join('\n');
 
-const okServices = (running = ['web', 'mcp-gateway', 'worker', 'postgres']): ServiceStatus => ({
-  required: ['web', 'mcp-gateway', 'worker', 'postgres'],
+const okServices = (running = ['gateway', 'worker', 'postgres']): ServiceStatus => ({
+  required: ['gateway', 'worker', 'postgres'],
   running,
-  failed: ['web', 'mcp-gateway', 'worker', 'postgres'].filter((service) => !running.includes(service))
+  failed: ['gateway', 'worker', 'postgres'].filter((service) => !running.includes(service))
 });
 
 const okSmoke: SmokeSummary = {
   checks: [
-    { id: 'web_root', url: 'http://127.0.0.1:8686/', ok: true, status: 204 },
+    { id: 'gateway_root', url: 'http://127.0.0.1:8787/', ok: true, status: 204 },
     { id: 'gateway_metrics', url: 'http://127.0.0.1:8787/metrics', ok: true, status: 200 }
   ],
   failed: []
@@ -89,7 +89,7 @@ registerAsync(
     }
 
     {
-      const recorder = createCommandRecorder([{ exitCode: 0, stdout: '', stderr: '' }, { exitCode: 0, stdout: 'web\nmcp-gateway\nworker\npostgres\n', stderr: '' }]);
+      const recorder = createCommandRecorder([{ exitCode: 0, stdout: '', stderr: '' }, { exitCode: 0, stdout: 'gateway\nworker\npostgres\n', stderr: '' }]);
       const summary = await runLocalStart(
         { envPath: '/tmp/local.env', composePath: '/tmp/docker-compose.yml' },
         baseDeps({
@@ -148,13 +148,13 @@ registerAsync(
         { envPath: '/tmp/local.env', composePath: '/tmp/docker-compose.yml', runtime: 'docker' },
         baseDeps({
           listRunningServices: async (_runtime, _composePath, _envPath, _runner, _requiredServices) => ({
-            ...okServices(['web']),
-            failed: ['mcp-gateway']
+            ...okServices(['gateway']),
+            failed: ['gateway']
           })
         })
       );
       assert.equal(summary.resultCode, 'local_service_unhealthy');
-      assert.deepEqual(summary.services?.failed, ['mcp-gateway']);
+      assert.deepEqual(summary.services?.failed, ['gateway']);
     }
 
     {
@@ -162,13 +162,13 @@ registerAsync(
         { envPath: '/tmp/local.env', composePath: '/tmp/docker-compose.yml', runtime: 'docker' },
         baseDeps({
           smokeChecksRunner: async () => ({
-            checks: [{ id: 'web_root', url: 'http://127.0.0.1:8686/', ok: false }],
-            failed: ['web_root']
+            checks: [{ id: 'gateway_root', url: 'http://127.0.0.1:8787/', ok: false }],
+            failed: ['gateway_root']
           })
         })
       );
       assert.equal(summary.resultCode, 'local_smoke_failed');
-      assert.deepEqual(summary.smoke?.failed, ['web_root']);
+      assert.deepEqual(summary.smoke?.failed, ['gateway_root']);
     }
 
     {
@@ -209,7 +209,7 @@ registerAsync(
         { envPath: '/tmp/local.env', composePath: '/tmp/docker-compose.yml', runtime: 'docker' },
         baseDeps({
           listRunningServices: async (_runtime, _composePath, _envPath, _runner, _requiredServices) =>
-            okServices(['web'])
+            okServices(['gateway'])
         })
       );
       assert.equal(summary.resultCode, 'local_service_unhealthy');

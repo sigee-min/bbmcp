@@ -138,13 +138,6 @@
       ]
     },
     {
-      "path": "/packages/native-pipeline/src/types.ts",
-      "reason": "native pipeline contract types consumed across workspace API boundaries",
-      "symbols": [
-        "NativeJobContractError"
-      ]
-    },
-    {
       "path": "/packages/runtime/src/conformance/index.ts",
       "reason": "conformance compatibility barrel kept for external harness consumers",
       "symbols": [

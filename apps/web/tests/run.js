@@ -1,4 +1,5 @@
 process.env.DISABLE_V8_COMPILE_CACHE = process.env.DISABLE_V8_COMPILE_CACHE || '1';
+process.env.VITE_ASHFOX_GATEWAY_API_BASE_URL = process.env.VITE_ASHFOX_GATEWAY_API_BASE_URL || '/api';
 
 const fs = require('fs');
 const path = require('path');
@@ -31,6 +32,13 @@ const createCssModuleExports = () => {
 require.extensions['.css'] = (module) => {
   module.exports = createCssModuleExports();
 };
+
+const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+for (const extension of imageExtensions) {
+  require.extensions[extension] = (module, filename) => {
+    module.exports = filename;
+  };
+}
 
 const discoverTests = () =>
   fs

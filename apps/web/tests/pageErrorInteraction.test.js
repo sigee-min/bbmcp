@@ -6,7 +6,7 @@ const { createRoot } = require('react-dom/client');
 const { JSDOM } = require('jsdom');
 
 const HomePage = require('../src/app/page').default;
-const { getNativePipelineStore } = require('../src/lib/nativePipelineStore');
+const { createProjectsFixture } = require('./fixtures/projects');
 
 class MockEventSource {
   static instances = [];
@@ -78,9 +78,13 @@ const findProjectButtonByName = (root, projectName) => {
 module.exports = async () => {
   const originalFetch = globalThis.fetch;
   const originalEventSource = globalThis.EventSource;
-  const store = getNativePipelineStore();
-  await store.reset();
-  const projectPayload = { ok: true, projects: await store.listProjects() };
+  const projectPayload = { ok: true, projects: createProjectsFixture() };
+  const forestFoxProject = projectPayload.projects.find((project) => project.name === 'Forest Fox');
+  assert.ok(forestFoxProject, 'missing seeded project: Forest Fox');
+  const forestFoxProjectId = forestFoxProject.projectId;
+  const desertLynxProject = projectPayload.projects.find((project) => project.name === 'Desert Lynx');
+  assert.ok(desertLynxProject, 'missing seeded project: Desert Lynx');
+  const desertLynxProjectId = desertLynxProject.projectId;
 
   globalThis.fetch = async (requestUrl) => {
     assert.equal(String(requestUrl), '/api/projects');
@@ -133,7 +137,7 @@ module.exports = async () => {
     assert.ok(MockEventSource.instances.length >= 1);
     const firstStream = MockEventSource.instances.at(-1);
     assert.ok(firstStream);
-    assert.match(firstStream.url, /\/api\/projects\/project-a\/stream\?lastEventId=10$/);
+    assert.equal(firstStream.url, `/api/projects/${forestFoxProjectId}/stream?lastEventId=10`);
 
     await act(async () => {
       firstStream.emitError();
@@ -159,7 +163,7 @@ module.exports = async () => {
     assert.ok(nextStream);
     assert.notEqual(nextStream, firstStream);
     assert.equal(firstStream.closed, true);
-    assert.match(nextStream.url, /\/api\/projects\/project-b\/stream\?lastEventId=21$/);
+    assert.equal(nextStream.url, `/api/projects/${desertLynxProjectId}/stream?lastEventId=21`);
   } finally {
     await act(async () => {
       root.unmount();

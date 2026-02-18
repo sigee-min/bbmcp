@@ -16,6 +16,14 @@ import {
 
 const MAX_BODY_BYTES = 5_000_000;
 const BODY_READ_TIMEOUT_MS = 30_000;
+const API_CORS_HEADERS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'GET,POST,OPTIONS',
+  'access-control-allow-headers': 'content-type,last-event-id,authorization',
+  'access-control-allow-private-network': 'true',
+  'access-control-max-age': '86400',
+  vary: 'origin'
+} as const;
 
 type BodyErrorCode = 'payload_too_large' | 'request_aborted' | 'request_timeout' | 'invalid_payload';
 
@@ -123,6 +131,13 @@ const applyHeaders = (res: ServerResponse, headers: Record<string, string>) => {
   }
 };
 
+const applyApiCorsHeaders = (res: ServerResponse, pathname: string): void => {
+  if (!pathname.startsWith('/api')) {
+    return;
+  }
+  applyHeaders(res, API_CORS_HEADERS);
+};
+
 const writePlan = (plan: ResponsePlan, res: ServerResponse) => {
   if (plan.kind === 'sse') {
     res.statusCode = plan.status;
@@ -173,6 +188,14 @@ type HttpModule = {
 
 type McpHttpServerOptions = {
   metrics?: MetricsRegistry;
+  requestHandler?: (
+    request: HttpRequest,
+    context: {
+      pathname: string;
+      traceId: string;
+      log: Logger;
+    }
+  ) => Promise<ResponsePlan | null> | ResponsePlan | null;
 };
 
 const readPathname = (rawUrl: string): string => {
@@ -216,6 +239,7 @@ export const createMcpHttpServer = (http: HttpModule, router: McpRouter, log: Lo
         const durationMs = Math.max(0, Date.now() - startedAt);
         requestLog.warn('MCP HTTP payload rejected', { code: info.code, message: info.message, durationMs });
         res.statusCode = info.status;
+        applyApiCorsHeaders(res, pathname);
         res.setHeader('Content-Type', 'application/json');
         try {
           res.end(JSON.stringify({ error: { code: info.code, message: info.message } }));
@@ -233,13 +257,63 @@ export const createMcpHttpServer = (http: HttpModule, router: McpRouter, log: Lo
       }
     }
 
+    const request: HttpRequest = {
+      method,
+      url,
+      headers,
+      ...(body ? { body } : {})
+    };
+
+    if (options.requestHandler) {
+      try {
+        const customPlan = await options.requestHandler(request, {
+          pathname,
+          traceId,
+          log: requestLog
+        });
+        if (customPlan) {
+          writePlan(customPlan, res);
+          const durationMs = Math.max(0, Date.now() - startedAt);
+          options.metrics?.recordMcpRequest(method, customPlan.status);
+          requestLog.info('MCP HTTP request completed', {
+            method: method.toUpperCase(),
+            path: pathname,
+            status: customPlan.status,
+            durationMs,
+            kind: customPlan.kind
+          });
+          return;
+        }
+      } catch (err) {
+        const durationMs = Math.max(0, Date.now() - startedAt);
+        requestLog.error('MCP HTTP request failed', { message: errorMessage(err), durationMs });
+        res.statusCode = 500;
+        applyApiCorsHeaders(res, pathname);
+        res.setHeader('Content-Type', 'application/json');
+        try {
+          res.end(JSON.stringify({ error: { code: 'internal_error', message: 'Internal server error.' } }));
+        } catch (_writeErr) {
+          res.destroy?.();
+        }
+        options.metrics?.recordMcpRequest(method, 500);
+        requestLog.info('MCP HTTP request completed', {
+          method: method.toUpperCase(),
+          path: pathname,
+          status: 500,
+          durationMs
+        });
+        return;
+      }
+    }
+
     let plan: ResponsePlan;
     try {
-      plan = await router.handle({ method, url, headers, body } as HttpRequest, { log: requestLog });
+      plan = await router.handle(request, { log: requestLog });
     } catch (err) {
       const durationMs = Math.max(0, Date.now() - startedAt);
       requestLog.error('MCP HTTP request failed', { message: errorMessage(err), durationMs });
       res.statusCode = 500;
+      applyApiCorsHeaders(res, pathname);
       res.setHeader('Content-Type', 'application/json');
       try {
         res.end(JSON.stringify({ error: { code: 'internal_error', message: 'Internal server error.' } }));

@@ -1,16 +1,13 @@
 # Ashfox Web App
 
-Next.js dashboard + API server for native pipeline visibility.
+CSR dashboard UI for native pipeline visibility (React + Vite).
 
 Current scope:
 - Dashboard shell (`/`)
-- Health API (`/api/health`)
-- Projects API (`/api/projects`)
-- Project jobs API (`/api/projects/[projectId]/jobs`)
-- Project stream SSE API (`/api/projects/[projectId]/stream`)
+- Client-side API/SSE calls routed directly to gateway (`/api/*` on gateway)
 
 Environment variables:
-- `ASHFOX_PERSISTENCE_PRESET` (default `local`)
+- `VITE_ASHFOX_GATEWAY_API_BASE_URL` (default `/api`)
 
 Run locally:
 
@@ -22,7 +19,17 @@ npm run dev
 
 Default local web port is `8686`.
 
+Static export build:
+
+```bash
+cd apps/web
+npm run build
+npm run start
+```
+
+`npm run build` outputs static files to `apps/web/dist`.
+
 Design intent:
-- Use Next.js route handlers for API control endpoints.
-- Keep heavy MCP execution in `apps/mcp-gateway`.
+- Keep web as UI-only client.
+- Route API/SSE through gateway (`apps/gateway`).
 - Keep async/batch operations in `apps/worker`.

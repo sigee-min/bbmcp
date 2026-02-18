@@ -3,26 +3,16 @@ x-ashfox-persistence-env: &ashfox-persistence-env
   ASHFOX_DB_POSTGRES_URL: ${ASHFOX_DB_POSTGRES_URL:-postgresql://ashfox:ashfox@postgres:5432/ashfox}
 
 services:
-  web:
-    image: ${ASHFOX_WEB_IMAGE:-ashfox/web:local}
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      PORT: "8686"
-      <<: *ashfox-persistence-env
-    ports:
-      - "${ASHFOX_WEB_PORT:-8686}:8686"
-    depends_on:
-      - postgres
-
-  mcp-gateway:
-    image: ${ASHFOX_GATEWAY_IMAGE:-ashfox/mcp-gateway:local}
+  gateway:
+    image: ${ASHFOX_GATEWAY_IMAGE:-ashfox/gateway:local}
     restart: unless-stopped
     environment:
       ASHFOX_HOST: 0.0.0.0
       ASHFOX_PORT: "${ASHFOX_GATEWAY_PORT:-8787}"
       ASHFOX_PATH: ${ASHFOX_GATEWAY_PATH:-/mcp}
       ASHFOX_GATEWAY_BACKEND: ${ASHFOX_GATEWAY_BACKEND:-engine}
+      ASHFOX_GATEWAY_SERVE_WEB_UI: "${ASHFOX_GATEWAY_SERVE_WEB_UI:-1}"
+      ASHFOX_WEB_DIST_PATH: ${ASHFOX_WEB_DIST_PATH:-apps/web/dist}
       <<: *ashfox-persistence-env
     ports:
       - "${ASHFOX_GATEWAY_PORT:-8787}:${ASHFOX_GATEWAY_PORT:-8787}"

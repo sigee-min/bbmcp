@@ -8,6 +8,7 @@ import {
   type DashboardState,
   type ProjectSnapshot
 } from '../../lib/dashboardModel';
+import { buildGatewayApiUrl } from '../../lib/gatewayApi';
 
 interface ProjectsResponse {
   ok: boolean;
@@ -36,7 +37,7 @@ export const useProjectList = ({ setState, reloadVersion = 0 }: UseProjectListOp
 
     const loadProjects = async () => {
       try {
-        const response = await fetch('/api/projects', { cache: 'no-store' });
+        const response = await fetch(buildGatewayApiUrl('/projects'), { cache: 'no-store' });
         if (!response.ok) {
           throw new Error(`project list failed: ${response.status}`);
         }

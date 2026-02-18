@@ -9,7 +9,7 @@ const repoRoot = path.resolve(__dirname, '..', '..');
 const APP_PACKAGES = [
   { id: 'ashfox', packagePath: 'apps/ashfox/package.json' },
   { id: 'plugin-desktop', packagePath: 'apps/plugin-desktop/package.json' },
-  { id: 'mcp-gateway', packagePath: 'apps/mcp-gateway/package.json' },
+  { id: 'gateway', packagePath: 'apps/gateway/package.json' },
   { id: 'worker', packagePath: 'apps/worker/package.json' },
   { id: 'web', packagePath: 'apps/web/package.json' },
   { id: 'docs', packagePath: 'apps/docs/package.json' }

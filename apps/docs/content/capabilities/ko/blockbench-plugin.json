@@ -28,7 +28,7 @@
       },
       {
         "area": "서버 배포 스택",
-        "included": "apps/web, apps/mcp-gateway, apps/worker",
+        "included": "apps/web, apps/gateway, apps/worker",
         "status": "범위 외",
         "notes": "서비스 운영은 Ashfox 트랙에서 관리"
       }

@@ -5,6 +5,7 @@ import { SERVER_TOOL_INSTRUCTIONS } from './shared/tooling/toolInstructions';
 import { McpRouter } from './transport/mcp/router';
 import { LocalToolExecutor } from './transport/mcp/executor';
 import { createMcpHttpServer } from './transport/mcp/httpServer';
+import type { HttpRequest, ResponsePlan } from './transport/mcp/types';
 import { startMcpNetServer } from './transport/mcp/netServer';
 import { normalizePath } from './transport/mcp/routerUtils';
 import { ResourceStore } from './ports/resources';
@@ -31,6 +32,15 @@ export interface ServerConfig {
 }
 
 type StopFn = () => void;
+
+export type ServerHttpRequestHandler = (
+  request: HttpRequest,
+  context: {
+    pathname: string;
+    traceId: string;
+    log: Logger;
+  }
+) => Promise<ResponsePlan | null> | ResponsePlan | null;
 
 const validateConfig = (config: ServerConfig): { ok: true } | { ok: false; message: string } => {
   if (!config.host || typeof config.host !== 'string') {
@@ -59,9 +69,15 @@ const startHttpServer = (
   config: ServerConfig,
   router: McpRouter,
   log: Logger,
-  metrics?: MetricsRegistry
+  options: {
+    metrics?: MetricsRegistry;
+    httpRequestHandler?: ServerHttpRequestHandler;
+  } = {}
 ): StopFn | null => {
-  const server = createMcpHttpServer(http, router, log, { metrics });
+  const server = createMcpHttpServer(http, router, log, {
+    metrics: options.metrics,
+    requestHandler: options.httpRequestHandler
+  });
   try {
     server.listen(config.port, config.host, () => {
       log.info('MCP server started (http)', { host: config.host, port: config.port, path: config.path });
@@ -80,6 +96,7 @@ export type StartServerOptions = {
   resources?: ResourceStore;
   toolRegistry?: ToolRegistry;
   metrics?: MetricsRegistry;
+  httpRequestHandler?: ServerHttpRequestHandler;
 };
 
 export function startServer(
@@ -115,7 +132,10 @@ export function startServer(
     optional: true
   });
   if (http && typeof http.createServer === 'function') {
-    const stop = startHttpServer(http, config, router, log, options.metrics);
+    const stop = startHttpServer(http, config, router, log, {
+      metrics: options.metrics,
+      httpRequestHandler: options.httpRequestHandler
+    });
     if (stop) return stop;
   }
 
@@ -131,5 +151,4 @@ export function startServer(
   log.warn(SERVER_NO_TRANSPORT);
   return null;
 }
-
 

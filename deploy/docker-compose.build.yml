@@ -1,17 +1,9 @@
 services:
-  web:
-    image: ${ASHFOX_WEB_IMAGE:-ashfox/web:local}
+  gateway:
+    image: ${ASHFOX_GATEWAY_IMAGE:-ashfox/gateway:local}
     build:
       context: ..
-      dockerfile: apps/web/Dockerfile
-      args:
-        ASHFOX_WORKSPACE_DEPS_IMAGE: ${ASHFOX_WORKSPACE_DEPS_IMAGE:-ashfox/workspace-deps:local}
-
-  mcp-gateway:
-    image: ${ASHFOX_GATEWAY_IMAGE:-ashfox/mcp-gateway:local}
-    build:
-      context: ..
-      dockerfile: apps/mcp-gateway/Dockerfile
+      dockerfile: apps/gateway/Dockerfile
       args:
         ASHFOX_WORKSPACE_DEPS_IMAGE: ${ASHFOX_WORKSPACE_DEPS_IMAGE:-ashfox/workspace-deps:local}
 

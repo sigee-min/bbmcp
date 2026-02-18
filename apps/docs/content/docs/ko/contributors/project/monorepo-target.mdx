@@ -9,13 +9,13 @@ summary: "플러그인 배포와 서버 배포를 기준으로 한 현재 이중
 이 문서는 현재 이중 트랙 아키텍처 스캐폴드를 설명합니다.
 
 - 트랙 A: Blockbench 플러그인 런타임 (`apps/plugin-desktop` + `apps/ashfox`)
-- 트랙 B: 서버 배포 (`apps/web` + `apps/mcp-gateway` + `apps/worker`)
+- 트랙 B: 서버 배포 (`apps/web` + `apps/gateway` + `apps/worker`)
 
 ## 실행 경계(Executable Boundaries)
 
 - 플러그인 번들 엔트리: `apps/plugin-desktop/src/index.ts`
 - 헤드리스/사이드카 엔트리: `apps/ashfox/src/index.ts`
-- MCP 게이트웨이 엔트리: `apps/mcp-gateway/src/index.ts`
+- MCP 게이트웨이 엔트리: `apps/gateway/src/index.ts`
 - 워커 엔트리: `apps/worker/src/index.ts`
 - 대시보드/API 셸: `apps/web/src/app/*`
 - 런타임 구현: `packages/runtime/src/*`
@@ -33,9 +33,9 @@ summary: "플러그인 배포와 서버 배포를 기준으로 한 현재 이중
 apps/
   plugin-desktop/      # Blockbench plugin runtime shell
   ashfox/              # UI-less MCP runtime shell
-  mcp-gateway/         # Multi-backend MCP gateway shell
+  gateway/         # Multi-backend MCP gateway shell
   worker/              # Async worker shell
-  web/                 # Next.js dashboard + API scaffold
+  web/                 # React + Vite 대시보드 UI
   docs/                # User-facing documentation site
 packages/
   runtime/             # Shared runtime implementation
@@ -45,7 +45,7 @@ packages/
   backend-blockbench/  # Dispatcher-backed blockbench adapter
   backend-engine/      # Clean-room engine adapter scaffold
 deploy/
-  docker-compose.yml   # Multi-service scaffold (web/gateway/worker/db)
+  docker-compose.yml   # 멀티 서비스 스캐폴드 (gateway/worker/db, UI는 gateway 서빙)
 config/
   quality/             # Quality baselines (coverage, gates)
   specs/               # Blockbench spec snapshots

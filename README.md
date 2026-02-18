@@ -196,9 +196,9 @@ If toolRegistry.hash changes, re-run list_capabilities (or tools/list) to refres
 ## Repository Layout
 - `apps/plugin-desktop`: plugin app entrypoint (desktop runtime boundary)
 - `apps/ashfox`: headless MCP app entrypoint (sidecar boundary)
-- `apps/mcp-gateway`: multi-backend MCP gateway shell (tool routing + project locks)
+- `apps/gateway`: gateway app (NestJS + Fastify multi-backend gateway shell: tool routing + project locks)
 - `apps/worker`: async worker for native pipeline jobs + heartbeat
-- `apps/web`: Next.js dashboard and API services
+- `apps/web`: React + Vite dashboard UI (CSR/static export)
 - `apps/docs`: user-facing docs site
 - `packages/runtime`: shared runtime implementation (plugin + server + usecases)
 - `packages/contracts`: MCP contract source (`mcpSchemas`) + schema policy (`version/hash`)
@@ -206,7 +206,7 @@ If toolRegistry.hash changes, re-run list_capabilities (or tools/list) to refres
 - `packages/backend-core`: backend contracts/registry/locks shared by gateway runtimes
 - `packages/backend-blockbench`: blockbench backend adapter (dispatcher bridge)
 - `packages/backend-engine`: clean-room engine backend
-- `deploy/docker-compose.yml`: image-based multi-service deployment (`web + mcp-gateway + worker + postgres`)
+- `deploy/docker-compose.yml`: image-based multi-service deployment (`gateway + worker + postgres`, UI served by gateway)
 - `deploy/docker-compose.build.yml`: source-build override for local image creation
 - `deploy/.env.example`: deploy-time env/image template
 - `apps/docs/content/docs/en/contributors/project/development-onboarding.mdx`: contributor onboarding for build/test/release
@@ -237,7 +237,8 @@ Core scripts:
 | `npm run build` | Build plugin + headless bundles into `dist/` |
 | `npm run build:plugin-desktop` | Build only the Blockbench plugin bundle |
 | `npm run build:ashfox` | Build only the headless MCP bundle |
-| `npm run dev:gateway` | Start MCP gateway (local) |
+| `npm run dev` | Start `web + gateway + worker` with a shared local sqlite file (`.ashfox/local/shared-dev.sqlite`) |
+| `npm run dev:gateway` | Start gateway (local) |
 | `npm run dev:worker` | Start worker (local) |
 | `npm run typecheck` | Run strict TypeScript checks |
 | `npm run test:unit` | Run runtime unit tests (`packages/runtime/tests`) |
@@ -296,7 +297,7 @@ bash scripts/docker/up-local-build.sh
 - App versions are managed independently in each app package:
   - `apps/ashfox/package.json`
   - `apps/plugin-desktop/package.json`
-  - `apps/mcp-gateway/package.json`
+  - `apps/gateway/package.json`
   - `apps/worker/package.json`
   - `apps/web/package.json`
   - `apps/docs/package.json`

@@ -6,7 +6,7 @@ const { createRoot } = require('react-dom/client');
 const { JSDOM } = require('jsdom');
 
 const HomePage = require('../src/app/page').default;
-const { getNativePipelineStore } = require('../src/lib/nativePipelineStore');
+const { createProjectsFixture } = require('./fixtures/projects');
 
 class MockEventSource {
   static instances = [];
@@ -110,11 +110,8 @@ const mountPage = async ({ fetchImpl, EventSourceImpl }) => {
 };
 
 module.exports = async () => {
-  const store = getNativePipelineStore();
-  await store.reset();
-
   {
-    const projectsPayload = { ok: true, projects: await store.listProjects() };
+    const projectsPayload = { ok: true, projects: createProjectsFixture() };
     const mounted = await mountPage({
       fetchImpl: async (requestUrl) => {
         assert.equal(String(requestUrl), '/api/projects');
@@ -161,7 +158,7 @@ module.exports = async () => {
   }
 
   {
-    const projectsPayload = { ok: true, projects: await store.listProjects() };
+    const projectsPayload = { ok: true, projects: createProjectsFixture() };
     let fetchCount = 0;
     let streamCreated = false;
     class PassiveEventSource {
@@ -220,7 +217,7 @@ module.exports = async () => {
   }
 
   {
-    const projectsPayload = { ok: true, projects: await store.listProjects() };
+    const projectsPayload = { ok: true, projects: createProjectsFixture() };
     let fetchCount = 0;
     let streamCreated = false;
     class PassiveEventSource {

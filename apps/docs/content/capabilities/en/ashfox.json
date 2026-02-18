@@ -10,7 +10,7 @@
     "rows": [
       {
         "area": "Service topology",
-        "included": "apps/web + apps/mcp-gateway + apps/worker",
+        "included": "apps/web + apps/gateway + apps/worker",
         "status": "Scaffold",
         "notes": "Track B topology and boundaries are defined in docs and code."
       },
@@ -53,7 +53,7 @@
         "capability": "Gateway runtime shell",
         "provided": "Yes",
         "completion": "Scaffold",
-        "validation": "apps/mcp-gateway boundary and entrypoint are present"
+        "validation": "apps/gateway boundary and entrypoint are present"
       },
       {
         "capability": "Worker runtime shell",

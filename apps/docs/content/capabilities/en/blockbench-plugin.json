@@ -28,7 +28,7 @@
       },
       {
         "area": "Server deployment stack",
-        "included": "apps/web, apps/mcp-gateway, apps/worker",
+        "included": "apps/web, apps/gateway, apps/worker",
         "status": "Out of scope",
         "notes": "Use the Ashfox track for service deployment."
       }

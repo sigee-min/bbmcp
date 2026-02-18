@@ -3,8 +3,8 @@
   "version": "0.0.2",
   "private": true,
   "scripts": {
-    "dev": "ts-node src/index.ts",
-    "start": "ts-node src/index.ts",
+    "dev": "tsx watch --clear-screen=false src/index.ts",
+    "start": "ts-node -r tsconfig-paths/register --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\"}' src/index.ts",
     "test": "node run.js"
   }
 }

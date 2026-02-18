@@ -8,9 +8,11 @@ import {
   type NativePipelineQueueStorePort
 } from '@ashfox/native-pipeline';
 import type { NativeJobResult, SupportedNativeJobKind } from '@ashfox/native-pipeline/types';
-import { createGatewayNativePipelineStore } from '@ashfox/mcp-gateway/persistence';
+import { createGatewayNativePipelineStore } from '@ashfox/gateway-persistence';
 
-configureNativePipelineStoreFactory(createGatewayNativePipelineStore);
+export const configureWorkerNativePipelineStore = (env: NodeJS.ProcessEnv): void => {
+  configureNativePipelineStoreFactory(() => createGatewayNativePipelineStore(env));
+};
 
 const DEFAULT_TENANT_ID = 'default-tenant';
 

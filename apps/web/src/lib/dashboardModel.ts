@@ -1,3 +1,5 @@
+import { buildGatewayApiUrl } from './gatewayApi';
+
 export type Vec3 = readonly [number, number, number];
 
 export type DashboardStatus = 'loading' | 'empty' | 'success' | 'error';
@@ -369,10 +371,11 @@ export const applyProjectStreamPayload = (state: DashboardState, payload: Projec
 
 export const buildStreamUrl = (projectId: string, lastEventId: number): string => {
   const encoded = encodeURIComponent(projectId);
+  const basePath = `/projects/${encoded}/stream`;
   if (lastEventId < 0) {
-    return `/api/projects/${encoded}/stream`;
+    return buildGatewayApiUrl(basePath);
   }
-  return `/api/projects/${encoded}/stream?lastEventId=${lastEventId}`;
+  return buildGatewayApiUrl(`${basePath}?lastEventId=${lastEventId}`);
 };
 
 export const isProjectStreamPayload = (value: unknown): value is ProjectStreamPayload => {

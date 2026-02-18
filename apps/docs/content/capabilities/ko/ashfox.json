@@ -10,7 +10,7 @@
     "rows": [
       {
         "area": "서비스 토폴로지",
-        "included": "apps/web + apps/mcp-gateway + apps/worker",
+        "included": "apps/web + apps/gateway + apps/worker",
         "status": "스캐폴드",
         "notes": "Track B 구조와 경계가 문서/코드에 정의됨"
       },
@@ -53,7 +53,7 @@
         "capability": "Gateway 런타임 쉘",
         "provided": "예",
         "completion": "스캐폴드",
-        "validation": "apps/mcp-gateway 경계/진입점 제공"
+        "validation": "apps/gateway 경계/진입점 제공"
       },
       {
         "capability": "Worker 런타임 쉘",

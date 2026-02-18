@@ -17,10 +17,17 @@ export type WorkerRuntimeConfig = {
   workerId: string;
 };
 
-export const resolveWorkerRuntimeConfig = (): WorkerRuntimeConfig => ({
-  logLevel: (process.env.ASHFOX_WORKER_LOG_LEVEL as LogLevel) ?? 'info',
-  heartbeatMs: toPositiveInt(process.env.ASHFOX_WORKER_HEARTBEAT_MS, DEFAULT_HEARTBEAT_MS),
-  pollMs: toPositiveInt(process.env.ASHFOX_WORKER_POLL_MS, DEFAULT_POLL_MS),
-  enableNativePipeline: String(process.env.ASHFOX_WORKER_NATIVE_PIPELINE ?? '1') === '1',
-  workerId: process.env.ASHFOX_WORKER_ID?.trim() || `worker-${process.pid}`
+export type NativePipelineQueueBackend = 'memory' | 'persistence';
+
+export const resolveWorkerRuntimeConfig = (env: NodeJS.ProcessEnv): WorkerRuntimeConfig => ({
+  logLevel: (env.ASHFOX_WORKER_LOG_LEVEL as LogLevel) ?? 'info',
+  heartbeatMs: toPositiveInt(env.ASHFOX_WORKER_HEARTBEAT_MS, DEFAULT_HEARTBEAT_MS),
+  pollMs: toPositiveInt(env.ASHFOX_WORKER_POLL_MS, DEFAULT_POLL_MS),
+  enableNativePipeline: String(env.ASHFOX_WORKER_NATIVE_PIPELINE ?? '1') === '1',
+  workerId: env.ASHFOX_WORKER_ID?.trim() || `worker-${process.pid}`
 });
+
+export const resolveNativePipelineQueueBackend = (env: NodeJS.ProcessEnv): NativePipelineQueueBackend =>
+  String(env.ASHFOX_NATIVE_PIPELINE_BACKEND ?? 'persistence').trim().toLowerCase() === 'memory'
+    ? 'memory'
+    : 'persistence';

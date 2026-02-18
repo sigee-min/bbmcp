@@ -1,19 +1,19 @@
 import { createEngineBackend } from '@ashfox/backend-engine';
+import { closeGatewayPersistence, createGatewayPersistence } from '@ashfox/gateway-persistence';
 import { ConsoleLogger, type LogLevel } from '@ashfox/runtime/logging';
-import { closeGatewayPersistence, createGatewayPersistence } from '@ashfox/mcp-gateway/persistence';
-import { resolveWorkerRuntimeConfig } from './config';
+import { resolveNativePipelineQueueBackend, resolveWorkerRuntimeConfig } from './config';
 import { runHeartbeat } from './heartbeat';
-import { processOneNativeJob } from './nativeJobProcessor';
+import { configureWorkerNativePipelineStore, processOneNativeJob } from './nativeJobProcessor';
 
 const WORKER_VERSION = '0.0.2';
 
-const config = resolveWorkerRuntimeConfig();
+const env = process.env;
+configureWorkerNativePipelineStore(env);
+const config = resolveWorkerRuntimeConfig(env);
 const logLevel: LogLevel = config.logLevel;
 const logger = new ConsoleLogger('ashfox-worker', () => logLevel);
-const queueBackend = String(process.env.ASHFOX_NATIVE_PIPELINE_BACKEND ?? 'persistence').trim().toLowerCase() === 'memory'
-  ? 'memory'
-  : 'persistence';
-const persistence = createGatewayPersistence(process.env, { failFast: false });
+const queueBackend = resolveNativePipelineQueueBackend(env);
+const persistence = createGatewayPersistence(env, { failFast: false });
 
 const backend = createEngineBackend({
   version: WORKER_VERSION,

@@ -86,5 +86,5 @@ export const textureToolSchemas: Record<string, JsonSchema> = {
       ...metaProps
     }
   },
-  // apply_texture_spec and apply_uv_spec removed (legacy pipeline)
+  // apply_texture_spec and apply_uv_spec are intentionally omitted from the current schema set.
 };

@@ -8,12 +8,6 @@ import type {
   WorkspaceRecord,
   WorkspaceRoleStorageRecord
 } from '@ashfox/backend-core';
-export {
-  AUTO_PROVISIONED_WORKSPACE_PREFIX,
-  isAutoProvisionedWorkspaceId,
-  toAutoProvisionedWorkspaceId,
-  toAutoProvisionedWorkspaceName
-} from '@ashfox/backend-core';
 
 export const DEFAULT_WORKSPACE_ID = 'ws_default';
 export const DEFAULT_WORKSPACE_TENANT_ID = 'default-tenant';

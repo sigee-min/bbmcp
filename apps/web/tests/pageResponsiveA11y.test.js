@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 
 const { createAuthSessionFixture, createProjectsFixture, createProjectTreeFixture, createWorkspacesFixture } = require('./fixtures/projects');
-const { MockEventSource, flushUpdates, mountHomePage } = require('./helpers/pageHarness');
+const { MockEventSource, dispatchInAct, flushUpdates, mountHomePage } = require('./helpers/pageHarness');
 
 module.exports = async () => {
   const authSessionPayload = createAuthSessionFixture();
@@ -92,7 +92,7 @@ module.exports = async () => {
       const initialYawText = yawReadout.textContent;
       assert.match(initialYawText, /yaw 0 \/ pitch 0/);
 
-      viewport.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      await dispatchInAct(viewport, new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
       await flushUpdates();
 
       const nextYawText = yawReadout.textContent;
@@ -163,7 +163,7 @@ module.exports = async () => {
       assert.ok(reloadButton, 'empty state should expose reload CTA');
       assert.equal(streamCreated, false);
 
-      reloadButton.dispatchEvent(new mounted.dom.window.MouseEvent('click', { bubbles: true }));
+      await dispatchInAct(reloadButton, new mounted.dom.window.MouseEvent('click', { bubbles: true }));
       await flushUpdates();
 
       const reloadedText = mounted.container.textContent ?? '';
@@ -230,7 +230,7 @@ module.exports = async () => {
       );
       assert.ok(retryButton, 'error state should expose retry CTA');
 
-      retryButton.dispatchEvent(new mounted.dom.window.MouseEvent('click', { bubbles: true }));
+      await dispatchInAct(retryButton, new mounted.dom.window.MouseEvent('click', { bubbles: true }));
       await flushUpdates();
 
       const retriedText = mounted.container.textContent ?? '';
@@ -318,7 +318,7 @@ module.exports = async () => {
 
       const sidebarMenuButton = container.querySelector('button[aria-label=\"사이드바 설정\"]');
       assert.ok(sidebarMenuButton);
-      sidebarMenuButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await dispatchInAct(sidebarMenuButton, new dom.window.MouseEvent('click', { bubbles: true }));
       await flushUpdates();
       assert.match(container.textContent ?? '', /워크스페이스 관리/);
 
@@ -326,7 +326,7 @@ module.exports = async () => {
         (button.textContent ?? '').includes('워크스페이스 관리')
       );
       assert.ok(openSettingsButton);
-      openSettingsButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await dispatchInAct(openSettingsButton, new dom.window.MouseEvent('click', { bubbles: true }));
       await flushUpdates();
 
       const dialog = container.querySelector('[role=\"dialog\"][aria-label=\"워크스페이스 관리\"]');
@@ -334,28 +334,28 @@ module.exports = async () => {
 
       const closeDialogButton = dialog.querySelector('button[aria-label=\"닫기\"]');
       assert.ok(closeDialogButton);
-      closeDialogButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await dispatchInAct(closeDialogButton, new dom.window.MouseEvent('click', { bubbles: true }));
       await flushUpdates();
 
       const workspaceSelectorButton = Array.from(container.querySelectorAll('button')).find((button) =>
         (button.textContent ?? '').includes('Current Workspace')
       );
       assert.ok(workspaceSelectorButton);
-      workspaceSelectorButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await dispatchInAct(workspaceSelectorButton, new dom.window.MouseEvent('click', { bubbles: true }));
       await flushUpdates();
 
       const readonlyWorkspaceButton = Array.from(container.querySelectorAll('button')).find((button) =>
         (button.textContent ?? '').includes('Readonly Workspace')
       );
       assert.ok(readonlyWorkspaceButton);
-      readonlyWorkspaceButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await dispatchInAct(readonlyWorkspaceButton, new dom.window.MouseEvent('click', { bubbles: true }));
       await flushUpdates();
 
       const currentStream = MockEventSource.instances.at(-1);
       assert.ok(currentStream);
       assert.match(currentStream.url, /workspaceId=ws_readonly/);
 
-      sidebarMenuButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await dispatchInAct(sidebarMenuButton, new dom.window.MouseEvent('click', { bubbles: true }));
       await flushUpdates();
       const menuText = container.textContent ?? '';
       assert.doesNotMatch(menuText, /워크스페이스 관리/);

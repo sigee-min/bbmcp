@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const { createAuthSessionFixture, createProjectsFixture, createProjectTreeFixture, createWorkspacesFixture } = require('./fixtures/projects');
 const {
   MockEventSource,
+  emitErrorInAct,
+  emitMessageInAct,
   flushUpdates,
   installImmediateTimers,
   mountHomePage
@@ -70,7 +72,7 @@ module.exports = async () => {
     assert.ok(firstStream);
     assert.equal(firstStream.url, `/api/projects/${forestFoxProjectId}/stream?lastEventId=10&workspaceId=ws_default`);
 
-    firstStream.emitMessage({
+    await emitMessageInAct(firstStream, {
       projectId: forestFoxProjectId,
       revision: 14,
       hasGeometry: true,
@@ -80,7 +82,7 @@ module.exports = async () => {
     });
     await flushUpdates();
 
-    firstStream.emitError();
+    await emitErrorInAct(firstStream);
     await flushUpdates();
 
     const resumedStream = MockEventSource.instances.at(-1);

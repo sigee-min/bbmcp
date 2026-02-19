@@ -9,5 +9,8 @@
     "./createPersistence": "./src/createPersistence.ts",
     "./infrastructure/*": "./src/infrastructure/*.ts",
     "./infrastructure/appwrite/*": "./src/infrastructure/appwrite/*.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2"
   }
 }

@@ -164,12 +164,13 @@ const normalizeWorkspaceRecord = (row: SqliteWorkspaceRow): WorkspaceRecord => (
 });
 
 const loadDatabaseConstructor = (): DatabaseSyncConstructor => {
-  type SqliteModule = { DatabaseSync?: DatabaseSyncConstructor };
-  const sqliteModule = require('node:sqlite') as SqliteModule;
-  if (typeof sqliteModule.DatabaseSync !== 'function') {
-    throw new Error('node:sqlite DatabaseSync API is unavailable.');
+  type SqliteModule = DatabaseSyncConstructor | { default?: DatabaseSyncConstructor };
+  const sqliteModule = require('better-sqlite3') as SqliteModule;
+  const constructor = typeof sqliteModule === 'function' ? sqliteModule : sqliteModule.default;
+  if (typeof constructor !== 'function') {
+    throw new Error('better-sqlite3 Database API is unavailable.');
   }
-  return sqliteModule.DatabaseSync;
+  return constructor;
 };
 
 export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepository {
@@ -197,8 +198,8 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
 
   private getDatabase(): SqliteDatabase {
     if (this.database) return this.database;
-    const DatabaseSync = loadDatabaseConstructor();
-    this.database = new DatabaseSync(this.filePath);
+    const Database = loadDatabaseConstructor();
+    this.database = new Database(this.filePath);
     return this.database;
   }
 

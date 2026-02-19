@@ -16,4 +16,8 @@ export * from './locks';
 export * from './registry';
 export * from './persistence';
 export * from './queue';
-export * from './workspaceProvisioning';
+export {
+  isAutoProvisionedWorkspaceId,
+  toAutoProvisionedWorkspaceId,
+  toAutoProvisionedWorkspaceName
+} from './workspaceProvisioning';

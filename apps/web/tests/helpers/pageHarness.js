@@ -79,6 +79,24 @@ const flushUpdates = async (turns = 6) => {
   });
 };
 
+const dispatchInAct = async (target, event) => {
+  await act(async () => {
+    target.dispatchEvent(event);
+  });
+};
+
+const emitMessageInAct = async (eventSource, payload) => {
+  await act(async () => {
+    eventSource.emitMessage(payload);
+  });
+};
+
+const emitErrorInAct = async (eventSource) => {
+  await act(async () => {
+    eventSource.emitError();
+  });
+};
+
 const installImmediateTimers = () => {
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
@@ -177,6 +195,9 @@ const mountHomePage = async ({ fetchImpl, EventSourceImpl }) => {
 
 module.exports = {
   MockEventSource,
+  dispatchInAct,
+  emitErrorInAct,
+  emitMessageInAct,
   flushMicrotasks,
   flushUpdates,
   installImmediateTimers,

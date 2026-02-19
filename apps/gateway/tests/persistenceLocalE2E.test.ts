@@ -6,11 +6,13 @@ import type { ProjectRepositoryWithRevisionGuard } from '@ashfox/backend-core';
 import { closeGatewayPersistence, createGatewayPersistence } from '@ashfox/gateway-persistence/createPersistence';
 import { registerAsync } from './helpers';
 
-const hasNodeSqlite = (): boolean => {
+const hasSqliteDriver = (): boolean => {
   try {
-    type SqliteModule = { DatabaseSync?: unknown };
-    const sqliteModule = require('node:sqlite') as SqliteModule;
-    return typeof sqliteModule.DatabaseSync === 'function';
+    type SqliteDriverConstructor = new (location: string) => unknown;
+    type SqliteModule = SqliteDriverConstructor | { default?: SqliteDriverConstructor };
+    const sqliteModule = require('better-sqlite3') as SqliteModule;
+    const constructor = typeof sqliteModule === 'function' ? sqliteModule : sqliteModule.default;
+    return typeof constructor === 'function';
   } catch {
     return false;
   }
@@ -25,7 +27,7 @@ const isRevisionGuardRepository = (
 
 registerAsync(
   (async () => {
-    if (!hasNodeSqlite()) {
+    if (!hasSqliteDriver()) {
       return;
     }
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'ashfox-local-persistence-'));

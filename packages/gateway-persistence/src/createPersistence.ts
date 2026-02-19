@@ -49,20 +49,22 @@ const assertNodeRuntimePreflight = (): void => {
   const major = readNodeRuntimeMajor();
   if (major >= MIN_NODE_RUNTIME_MAJOR) return;
   throw new Error(
-    `Unsupported Node.js runtime ${process.versions.node}. Ashfox persistence requires Node.js ${MIN_NODE_RUNTIME_MAJOR}+ (node:sqlite DatabaseSync).`
+    `Unsupported Node.js runtime ${process.versions.node}. Ashfox persistence requires Node.js ${MIN_NODE_RUNTIME_MAJOR}+ for the supported SQLite driver.`
   );
 };
 
 const resolveSqliteRuntimeAvailability = (): { available: boolean; reason?: string } => {
   try {
-    type SqliteModule = { DatabaseSync?: unknown };
-    const sqliteModule = require('node:sqlite') as SqliteModule;
-    if (typeof sqliteModule.DatabaseSync === 'function') {
+    type SqliteDriverConstructor = new (location: string) => unknown;
+    type SqliteModule = SqliteDriverConstructor | { default?: SqliteDriverConstructor };
+    const sqliteModule = require('better-sqlite3') as SqliteModule;
+    const constructor = typeof sqliteModule === 'function' ? sqliteModule : sqliteModule.default;
+    if (typeof constructor === 'function') {
       return { available: true };
     }
-    return { available: false, reason: 'node_sqlite_missing_database_sync' };
+    return { available: false, reason: 'sqlite_driver_missing_constructor' };
   } catch {
-    return { available: false, reason: 'node_sqlite_unavailable' };
+    return { available: false, reason: 'sqlite_driver_unavailable' };
   }
 };
 
@@ -95,12 +97,12 @@ const createProjectRepository = (
       return {
         port: new UnsupportedProjectRepository(
           selection.databaseProvider,
-          'node:sqlite runtime is unavailable. Use Node 22+ or switch ASHFOX_PERSISTENCE_PRESET.'
+          'SQLite driver (better-sqlite3) is unavailable. Reinstall dependencies or switch ASHFOX_PERSISTENCE_PRESET.'
         ),
         readiness: {
           provider: selection.databaseProvider,
           ready: false,
-          reason: sqliteRuntime.reason ?? 'sqlite_runtime_unavailable'
+          reason: sqliteRuntime.reason ?? 'sqlite_driver_unavailable'
         }
       };
     }
@@ -257,12 +259,12 @@ const createBlobStore = (
         return {
           port: new UnsupportedBlobStore(
             selection.storageProvider,
-            'node:sqlite runtime is unavailable. Use Node 22+ or switch ASHFOX_PERSISTENCE_PRESET.'
+            'SQLite driver (better-sqlite3) is unavailable. Reinstall dependencies or switch ASHFOX_PERSISTENCE_PRESET.'
           ),
           readiness: {
             provider: selection.storageProvider,
             ready: false,
-            reason: sqliteRuntime.reason ?? 'sqlite_runtime_unavailable'
+            reason: sqliteRuntime.reason ?? 'sqlite_driver_unavailable'
           }
         };
       }

@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 
 const { createAuthSessionFixture, createProjectsFixture, createProjectTreeFixture, createWorkspacesFixture } = require('./fixtures/projects');
-const { MockEventSource, flushUpdates, mountHomePage } = require('./helpers/pageHarness');
+const { MockEventSource, dispatchInAct, emitErrorInAct, flushUpdates, mountHomePage } = require('./helpers/pageHarness');
 
 const findProjectButtonByName = (root, projectName) => {
   const buttons = root.querySelectorAll('button');
@@ -70,7 +70,7 @@ module.exports = async () => {
     assert.ok(firstStream);
     assert.equal(firstStream.url, `/api/projects/${forestFoxProjectId}/stream?lastEventId=10&workspaceId=ws_default`);
 
-    await firstStream.emitError();
+    await emitErrorInAct(firstStream);
     await flushUpdates();
 
     const beforeClickText = container.textContent ?? '';
@@ -80,7 +80,7 @@ module.exports = async () => {
     assert.ok(projectBButton, 'project list should stay visible while stream error banner is shown');
     assert.equal(projectBButton.disabled, false, 'project button should remain clickable while error is shown');
 
-    projectBButton.dispatchEvent(new mounted.dom.window.MouseEvent('click', { bubbles: true }));
+    await dispatchInAct(projectBButton, new mounted.dom.window.MouseEvent('click', { bubbles: true }));
     await flushUpdates();
 
     const afterClickText = container.textContent ?? '';

@@ -15,8 +15,12 @@ const maxLines = Number.parseInt(process.env.ASHFOX_COMPLEXITY_MAX_LINES ?? '120
 const maxBranches = Number.parseInt(process.env.ASHFOX_COMPLEXITY_MAX_BRANCHES ?? '140', 10);
 const hotspotLineThreshold = Number.parseInt(process.env.ASHFOX_COMPLEXITY_HOTSPOT_LINE_THRESHOLD ?? '500', 10);
 const hotspotBranchThreshold = Number.parseInt(process.env.ASHFOX_COMPLEXITY_HOTSPOT_BRANCH_THRESHOLD ?? '70', 10);
-const maxLineHotspots = Number.parseInt(process.env.ASHFOX_COMPLEXITY_MAX_LINE_HOTSPOTS ?? '2', 10);
-const maxBranchHotspots = Number.parseInt(process.env.ASHFOX_COMPLEXITY_MAX_BRANCH_HOTSPOTS ?? '3', 10);
+const defaultMaxLineHotspots = Number.parseInt(process.env.ASHFOX_COMPLEXITY_MAX_LINE_HOTSPOTS ?? '2', 10);
+const defaultMaxBranchHotspots = Number.parseInt(process.env.ASHFOX_COMPLEXITY_MAX_BRANCH_HOTSPOTS ?? '3', 10);
+const baselineFile = path.resolve(
+  repoRoot,
+  process.env.ASHFOX_COMPLEXITY_BASELINE_FILE ?? 'config/quality/complexity-baseline.json'
+);
 const summaryFile = process.env.ASHFOX_COMPLEXITY_SUMMARY_FILE;
 
 const toRelative = (filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/');
@@ -66,7 +70,49 @@ const printRows = (label, rows) => {
   }
 };
 
+const loadBaselineBudget = () => {
+  if (!fs.existsSync(baselineFile)) {
+    return null;
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(baselineFile, 'utf8'));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`failed to parse complexity baseline (${baselineFile}): ${message}`);
+  }
+
+  const counts = parsed && typeof parsed === 'object' ? parsed.counts : null;
+  const lineHotspots = Number(counts && counts.lineHotspots);
+  const branchHotspots = Number(counts && counts.branchHotspots);
+  if (!Number.isInteger(lineHotspots) || lineHotspots < 0) {
+    throw new Error(`invalid baseline count: counts.lineHotspots (${lineHotspots})`);
+  }
+  if (!Number.isInteger(branchHotspots) || branchHotspots < 0) {
+    throw new Error(`invalid baseline count: counts.branchHotspots (${branchHotspots})`);
+  }
+
+  return {
+    file: toRelative(baselineFile),
+    lineHotspots,
+    branchHotspots
+  };
+};
+
 const main = () => {
+  let baselineBudget;
+  try {
+    baselineBudget = loadBaselineBudget();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`ashfox complexity gate failed (invalid baseline): ${message}`);
+    process.exitCode = 1;
+    return;
+  }
+  const maxLineHotspots = baselineBudget ? baselineBudget.lineHotspots : defaultMaxLineHotspots;
+  const maxBranchHotspots = baselineBudget ? baselineBudget.branchHotspots : defaultMaxBranchHotspots;
+
   const files = [];
   for (const root of sourceRoots) {
     walk(path.join(repoRoot, root), files);
@@ -94,6 +140,16 @@ const main = () => {
       maxLineHotspots,
       maxBranchHotspots
     },
+    budgetSource: baselineBudget
+      ? {
+          type: 'baseline',
+          file: baselineBudget.file
+        }
+      : {
+          type: 'env',
+          maxLineHotspots: defaultMaxLineHotspots,
+          maxBranchHotspots: defaultMaxBranchHotspots
+        },
     counts: {
       thresholdOffenders: offenders.length,
       lineHotspots: lineHotspots.length,

@@ -11,6 +11,7 @@ import { MCP_TOOL_NAME_REQUIRED, MCP_UNKNOWN_TOOL } from '../src/shared/messages
 const createContext = (options?: {
   executor?: ToolExecutor;
   tools?: ToolRegistry;
+  requestHeaders?: Record<string, string>;
 }): RpcContext => {
   const toolRegistry: ToolRegistry =
     options?.tools ??
@@ -27,6 +28,7 @@ const createContext = (options?: {
     log: noopLog,
     toolRegistry,
     sessions: new SessionStore(),
+    ...(options?.requestHeaders ? { requestHeaders: options.requestHeaders } : {}),
     config: { path: '/mcp' }
   };
 };
@@ -63,6 +65,35 @@ registerAsync(
     }
 
     {
+      let capturedContext: Record<string, unknown> | undefined;
+      const outcome = await handleToolCall(
+        createContext({
+          executor: {
+            callTool: async (_name, _args, context) => {
+              capturedContext = (context ?? undefined) as Record<string, unknown> | undefined;
+              return { ok: true, data: { ok: true } };
+            }
+          },
+          requestHeaders: {
+            'x-ashfox-account-id': 'account-rpc',
+            'x-ashfox-system-roles': 'system_admin,cs_admin',
+            'x-ashfox-workspace-id': 'ws-rpc'
+          }
+        }),
+        { jsonrpc: '2.0', method: 'tools/call', params: { name: 'demo_tool', arguments: {} } },
+        session,
+        3
+      );
+      assert.equal(outcome.type, 'response');
+      if (outcome.type !== 'response') return;
+      assert.equal(outcome.status, 200);
+      assert.equal(capturedContext?.mcpSessionId, 's1');
+      assert.equal(capturedContext?.mcpAccountId, 'account-rpc');
+      assert.deepEqual(capturedContext?.mcpSystemRoles, ['system_admin', 'cs_admin']);
+      assert.equal(capturedContext?.mcpWorkspaceId, 'ws-rpc');
+    }
+
+    {
       const outcome = await handleToolCall(
         createContext({
           executor: {
@@ -71,7 +102,7 @@ registerAsync(
         }),
         { jsonrpc: '2.0', method: 'tools/call', params: { name: 'demo_tool', arguments: {} } },
         session,
-        3
+        4
       );
       assert.equal(outcome.type, 'response');
       if (outcome.type !== 'response') return;
@@ -92,7 +123,7 @@ registerAsync(
         }),
         { jsonrpc: '2.0', method: 'tools/call', params: { name: 'demo_tool', arguments: {} } },
         session,
-        4
+        5
       );
       assert.equal(outcome.type, 'response');
       if (outcome.type !== 'response') return;

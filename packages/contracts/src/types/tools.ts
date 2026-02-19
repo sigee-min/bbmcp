@@ -149,6 +149,9 @@ export interface ToolPayloadMap {
 
 export interface DispatcherExecutionContext {
   mcpSessionId?: string;
+  mcpAccountId?: string;
+  mcpSystemRoles?: string[];
+  mcpWorkspaceId?: string;
 }
 
 export interface Dispatcher {

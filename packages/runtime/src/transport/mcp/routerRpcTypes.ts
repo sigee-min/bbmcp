@@ -17,6 +17,7 @@ export type RpcContext = {
   resources?: ResourceStore;
   toolRegistry: ToolRegistry;
   sessions: SessionStore;
+  requestHeaders?: Record<string, string>;
   supportedProtocols?: string[];
   config: McpServerConfig;
 };

@@ -293,6 +293,9 @@ export const asProjectSnapshot = (value: unknown): NativeProjectSnapshot | null 
 
   const project: NativeProjectSnapshot = {
     projectId: value.projectId,
+    ...(typeof value.workspaceId === 'string' && value.workspaceId.trim().length > 0
+      ? { workspaceId: value.workspaceId.trim() }
+      : {}),
     name: value.name,
     parentFolderId,
     revision: Math.trunc(value.revision),

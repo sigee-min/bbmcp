@@ -6,15 +6,26 @@ import {
   Monitor,
   Moon,
   RefreshCw,
+  Settings2,
   Sun
 } from 'lucide-react';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction
+} from 'react';
 
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
-import type { ProjectTreeSnapshot, StreamStatus } from '../../../lib/dashboardModel';
+import type { ProjectTreeSnapshot, StreamStatus, WorkspaceSummary } from '../../../lib/dashboardModel';
 import type { ThemeMode } from '../../../lib/theme';
 import { cn } from '../../../lib/utils';
+import { useDismissibleMenu } from '../../_hooks/useDismissibleMenu';
 import styles from '../../page.module.css';
 import {
   collectFolderIds,
@@ -32,6 +43,13 @@ const THEME_OPTIONS: { mode: ThemeMode; label: string; Icon: typeof Sun }[] = [
   { mode: 'system', label: 'System', Icon: Monitor }
 ];
 
+type SidebarMenuState =
+  | { kind: 'none' }
+  | { kind: 'theme' }
+  | { kind: 'workspace' }
+  | { kind: 'settings' }
+  | { kind: 'tree'; menu: NonNullable<TreeMenuState> };
+
 export interface SidebarMutationHandlers {
   onCreateFolder: (parentFolderId: string | null) => Promise<void>;
   onCreateProject: (parentFolderId: string | null) => Promise<void>;
@@ -47,9 +65,17 @@ export interface ProjectSidebarProps extends SidebarMutationHandlers {
   projectTree: ProjectTreeSnapshot;
   selectedProjectId: string | null;
   streamStatus: StreamStatus;
+  workspaces: readonly WorkspaceSummary[];
+  selectedWorkspaceId: string;
+  workspaceLoading: boolean;
+  workspaceError: string | null;
+  canManageWorkspace: boolean;
   mutationBusy: boolean;
   mutationError: string | null;
   onRetryProjectLoad: () => void;
+  onOpenWorkspaceSettings: () => void;
+  onOpenAccountSecurity: () => void;
+  onSelectWorkspace: (workspaceId: string) => void;
   onSelectProject: (projectId: string) => void;
   themeMode: ThemeMode;
   onThemeModeChange: (mode: ThemeMode) => void;
@@ -59,9 +85,17 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   projectTree,
   selectedProjectId,
   streamStatus,
+  workspaces,
+  selectedWorkspaceId,
+  workspaceLoading,
+  workspaceError,
+  canManageWorkspace,
   mutationBusy,
   mutationError,
   onRetryProjectLoad,
+  onOpenWorkspaceSettings,
+  onOpenAccountSecurity,
+  onSelectWorkspace,
   onSelectProject,
   onThemeModeChange,
   themeMode,
@@ -74,69 +108,85 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   onMoveFolder,
   onMoveProject
 }: ProjectSidebarProps) {
-  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const [menuState, setMenuState] = useState<SidebarMenuState>({ kind: 'none' });
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
   const [dropInsertion, setDropInsertion] = useState<TreeInsertionTarget | null>(null);
-  const [openTreeMenu, setOpenTreeMenu] = useState<TreeMenuState>(null);
   const dragEntityRef = useRef<DragEntity>(null);
   const themeMenuRef = useRef<HTMLDivElement | null>(null);
+  const workspaceMenuRef = useRef<HTMLDivElement | null>(null);
+  const settingsMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const themeMenuOpen = menuState.kind === 'theme';
+  const workspaceMenuOpen = menuState.kind === 'workspace';
+  const settingsMenuOpen = menuState.kind === 'settings';
+  const openTreeMenu: TreeMenuState = menuState.kind === 'tree' ? menuState.menu : null;
 
   const treeLookup = useMemo(() => toTreeLookup(projectTree), [projectTree]);
   const selectedTheme = useMemo(
     () => THEME_OPTIONS.find((option) => option.mode === themeMode) ?? THEME_OPTIONS[2],
     [themeMode]
   );
+  const selectedWorkspace = useMemo(
+    () => workspaces.find((workspace) => workspace.workspaceId === selectedWorkspaceId) ?? null,
+    [selectedWorkspaceId, workspaces]
+  );
 
-  useEffect(() => {
-    if (!themeMenuOpen) {
-      return;
-    }
+  const closeMenus = useCallback(() => {
+    setMenuState({ kind: 'none' });
+  }, []);
 
-    const handleOutsidePointer = (event: PointerEvent) => {
-      if (!themeMenuRef.current?.contains(event.target as Node)) {
-        setThemeMenuOpen(false);
+  const toggleMenu = useCallback((kind: 'theme' | 'workspace' | 'settings') => {
+    setMenuState((prev) => (prev.kind === kind ? { kind: 'none' } : { kind }));
+  }, []);
+
+  const setOpenTreeMenu: Dispatch<SetStateAction<TreeMenuState>> = useCallback((value) => {
+    setMenuState((prev) => {
+      const previousTreeMenu = prev.kind === 'tree' ? prev.menu : null;
+      const nextTreeMenu = typeof value === 'function' ? value(previousTreeMenu) : value;
+      if (!nextTreeMenu) {
+        return { kind: 'none' };
       }
-    };
+      return { kind: 'tree', menu: nextTreeMenu };
+    });
+  }, []);
 
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setThemeMenuOpen(false);
-      }
-    };
+  const containsThemeMenuTarget = useCallback(
+    (target: EventTarget | null) => target instanceof Node && Boolean(themeMenuRef.current?.contains(target)),
+    []
+  );
+  const containsWorkspaceMenuTarget = useCallback(
+    (target: EventTarget | null) => target instanceof Node && Boolean(workspaceMenuRef.current?.contains(target)),
+    []
+  );
+  const containsSettingsMenuTarget = useCallback(
+    (target: EventTarget | null) => target instanceof Node && Boolean(settingsMenuRef.current?.contains(target)),
+    []
+  );
+  const containsTreeMenuTarget = useCallback(
+    (target: EventTarget | null) => target instanceof Element && Boolean(target.closest('[data-tree-menu-root="true"]')),
+    []
+  );
 
-    document.addEventListener('pointerdown', handleOutsidePointer);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('pointerdown', handleOutsidePointer);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [themeMenuOpen]);
-
-  useEffect(() => {
-    if (!openTreeMenu) {
-      return;
-    }
-
-    const handleOutsidePointer = (event: PointerEvent) => {
-      if (event.target instanceof Element && event.target.closest('[data-tree-menu-root="true"]')) {
-        return;
-      }
-      setOpenTreeMenu(null);
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpenTreeMenu(null);
-      }
-    };
-
-    document.addEventListener('pointerdown', handleOutsidePointer);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('pointerdown', handleOutsidePointer);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [openTreeMenu]);
+  useDismissibleMenu({
+    open: themeMenuOpen,
+    containsTarget: containsThemeMenuTarget,
+    onDismiss: closeMenus
+  });
+  useDismissibleMenu({
+    open: workspaceMenuOpen,
+    containsTarget: containsWorkspaceMenuTarget,
+    onDismiss: closeMenus
+  });
+  useDismissibleMenu({
+    open: settingsMenuOpen,
+    containsTarget: containsSettingsMenuTarget,
+    onDismiss: closeMenus
+  });
+  useDismissibleMenu({
+    open: openTreeMenu !== null,
+    containsTarget: containsTreeMenuTarget,
+    onDismiss: closeMenus
+  });
 
   useEffect(() => {
     const folderIds = new Set<string>();
@@ -319,7 +369,90 @@ export const ProjectSidebar = memo(function ProjectSidebar({
 
           {mutationError ? <p className={styles.sidebarErrorText}>{mutationError}</p> : null}
 
+          <div className={styles.workspaceSelectorWrap}>
+            <p className={styles.workspaceSelectorLabel}>Workspace</p>
+            <div ref={workspaceMenuRef} className={styles.workspaceSelector}>
+              <button
+                type="button"
+                className={styles.workspaceSelectorButton}
+                aria-haspopup="menu"
+                aria-expanded={workspaceMenuOpen}
+                disabled={workspaceLoading || workspaces.length === 0}
+                onClick={() => toggleMenu('workspace')}
+              >
+                <span className={styles.workspaceSelectorName}>
+                  {selectedWorkspace?.name ?? (workspaceLoading ? '워크스페이스 불러오는 중…' : '워크스페이스 없음')}
+                </span>
+                <ChevronDown className={cn('h-3.5 w-3.5', styles.themeChevron, workspaceMenuOpen && styles.themeChevronOpen)} />
+              </button>
+              {workspaceMenuOpen ? (
+                <div role="menu" aria-label="워크스페이스 목록" className={styles.workspaceSelectorMenu}>
+                  {workspaces.map((workspace) => {
+                    const isActive = workspace.workspaceId === selectedWorkspaceId;
+                    return (
+                      <button
+                        key={workspace.workspaceId}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={isActive}
+                        className={cn(styles.workspaceSelectorItem, isActive && styles.workspaceSelectorItemActive)}
+                        onClick={() => {
+                          onSelectWorkspace(workspace.workspaceId);
+                          closeMenus();
+                        }}
+                      >
+                        <span className={styles.workspaceSelectorItemName}>{workspace.name}</span>
+                        <span className={styles.workspaceSelectorItemMode}>{workspace.mode}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+            {workspaceError ? <p className={styles.sidebarErrorText}>{workspaceError}</p> : null}
+          </div>
+
           <div className={styles.sidebarFooter}>
+            <div ref={settingsMenuRef} className={styles.themeDropdown}>
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={settingsMenuOpen}
+                aria-label="사이드바 설정"
+                onClick={() => toggleMenu('settings')}
+                className={cn(styles.themeTrigger, styles.themeTriggerFooter)}
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+              </button>
+              {settingsMenuOpen ? (
+                <div role="menu" aria-label="사이드바 설정 메뉴" className={styles.themeMenu}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={styles.themeMenuItem}
+                    onClick={() => {
+                      onOpenAccountSecurity();
+                      closeMenus();
+                    }}
+                  >
+                    계정 보안
+                  </button>
+                  {canManageWorkspace ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={styles.themeMenuItem}
+                      onClick={() => {
+                        onOpenWorkspaceSettings();
+                        closeMenus();
+                      }}
+                    >
+                      워크스페이스 관리
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
             <div className={styles.sidebarFooterActions}>
               <div ref={themeMenuRef} className={styles.themeDropdown}>
                 <button
@@ -327,13 +460,12 @@ export const ProjectSidebar = memo(function ProjectSidebar({
                   aria-haspopup="menu"
                   aria-expanded={themeMenuOpen}
                   aria-label="테마 선택"
-                  onClick={() => setThemeMenuOpen((prev) => !prev)}
+                  onClick={() => toggleMenu('theme')}
                   className={cn(styles.themeTrigger, styles.themeTriggerFooter)}
                 >
                   <selectedTheme.Icon className="h-3.5 w-3.5" />
                   <ChevronDown className={cn('h-3.5 w-3.5', styles.themeChevron, themeMenuOpen && styles.themeChevronOpen)} />
                 </button>
-
                 {themeMenuOpen ? (
                   <div role="menu" aria-label="테마 설정" className={styles.themeMenu}>
                     {THEME_OPTIONS.map(({ mode, label, Icon }) => {
@@ -347,7 +479,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
                           className={cn(styles.themeMenuItem, isActive && styles.themeMenuItemActive)}
                           onClick={() => {
                             onThemeModeChange(mode);
-                            setThemeMenuOpen(false);
+                            closeMenus();
                           }}
                         >
                           <Icon className="h-4 w-4" />

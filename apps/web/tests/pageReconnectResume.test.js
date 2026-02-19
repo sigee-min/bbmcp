@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 
-const { createProjectsFixture, createProjectTreeFixture } = require('./fixtures/projects');
+const { createAuthSessionFixture, createProjectsFixture, createProjectTreeFixture, createWorkspacesFixture } = require('./fixtures/projects');
 const {
   MockEventSource,
   flushUpdates,
@@ -11,13 +11,32 @@ const {
 module.exports = async () => {
   const restoreTimers = installImmediateTimers();
   const seededProjects = createProjectsFixture();
+  const workspacesPayload = { ok: true, workspaces: createWorkspacesFixture() };
+  const authSessionPayload = createAuthSessionFixture();
   const forestFoxProject = seededProjects.find((project) => project.name === 'Forest Fox');
   assert.ok(forestFoxProject, 'missing seeded project: Forest Fox');
   const forestFoxProjectId = forestFoxProject.projectId;
 
   const mounted = await mountHomePage({
     fetchImpl: async (requestUrl) => {
-      assert.equal(String(requestUrl), '/api/projects/tree');
+      const url = String(requestUrl);
+      if (url === '/api/auth/me') {
+        return new Response(JSON.stringify(authSessionPayload), {
+          status: 200,
+          headers: {
+            'content-type': 'application/json; charset=utf-8'
+          }
+        });
+      }
+      if (url === '/api/workspaces') {
+        return new Response(JSON.stringify(workspacesPayload), {
+          status: 200,
+          headers: {
+            'content-type': 'application/json; charset=utf-8'
+          }
+        });
+      }
+      assert.equal(url, '/api/projects/tree?workspaceId=ws_default');
       return new Response(
         JSON.stringify({
           ok: true,
@@ -49,7 +68,7 @@ module.exports = async () => {
 
     const firstStream = MockEventSource.instances.at(-1);
     assert.ok(firstStream);
-    assert.equal(firstStream.url, `/api/projects/${forestFoxProjectId}/stream?lastEventId=10`);
+    assert.equal(firstStream.url, `/api/projects/${forestFoxProjectId}/stream?lastEventId=10&workspaceId=ws_default`);
 
     firstStream.emitMessage({
       projectId: forestFoxProjectId,
@@ -67,7 +86,7 @@ module.exports = async () => {
     const resumedStream = MockEventSource.instances.at(-1);
     assert.ok(resumedStream);
     assert.notEqual(resumedStream, firstStream);
-    assert.equal(resumedStream.url, `/api/projects/${forestFoxProjectId}/stream?lastEventId=14`);
+    assert.equal(resumedStream.url, `/api/projects/${forestFoxProjectId}/stream?lastEventId=14&workspaceId=ws_default`);
   } finally {
     await mounted.cleanup();
     restoreTimers();

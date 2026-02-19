@@ -121,6 +121,9 @@ const mountHomePage = async ({ fetchImpl, EventSourceImpl }) => {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
     url: 'http://localhost/'
   });
+  // Keep unit tests deterministic: disable WebGL-dependent preview path.
+  dom.window.WebGLRenderingContext = undefined;
+  dom.window.WebGL2RenderingContext = undefined;
 
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;

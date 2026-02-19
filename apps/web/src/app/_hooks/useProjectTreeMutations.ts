@@ -5,12 +5,14 @@ import { buildGatewayApiUrl } from '../../lib/gatewayApi';
 const requestGatewayMutation = async (
   path: string,
   method: string,
-  body?: Record<string, unknown>
+  body?: Record<string, unknown>,
+  requestHeaders?: Record<string, string>
 ): Promise<void> => {
   const response = await fetch(buildGatewayApiUrl(path), {
     method,
     headers: {
-      'content-type': 'application/json'
+      'content-type': 'application/json',
+      ...(requestHeaders ?? {})
     },
     ...(body ? { body: JSON.stringify(body) } : {})
   });
@@ -45,10 +47,25 @@ const promptName = (title: string, fallback: string): string | null => {
 };
 
 interface UseProjectTreeMutationsOptions {
+  workspaceId: string;
+  requestHeaders?: Record<string, string>;
   reloadProjectsSnapshot: () => Promise<void>;
 }
 
-export function useProjectTreeMutations({ reloadProjectsSnapshot }: UseProjectTreeMutationsOptions) {
+const withWorkspaceQuery = (path: string, workspaceId: string): string => {
+  const normalized = workspaceId.trim();
+  if (!normalized) {
+    return path;
+  }
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}workspaceId=${encodeURIComponent(normalized)}`;
+};
+
+export function useProjectTreeMutations({
+  workspaceId,
+  requestHeaders,
+  reloadProjectsSnapshot
+}: UseProjectTreeMutationsOptions) {
   const [mutationBusy, setMutationBusy] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
 
@@ -82,27 +99,29 @@ export function useProjectTreeMutations({ reloadProjectsSnapshot }: UseProjectTr
       await runMutationAndReload(async () => {
         await requestGatewayMutation('/folders', 'POST', {
           name,
+          workspaceId,
           ...(parentFolderId ? { parentFolderId } : {})
-        });
+        }, requestHeaders);
       });
     },
-    [runMutationAndReload]
+    [requestHeaders, runMutationAndReload, workspaceId]
   );
 
   const onCreateProject = useCallback(
     async (parentFolderId: string | null) => {
-      const name = promptName('프로젝트 이름을 입력하세요', 'New Project');
+      const name = promptName('프로젝트 이름을 입력하세요', '내 프로젝트');
       if (!name) {
         return;
       }
       await runMutationAndReload(async () => {
         await requestGatewayMutation('/projects', 'POST', {
           name,
+          workspaceId,
           ...(parentFolderId ? { parentFolderId } : {})
-        });
+        }, requestHeaders);
       });
     },
-    [runMutationAndReload]
+    [requestHeaders, runMutationAndReload, workspaceId]
   );
 
   const onRenameFolder = useCallback(
@@ -112,12 +131,12 @@ export function useProjectTreeMutations({ reloadProjectsSnapshot }: UseProjectTr
         return;
       }
       await runMutationAndReload(async () => {
-        await requestGatewayMutation(`/folders/${encodeURIComponent(folderId)}`, 'PATCH', {
+        await requestGatewayMutation(withWorkspaceQuery(`/folders/${encodeURIComponent(folderId)}`, workspaceId), 'PATCH', {
           name: nextName
-        });
+        }, requestHeaders);
       });
     },
-    [runMutationAndReload]
+    [requestHeaders, runMutationAndReload, workspaceId]
   );
 
   const onRenameProject = useCallback(
@@ -127,12 +146,12 @@ export function useProjectTreeMutations({ reloadProjectsSnapshot }: UseProjectTr
         return;
       }
       await runMutationAndReload(async () => {
-        await requestGatewayMutation(`/projects/${encodeURIComponent(projectId)}`, 'PATCH', {
+        await requestGatewayMutation(withWorkspaceQuery(`/projects/${encodeURIComponent(projectId)}`, workspaceId), 'PATCH', {
           name: nextName
-        });
+        }, requestHeaders);
       });
     },
-    [runMutationAndReload]
+    [requestHeaders, runMutationAndReload, workspaceId]
   );
 
   const onDeleteFolder = useCallback(
@@ -144,10 +163,15 @@ export function useProjectTreeMutations({ reloadProjectsSnapshot }: UseProjectTr
         }
       }
       await runMutationAndReload(async () => {
-        await requestGatewayMutation(`/folders/${encodeURIComponent(folderId)}`, 'DELETE');
+        await requestGatewayMutation(
+          withWorkspaceQuery(`/folders/${encodeURIComponent(folderId)}`, workspaceId),
+          'DELETE',
+          undefined,
+          requestHeaders
+        );
       });
     },
-    [runMutationAndReload]
+    [requestHeaders, runMutationAndReload, workspaceId]
   );
 
   const onDeleteProject = useCallback(
@@ -159,34 +183,41 @@ export function useProjectTreeMutations({ reloadProjectsSnapshot }: UseProjectTr
         }
       }
       await runMutationAndReload(async () => {
-        await requestGatewayMutation(`/projects/${encodeURIComponent(projectId)}`, 'DELETE');
+        await requestGatewayMutation(
+          withWorkspaceQuery(`/projects/${encodeURIComponent(projectId)}`, workspaceId),
+          'DELETE',
+          undefined,
+          requestHeaders
+        );
       });
     },
-    [runMutationAndReload]
+    [requestHeaders, runMutationAndReload, workspaceId]
   );
 
   const onMoveFolder = useCallback(
     async (folderId: string, parentFolderId: string | null, index?: number) => {
       await runMutationAndReload(async () => {
         await requestGatewayMutation(`/folders/${encodeURIComponent(folderId)}/move`, 'POST', {
+          workspaceId,
           ...(parentFolderId ? { parentFolderId } : {}),
           ...(typeof index === 'number' ? { index } : {})
-        });
+        }, requestHeaders);
       });
     },
-    [runMutationAndReload]
+    [requestHeaders, runMutationAndReload, workspaceId]
   );
 
   const onMoveProject = useCallback(
     async (projectId: string, parentFolderId: string | null, index?: number) => {
       await runMutationAndReload(async () => {
         await requestGatewayMutation(`/projects/${encodeURIComponent(projectId)}/move`, 'POST', {
+          workspaceId,
           ...(parentFolderId ? { parentFolderId } : {}),
           ...(typeof index === 'number' ? { index } : {})
-        });
+        }, requestHeaders);
       });
     },
-    [runMutationAndReload]
+    [requestHeaders, runMutationAndReload, workspaceId]
   );
 
   return {

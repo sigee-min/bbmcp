@@ -71,6 +71,7 @@ const cloneTextureAtlas = (texture: NativeTextureAtlas): NativeTextureAtlas => (
 
 export const cloneProject = (project: NativeProjectSnapshot): NativeProjectSnapshot => ({
   projectId: project.projectId,
+  ...(project.workspaceId ? { workspaceId: project.workspaceId } : {}),
   name: project.name,
   parentFolderId: project.parentFolderId,
   revision: project.revision,

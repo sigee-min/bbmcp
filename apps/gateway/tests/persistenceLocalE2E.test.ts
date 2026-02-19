@@ -111,6 +111,76 @@ registerAsync(
       const afterRemove = await persistence.projectRepository.find(scope);
       assert.equal(afterRemove, null);
 
+      const initialWorkspacesForUnknown = await persistence.workspaceRepository.listWorkspaces('any-account');
+      assert.equal(initialWorkspacesForUnknown.length, 0);
+      const initialWorkspaces = await persistence.workspaceRepository.listWorkspaces('');
+      assert.ok(initialWorkspaces.length >= 1);
+      assert.equal(initialWorkspaces[0]?.mode, 'all_open');
+
+      const initialDefault = await persistence.workspaceRepository.getWorkspace('ws_default');
+      assert.ok(initialDefault);
+      assert.equal(initialDefault?.workspaceId, 'ws_default');
+
+      const workspaceRecord = {
+        workspaceId: 'ws_local_test',
+        tenantId: 'tenant-local',
+        name: 'Local Test Workspace',
+        mode: 'rbac' as const,
+        createdBy: 'tester',
+        createdAt: '2026-02-09T01:00:00.000Z',
+        updatedAt: '2026-02-09T01:00:00.000Z'
+      };
+      await persistence.workspaceRepository.upsertWorkspace(workspaceRecord);
+      const workspaceFound = await persistence.workspaceRepository.getWorkspace(workspaceRecord.workspaceId);
+      assert.equal(workspaceFound?.name, workspaceRecord.name);
+      assert.equal(workspaceFound?.mode, 'rbac');
+
+      await persistence.workspaceRepository.upsertWorkspaceRole({
+        workspaceId: workspaceRecord.workspaceId,
+        roleId: 'role_editor',
+        name: 'Editor',
+        builtin: null,
+        permissions: ['workspace.read', 'folder.read', 'folder.write', 'project.read', 'project.write'],
+        createdAt: '2026-02-09T01:05:00.000Z',
+        updatedAt: '2026-02-09T01:05:00.000Z'
+      });
+      const roleList = await persistence.workspaceRepository.listWorkspaceRoles(workspaceRecord.workspaceId);
+      assert.ok(roleList.some((role) => role.roleId === 'role_editor'));
+
+      await persistence.workspaceRepository.upsertWorkspaceMember({
+        workspaceId: workspaceRecord.workspaceId,
+        accountId: 'account-local',
+        roleIds: ['role_editor'],
+        joinedAt: '2026-02-09T01:10:00.000Z'
+      });
+      const memberList = await persistence.workspaceRepository.listWorkspaceMembers(workspaceRecord.workspaceId);
+      assert.ok(memberList.some((member) => member.accountId === 'account-local'));
+
+      await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+        workspaceId: workspaceRecord.workspaceId,
+        folderId: null,
+        roleId: 'role_editor',
+        read: 'allow',
+        write: 'allow',
+        updatedAt: '2026-02-09T01:15:00.000Z'
+      });
+      const aclList = await persistence.workspaceRepository.listWorkspaceFolderAcl(workspaceRecord.workspaceId);
+      assert.ok(aclList.some((acl) => acl.roleId === 'role_editor'));
+
+      const workspaceListForMember = await persistence.workspaceRepository.listWorkspaces('account-local');
+      assert.ok(workspaceListForMember.some((workspace) => workspace.workspaceId === workspaceRecord.workspaceId));
+
+      await persistence.workspaceRepository.removeWorkspaceFolderAcl(workspaceRecord.workspaceId, null, 'role_editor');
+      await persistence.workspaceRepository.removeWorkspaceMember(workspaceRecord.workspaceId, 'account-local');
+      await persistence.workspaceRepository.removeWorkspaceRole(workspaceRecord.workspaceId, 'role_editor');
+
+      const roleListAfterDelete = await persistence.workspaceRepository.listWorkspaceRoles(workspaceRecord.workspaceId);
+      assert.ok(roleListAfterDelete.every((role) => role.roleId !== 'role_editor'));
+      const memberListAfterDelete = await persistence.workspaceRepository.listWorkspaceMembers(workspaceRecord.workspaceId);
+      assert.ok(memberListAfterDelete.every((member) => member.accountId !== 'account-local'));
+      const aclListAfterDelete = await persistence.workspaceRepository.listWorkspaceFolderAcl(workspaceRecord.workspaceId);
+      assert.ok(aclListAfterDelete.every((acl) => acl.roleId !== 'role_editor'));
+
       await closeGatewayPersistence(persistence);
     } finally {
       await fs.rm(tempRoot, { recursive: true, force: true });

@@ -13,8 +13,6 @@ const DEFAULT_LOCK_TTL_MS = 30_000;
 const MIN_LOCK_TTL_MS = 5_000;
 const MAX_LOCK_TTL_MS = 300_000;
 
-const nowIso = (): string => new Date().toISOString();
-
 const clampLockTtlMs = (value: unknown): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return DEFAULT_LOCK_TTL_MS;
@@ -293,5 +291,3 @@ export const releaseProjectLocksByOwner = (
   }
   return released;
 };
-
-export const lockMaintenanceNowIso = (): string => nowIso();

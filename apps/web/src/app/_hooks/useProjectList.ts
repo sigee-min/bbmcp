@@ -20,11 +20,32 @@ interface ProjectsResponse {
 
 interface UseProjectListOptions {
   setState: Dispatch<SetStateAction<DashboardState>>;
+  workspaceId: string;
+  requestHeaders?: Record<string, string>;
+  enabled?: boolean;
   reloadVersion?: number;
 }
 
-export const useProjectList = ({ setState, reloadVersion = 0 }: UseProjectListOptions): void => {
+const toProjectsTreeUrl = (workspaceId: string): string => {
+  const normalizedWorkspaceId = workspaceId.trim();
+  const basePath = buildGatewayApiUrl('/projects/tree');
+  if (!normalizedWorkspaceId) {
+    return basePath;
+  }
+  return `${basePath}?workspaceId=${encodeURIComponent(normalizedWorkspaceId)}`;
+};
+
+export const useProjectList = ({
+  setState,
+  workspaceId,
+  requestHeaders,
+  enabled = true,
+  reloadVersion = 0
+}: UseProjectListOptions): void => {
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
     let cancelled = false;
 
     setState((prev) => {
@@ -40,7 +61,10 @@ export const useProjectList = ({ setState, reloadVersion = 0 }: UseProjectListOp
 
     const loadProjects = async () => {
       try {
-        const response = await fetch(buildGatewayApiUrl('/projects/tree'), { cache: 'no-store' });
+        const response = await fetch(toProjectsTreeUrl(workspaceId), {
+          cache: 'no-store',
+          ...(requestHeaders ? { headers: requestHeaders } : {})
+        });
         if (!response.ok) {
           throw new Error(`project list failed: ${response.status}`);
         }
@@ -69,5 +93,5 @@ export const useProjectList = ({ setState, reloadVersion = 0 }: UseProjectListOp
     return () => {
       cancelled = true;
     };
-  }, [reloadVersion, setState]);
+  }, [enabled, reloadVersion, requestHeaders, setState, workspaceId]);
 };

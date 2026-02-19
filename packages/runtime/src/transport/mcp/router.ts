@@ -99,7 +99,7 @@ export class McpRouter {
     return null;
   }
 
-  private createRpcContext(log: Logger) {
+  private createRpcContext(log: Logger, requestHeaders?: Record<string, string>) {
     return {
       executor: this.executor,
       log,
@@ -107,6 +107,7 @@ export class McpRouter {
       resources: this.resources,
       toolRegistry: this.toolRegistry,
       sessions: this.sessions,
+      ...(requestHeaders ? { requestHeaders } : {}),
       supportedProtocols: this.supportedProtocols,
       config: this.config
     };
@@ -164,7 +165,12 @@ export class McpRouter {
     }
     this.sessions.touch(sessionResult.session);
 
-    const outcome = await handleMessage(this.createRpcContext(log), parsed.message, sessionResult.session, parsed.id);
+    const outcome = await handleMessage(
+      this.createRpcContext(log, req.headers),
+      parsed.message,
+      sessionResult.session,
+      parsed.id
+    );
     return this.toPostResponse(req, outcome, sessionResult);
   }
 
@@ -204,4 +210,3 @@ export class McpRouter {
     return { kind: 'empty', status, headers };
   }
 }
-

@@ -54,7 +54,26 @@ class FakePostgresPool implements PostgresPool {
       }
       return { rows: [] };
     }
-    if (normalized.startsWith('create table if not exists') && normalized.includes('tenant_id text not null')) {
+    if (normalized.startsWith('create table if not exists')) {
+      return { rows: [] };
+    }
+    if (normalized.includes('alter table') && normalized.includes('ashfox_accounts')) {
+      return { rows: [] };
+    }
+    if (
+      normalized.startsWith('create unique index if not exists') &&
+      (normalized.includes('idx_accounts_local_login_id') || normalized.includes('idx_accounts_github_user_id'))
+    ) {
+      return { rows: [] };
+    }
+    if (
+      normalized.startsWith('insert into') &&
+      normalized.includes('on conflict') &&
+      (normalized.includes('ashfox_workspaces') ||
+        normalized.includes('ashfox_accounts') ||
+        normalized.includes('ashfox_workspace_roles') ||
+        normalized.includes('ashfox_workspace_members'))
+    ) {
       return { rows: [] };
     }
     if (normalized.startsWith('select tenant_id') && normalized.includes('where tenant_id = $1')) {

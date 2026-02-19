@@ -31,7 +31,7 @@ import {
   renameProject as renameProjectSnapshot,
   seedProjects
 } from './projectRepository';
-import { createNativePipelineState, resetNativePipelineState } from './state';
+import { createNativePipelineState, type NativePipelineState } from './state';
 import type {
   NativeCreateFolderInput,
   NativeCreateProjectInput,
@@ -50,6 +50,16 @@ import type {
   NativeProjectTreeSnapshot
 } from './types';
 
+const DEFAULT_WORKSPACE_ID = 'ws_default';
+
+const normalizeWorkspaceId = (workspaceId?: string): string => {
+  if (typeof workspaceId !== 'string') {
+    return DEFAULT_WORKSPACE_ID;
+  }
+  const normalized = workspaceId.trim();
+  return normalized.length > 0 ? normalized : DEFAULT_WORKSPACE_ID;
+};
+
 export type NativePipelineQueueStorePort = QueueStorePort<NativeJob, NativeJobSubmitInput, NativeJobResult>;
 
 export type NativePipelineProjectStorePort = ProjectSnapshotStorePort<NativeProjectSnapshot>;
@@ -61,137 +71,207 @@ export interface NativePipelineStorePort
     NativePipelineProjectStorePort,
     NativePipelineStreamStorePort {
   reset(): Promise<void>;
-  getProjectTree(query?: string): Promise<NativeProjectTreeSnapshot>;
+  getProjectTree(query?: string, workspaceId?: string): Promise<NativeProjectTreeSnapshot>;
   createFolder(input: NativeCreateFolderInput): Promise<NativeProjectFolder>;
-  renameFolder(folderId: string, nextName: string): Promise<NativeProjectFolder | null>;
+  renameFolder(folderId: string, nextName: string, workspaceId?: string): Promise<NativeProjectFolder | null>;
   moveFolder(input: NativeMoveFolderInput): Promise<NativeProjectFolder | null>;
-  deleteFolder(folderId: string): Promise<boolean>;
+  deleteFolder(folderId: string, workspaceId?: string): Promise<boolean>;
   createProject(input: NativeCreateProjectInput): Promise<NativeProjectSnapshot>;
-  renameProject(projectId: string, nextName: string): Promise<NativeProjectSnapshot | null>;
+  renameProject(projectId: string, nextName: string, workspaceId?: string): Promise<NativeProjectSnapshot | null>;
   moveProject(input: NativeMoveProjectInput): Promise<NativeProjectSnapshot | null>;
-  deleteProject(projectId: string): Promise<boolean>;
-  getProjectLock(projectId: string): Promise<NativeProjectLock | null>;
+  deleteProject(projectId: string, workspaceId?: string): Promise<boolean>;
+  getProjectLock(projectId: string, workspaceId?: string): Promise<NativeProjectLock | null>;
   acquireProjectLock(input: NativeAcquireProjectLockInput): Promise<NativeProjectLock>;
   renewProjectLock(input: NativeRenewProjectLockInput): Promise<NativeProjectLock | null>;
   releaseProjectLock(input: NativeReleaseProjectLockInput): Promise<boolean>;
-  releaseProjectLocksByOwner(ownerAgentId: string, ownerSessionId?: string | null): Promise<number>;
+  releaseProjectLocksByOwner(ownerAgentId: string, ownerSessionId?: string | null, workspaceId?: string): Promise<number>;
 }
 
 export class NativePipelineStore implements NativePipelineStorePort {
-  private readonly state = createNativePipelineState();
+  private readonly states = new Map<string, NativePipelineState>();
 
   constructor() {
-    this.seedDefaults();
+    this.ensureWorkspaceState(DEFAULT_WORKSPACE_ID);
   }
 
   async reset(): Promise<void> {
-    resetNativePipelineState(this.state);
-    this.seedDefaults();
+    this.states.clear();
+    this.ensureWorkspaceState(DEFAULT_WORKSPACE_ID);
   }
 
-  async listProjects(query?: string): Promise<NativeProjectSnapshot[]> {
-    return readProjects(this.state, query);
+  async listProjects(query?: string, workspaceId?: string): Promise<NativeProjectSnapshot[]> {
+    const state = this.getWorkspaceState(workspaceId);
+    this.runLockMaintenance(state);
+    return readProjects(state, query);
   }
 
-  async getProjectTree(query?: string): Promise<NativeProjectTreeSnapshot> {
-    return readProjectTree(this.state, query);
+  async getProjectTree(query?: string, workspaceId?: string): Promise<NativeProjectTreeSnapshot> {
+    const state = this.getWorkspaceState(workspaceId);
+    this.runLockMaintenance(state);
+    return readProjectTree(state, query);
   }
 
-  async getProject(projectId: string): Promise<NativeProjectSnapshot | null> {
-    return readProject(this.state, projectId);
+  async getProject(projectId: string, workspaceId?: string): Promise<NativeProjectSnapshot | null> {
+    const state = this.getWorkspaceState(workspaceId);
+    this.runLockMaintenance(state);
+    return readProject(state, projectId);
   }
 
   async createFolder(input: NativeCreateFolderInput): Promise<NativeProjectFolder> {
-    return createProjectFolder(this.state, input);
+    const state = this.getWorkspaceState(input.workspaceId);
+    return createProjectFolder(state, input);
   }
 
-  async renameFolder(folderId: string, nextName: string): Promise<NativeProjectFolder | null> {
-    return renameProjectFolder(this.state, folderId, nextName);
+  async renameFolder(folderId: string, nextName: string, workspaceId?: string): Promise<NativeProjectFolder | null> {
+    const state = this.getWorkspaceState(workspaceId);
+    return renameProjectFolder(state, folderId, nextName);
   }
 
   async moveFolder(input: NativeMoveFolderInput): Promise<NativeProjectFolder | null> {
-    return moveProjectFolder(this.state, input);
+    const state = this.getWorkspaceState(input.workspaceId);
+    return moveProjectFolder(state, input);
   }
 
-  async deleteFolder(folderId: string): Promise<boolean> {
-    return deleteProjectFolder(this.state, folderId);
+  async deleteFolder(folderId: string, workspaceId?: string): Promise<boolean> {
+    const state = this.getWorkspaceState(workspaceId);
+    return deleteProjectFolder(state, folderId);
   }
 
   async createProject(input: NativeCreateProjectInput): Promise<NativeProjectSnapshot> {
-    return createProjectSnapshot(this.state, input, this.emitProjectSnapshot);
+    const state = this.getWorkspaceState(input.workspaceId);
+    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
+    return createProjectSnapshot(state, input, emitProjectSnapshot);
   }
 
-  async renameProject(projectId: string, nextName: string): Promise<NativeProjectSnapshot | null> {
-    return renameProjectSnapshot(this.state, projectId, nextName, this.emitProjectSnapshot);
+  async renameProject(projectId: string, nextName: string, workspaceId?: string): Promise<NativeProjectSnapshot | null> {
+    const state = this.getWorkspaceState(workspaceId);
+    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
+    return renameProjectSnapshot(state, projectId, nextName, emitProjectSnapshot);
   }
 
   async moveProject(input: NativeMoveProjectInput): Promise<NativeProjectSnapshot | null> {
-    return moveProjectSnapshot(this.state, input, this.emitProjectSnapshot);
+    const state = this.getWorkspaceState(input.workspaceId);
+    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
+    return moveProjectSnapshot(state, input, emitProjectSnapshot);
   }
 
-  async deleteProject(projectId: string): Promise<boolean> {
-    return deleteProjectSnapshot(this.state, projectId);
+  async deleteProject(projectId: string, workspaceId?: string): Promise<boolean> {
+    const state = this.getWorkspaceState(workspaceId);
+    return deleteProjectSnapshot(state, projectId);
   }
 
-  async getProjectLock(projectId: string): Promise<NativeProjectLock | null> {
-    releaseExpiredProjectLocks(this.state, this.emitProjectSnapshot);
-    return readProjectLock(this.state, projectId);
+  async getProjectLock(projectId: string, workspaceId?: string): Promise<NativeProjectLock | null> {
+    const state = this.getWorkspaceState(workspaceId);
+    this.runLockMaintenance(state);
+    return readProjectLock(state, projectId);
   }
 
   async acquireProjectLock(input: NativeAcquireProjectLockInput): Promise<NativeProjectLock> {
-    return acquireNativeProjectLock(this.state, input, this.emitProjectSnapshot);
+    const state = this.getWorkspaceState(input.workspaceId);
+    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
+    return acquireNativeProjectLock(state, input, emitProjectSnapshot);
   }
 
   async renewProjectLock(input: NativeRenewProjectLockInput): Promise<NativeProjectLock | null> {
-    return renewNativeProjectLock(this.state, input, this.emitProjectSnapshot);
+    const state = this.getWorkspaceState(input.workspaceId);
+    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
+    return renewNativeProjectLock(state, input, emitProjectSnapshot);
   }
 
   async releaseProjectLock(input: NativeReleaseProjectLockInput): Promise<boolean> {
-    return releaseNativeProjectLock(this.state, input, this.emitProjectSnapshot);
+    const state = this.getWorkspaceState(input.workspaceId);
+    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
+    return releaseNativeProjectLock(state, input, emitProjectSnapshot);
   }
 
-  async releaseProjectLocksByOwner(ownerAgentId: string, ownerSessionId?: string | null): Promise<number> {
-    return releaseNativeProjectLocksByOwner(this.state, ownerAgentId, ownerSessionId, this.emitProjectSnapshot);
+  async releaseProjectLocksByOwner(ownerAgentId: string, ownerSessionId?: string | null, workspaceId?: string): Promise<number> {
+    const state = this.getWorkspaceState(workspaceId);
+    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
+    return releaseNativeProjectLocksByOwner(state, ownerAgentId, ownerSessionId, emitProjectSnapshot);
   }
 
-  async listProjectJobs(projectId: string): Promise<NativeJob[]> {
-    return readProjectJobs(this.state, projectId);
+  async listProjectJobs(projectId: string, workspaceId?: string): Promise<NativeJob[]> {
+    const state = this.getWorkspaceState(workspaceId);
+    return readProjectJobs(state, projectId);
   }
 
-  async getJob(jobId: string): Promise<NativeJob | null> {
-    return readJob(this.state, jobId);
+  async getJob(jobId: string, workspaceId?: string): Promise<NativeJob | null> {
+    const state = this.getWorkspaceState(workspaceId);
+    return readJob(state, jobId);
   }
 
   async submitJob(input: NativeJobSubmitInput): Promise<NativeJob> {
+    const state = this.getWorkspaceState(input.workspaceId);
+    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
     return submitNativeJob(
-      this.state,
+      state,
       input,
-      (projectId) => ensureProject(this.state, projectId, this.emitProjectSnapshot),
-      this.emitProjectSnapshot
+      (projectId) => ensureProject(state, projectId, emitProjectSnapshot, input.workspaceId),
+      emitProjectSnapshot
     );
   }
 
-  async claimNextJob(workerId: string): Promise<NativeJob | null> {
-    return claimNativeJob(this.state, workerId, this.emitProjectSnapshot);
+  async claimNextJob(workerId: string, workspaceId?: string): Promise<NativeJob | null> {
+    const state = this.getWorkspaceState(workspaceId);
+    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
+    return claimNativeJob(state, workerId, emitProjectSnapshot);
   }
 
-  async completeJob(jobId: string, result?: NativeJobResult): Promise<NativeJob | null> {
-    return completeNativeJob(this.state, jobId, result, this.emitProjectSnapshot);
+  async completeJob(jobId: string, result?: NativeJobResult, workspaceId?: string): Promise<NativeJob | null> {
+    const state = this.getWorkspaceState(workspaceId);
+    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
+    return completeNativeJob(state, jobId, result, emitProjectSnapshot);
   }
 
-  async failJob(jobId: string, error: string): Promise<NativeJob | null> {
-    return failNativeJob(this.state, jobId, error, this.emitProjectSnapshot);
+  async failJob(jobId: string, error: string, workspaceId?: string): Promise<NativeJob | null> {
+    const state = this.getWorkspaceState(workspaceId);
+    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
+    return failNativeJob(state, jobId, error, emitProjectSnapshot);
   }
 
-  async getProjectEventsSince(projectId: string, lastSeq: number): Promise<NativeProjectEvent[]> {
-    return readProjectEventsSince(this.state, projectId, lastSeq);
+  async getProjectEventsSince(projectId: string, lastSeq: number, workspaceId?: string): Promise<NativeProjectEvent[]> {
+    const state = this.getWorkspaceState(workspaceId);
+    this.runLockMaintenance(state);
+    return readProjectEventsSince(state, projectId, lastSeq);
   }
 
-  private readonly emitProjectSnapshot = (project: NativeProjectSnapshot): void => {
-    appendProjectSnapshotEvent(this.state, project);
-  };
+  private runLockMaintenance(state: NativePipelineState): void {
+    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
+    releaseExpiredProjectLocks(state, emitProjectSnapshot);
+  }
 
-  private seedDefaults(): void {
-    seedProjects(this.state, this.emitProjectSnapshot);
+  private emitProjectSnapshotFor(state: NativePipelineState): (project: NativeProjectSnapshot) => void {
+    return (project) => {
+      appendProjectSnapshotEvent(state, project);
+    };
+  }
+
+  private getWorkspaceState(workspaceId?: string): NativePipelineState {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+    const existing = this.states.get(normalizedWorkspaceId);
+    if (existing) {
+      return existing;
+    }
+    return this.ensureWorkspaceState(normalizedWorkspaceId);
+  }
+
+  private ensureWorkspaceState(workspaceId: string): NativePipelineState {
+    const existing = this.states.get(workspaceId);
+    if (existing) {
+      return existing;
+    }
+    const state = createNativePipelineState(workspaceId);
+    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
+    seedProjects(state, emitProjectSnapshot, workspaceId);
+    this.states.set(workspaceId, state);
+    return state;
+  }
+
+  private getDefaultState(): NativePipelineState {
+    return this.getWorkspaceState(DEFAULT_WORKSPACE_ID);
+  }
+
+  get state(): NativePipelineState {
+    return this.getDefaultState();
   }
 }

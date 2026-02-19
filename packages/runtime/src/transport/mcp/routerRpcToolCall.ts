@@ -23,6 +23,36 @@ type ToolCallParams = {
   args: Record<string, unknown>;
 };
 
+const readHeaderValue = (headers: Record<string, string> | undefined, name: string): string | null => {
+  if (!headers) return null;
+  const raw = headers[name];
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const readAccountIdFromHeaders = (headers: Record<string, string> | undefined): string | undefined => {
+  const accountId = readHeaderValue(headers, 'x-ashfox-account-id');
+  return accountId ?? undefined;
+};
+
+const readWorkspaceIdFromHeaders = (headers: Record<string, string> | undefined): string | undefined => {
+  const workspaceId = readHeaderValue(headers, 'x-ashfox-workspace-id');
+  return workspaceId ?? undefined;
+};
+
+const readSystemRolesFromHeaders = (headers: Record<string, string> | undefined): string[] | undefined => {
+  const raw = readHeaderValue(headers, 'x-ashfox-system-roles');
+  if (!raw) {
+    return undefined;
+  }
+  const roles = raw
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+  return roles.length > 0 ? roles : undefined;
+};
+
 const readErrorReason = (details: Record<string, unknown> | undefined): string | null => {
   const candidate = details?.reason;
   if (typeof candidate !== 'string') return null;
@@ -103,7 +133,12 @@ export const handleToolCall = async (
 
   ctx.sessions.touch(session);
   try {
-    const response = await ctx.executor.callTool(name, args, { mcpSessionId: session.id });
+    const response = await ctx.executor.callTool(name, args, {
+      mcpSessionId: session.id,
+      mcpAccountId: readAccountIdFromHeaders(ctx.requestHeaders),
+      mcpSystemRoles: readSystemRolesFromHeaders(ctx.requestHeaders),
+      mcpWorkspaceId: readWorkspaceIdFromHeaders(ctx.requestHeaders)
+    });
     const durationMs = Math.max(0, Date.now() - startedAt);
     if (response.ok) {
       ctx.log.info('tool call completed', { tool: name, ok: true, durationMs });

@@ -8,9 +8,10 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { ConsoleLogger, errorMessage } from '@ashfox/runtime/logging';
 import { AppModule } from './app.module';
-import { GLOBAL_CORS_OPTIONS, MAX_BODY_BYTES } from './gateway/constants';
-import { GatewayExceptionFilter } from './gateway/filters/gateway-exception.filter';
-import { GatewayRuntimeService } from './gateway/gateway-runtime.service';
+import { API_CORS_HEADERS, GLOBAL_CORS_OPTIONS, MAX_BODY_BYTES } from './constants';
+import { GatewayExceptionFilter } from './filters/gateway-exception.filter';
+import { GatewayRuntimeService } from './services/gateway-runtime.service';
+import { AuthService } from './services/auth.service';
 
 const toLoggableError = (error: unknown): Record<string, unknown> => {
   if (error instanceof Error) {
@@ -81,6 +82,41 @@ const registerWebUiHosting = async (app: NestFastifyApplication, runtime: Gatewa
   runtime.logger.info('ashfox web ui hosting enabled', { webDistPath });
 };
 
+const toPathname = (url: string): string => url.split('?')[0] ?? '/';
+
+const isPublicApiPath = (pathname: string): boolean =>
+  pathname === '/api/health' || pathname === '/api/auth' || pathname.startsWith('/api/auth/');
+
+const registerApiAuthHook = async (app: NestFastifyApplication, auth: AuthService): Promise<void> => {
+  const fastify = app.getHttpAdapter().getInstance();
+  fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
+    const method = (request.method || 'GET').toUpperCase();
+    if (method === 'OPTIONS') {
+      return;
+    }
+    const pathname = toPathname(request.raw.url ?? request.url ?? '/');
+    if (!pathname.startsWith('/api/') || isPublicApiPath(pathname)) {
+      return;
+    }
+
+    const user = await auth.authenticateFromHeaders(request.headers as Record<string, unknown>);
+    if (!user) {
+      if (!reply.sent) {
+        reply
+          .code(401)
+          .headers(API_CORS_HEADERS)
+          .send({
+            ok: false,
+            code: 'unauthorized',
+            message: '로그인이 필요합니다.'
+          });
+      }
+      return reply;
+    }
+    auth.applyActorHeaders(request.headers as Record<string, unknown>, user);
+  });
+};
+
 const bootstrap = async (): Promise<void> => {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
@@ -96,6 +132,9 @@ const bootstrap = async (): Promise<void> => {
     })
   );
   const runtime = app.get(GatewayRuntimeService);
+  const auth = app.get(AuthService);
+  await auth.ensureBootstrapAdmin();
+  await registerApiAuthHook(app, auth);
   app.useGlobalFilters(new GatewayExceptionFilter(runtime.logger));
   await registerWebUiHosting(app, runtime);
 

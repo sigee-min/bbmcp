@@ -1,0 +1,207 @@
+.authShell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+}
+
+.authCard {
+  width: min(448px, 100%);
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.8rem;
+  background: hsl(var(--card));
+  padding: 1.1rem 1.1rem 0.96rem;
+  box-shadow: 0 18px 36px rgb(15 23 42 / 8%);
+}
+
+.authTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.62rem;
+  margin-bottom: 0.72rem;
+}
+
+.authTitleBlock {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.authLogo {
+  height: 1.5rem;
+  width: 1.5rem;
+  border-radius: 0.32rem;
+  box-shadow: inset 0 0 0 1px hsl(var(--border));
+}
+
+.authTitle {
+  margin: 0;
+  font-size: 1.16rem;
+  font-weight: 700;
+}
+
+.authSubtitle {
+  margin: 0;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.authGitHubButton {
+  display: inline-flex;
+  width: 100%;
+  height: 2.26rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  border-radius: 0.48rem;
+  border: 1px solid hsl(221 39% 16%);
+  background: hsl(222 47% 11%);
+  color: hsl(210 40% 98%);
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: filter 120ms ease, transform 120ms ease;
+}
+
+.authGitHubButton:hover {
+  filter: brightness(1.06);
+}
+
+.authGitHubButton:active {
+  transform: translateY(1px);
+}
+
+.authGitHubButton:disabled {
+  filter: saturate(0.55);
+}
+
+.authGitHubIcon {
+  height: 1rem;
+  width: 1rem;
+}
+
+.authHintMuted {
+  margin: 0;
+  font-size: 0.7rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.authDivider {
+  position: relative;
+  margin: 0.82rem 0 0.7rem;
+  text-align: center;
+}
+
+.authDivider::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid hsl(var(--border));
+  transform: translateY(-50%);
+}
+
+.authDivider span {
+  position: relative;
+  display: inline-block;
+  padding: 0 0.44rem;
+  background: hsl(var(--card));
+  font-size: 0.64rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.authForm {
+  display: grid;
+  gap: 0.56rem;
+}
+
+.authField {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.authFieldLabel {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: hsl(var(--muted-foreground));
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.authInputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.authInputIcon {
+  position: absolute;
+  left: 0.58rem;
+  height: 0.8rem;
+  width: 0.8rem;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+}
+
+.authInput {
+  height: 2rem;
+  width: 100%;
+  border-radius: 0.46rem;
+  border: 1px solid hsl(var(--input));
+  background: hsl(var(--background));
+  padding: 0 0.62rem 0 1.8rem;
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.authInput:focus {
+  border-color: hsl(var(--ring) / 0.65);
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2);
+}
+
+.authButtons {
+  margin-top: 0.2rem;
+  display: grid;
+  gap: 0.34rem;
+}
+
+.authButton {
+  height: 2.02rem;
+  border-radius: 0.46rem;
+  border: 1px solid hsl(var(--border));
+  font-size: 0.74rem;
+  font-weight: 600;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.authButtonPrimary {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.authButtonPrimary:hover {
+  filter: brightness(1.04);
+}
+
+.authButtonSecondary {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.authButtonSecondary:hover {
+  background: hsl(var(--muted));
+}
+
+.authError {
+  margin: 0.54rem 0 0;
+  font-size: 0.72rem;
+  color: hsl(var(--destructive));
+}
+
+.authHint {
+  margin: 0.48rem 0 0;
+  font-size: 0.7rem;
+  color: hsl(var(--muted-foreground));
+}

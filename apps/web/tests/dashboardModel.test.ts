@@ -135,6 +135,10 @@ const makeTree = (projects: readonly ProjectSnapshot[]): ProjectTreeSnapshot => 
 {
   assert.equal(buildStreamUrl('project-a', -1), '/api/projects/project-a/stream');
   assert.equal(buildStreamUrl('project-a', 33), '/api/projects/project-a/stream?lastEventId=33');
+  assert.equal(
+    buildStreamUrl('project-a', 33, 'ws_default'),
+    '/api/projects/project-a/stream?lastEventId=33&workspaceId=ws_default'
+  );
 }
 
 {
@@ -184,4 +188,65 @@ const makeTree = (projects: readonly ProjectSnapshot[]): ProjectTreeSnapshot => 
   const state = createLoadedState([...projects], makeTree(projects));
   const unchanged = markStreamReconnecting(state, 'project-b');
   assert.deepEqual(unchanged, state);
+}
+
+{
+  const projects: ProjectSnapshot[] = [];
+  const roots: ProjectTreeSnapshot['roots'] = [];
+  for (let folderIndex = 0; folderIndex < 24; folderIndex += 1) {
+    const children: ProjectTreeSnapshot['roots'] = [];
+    for (let projectIndex = 0; projectIndex < 24; projectIndex += 1) {
+      const projectId = `project-${folderIndex}-${projectIndex}`;
+      const project = makeProject({
+        projectId,
+        name: `Project ${folderIndex}-${projectIndex}`,
+        revision: 1
+      });
+      projects.push(project);
+      children.push({
+        kind: 'project',
+        projectId,
+        name: project.name,
+        parentFolderId: `folder-${folderIndex}`,
+        depth: 2,
+        activeJobStatus: null
+      });
+    }
+    roots.push({
+      kind: 'folder',
+      folderId: `folder-${folderIndex}`,
+      name: `Folder ${folderIndex}`,
+      parentFolderId: null,
+      depth: 1,
+      children
+    });
+  }
+
+  const tree: ProjectTreeSnapshot = {
+    maxFolderDepth: 3,
+    roots
+  };
+
+  const targetProjectId = 'project-14-7';
+  const state = createLoadedState(projects, tree, targetProjectId);
+  const targetProjectIndex = state.projectIndexById.get(targetProjectId);
+  assert.equal(typeof targetProjectIndex, 'number');
+
+  const unaffectedProject = state.projects[0];
+  const unaffectedRoot = state.projectTree.roots[0];
+  const affectedRoot = state.projectTree.roots[14];
+
+  const next = applyProjectStreamPayload(
+    state,
+    makePayload({
+      projectId: targetProjectId,
+      revision: 2,
+      activeJobStatus: 'running'
+    })
+  );
+
+  assert.notEqual(next, state);
+  assert.equal(next.projects[0], unaffectedProject);
+  assert.equal(next.projectTree.roots[0], unaffectedRoot);
+  assert.notEqual(next.projectTree.roots[14], affectedRoot);
 }

@@ -36,6 +36,7 @@ type PersistedProjectLockEntry = {
 
 export type PersistedPipelineState = {
   version: number;
+  workspaceId?: string;
   nextJobId: number;
   nextEntityNonce: number;
   nextSeq: number;
@@ -59,6 +60,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 export const serializeState = (state: NativePipelineState): PersistedPipelineState => ({
   version: PERSISTED_STATE_VERSION,
+  workspaceId: state.workspaceId,
   nextJobId: state.nextJobId,
   nextEntityNonce: state.nextEntityNonce,
   nextSeq: state.nextSeq,
@@ -150,7 +152,9 @@ export const deserializeState = (value: unknown): NativePipelineState | null => 
     return null;
   }
 
-  const state = createNativePipelineState();
+  const workspaceId =
+    typeof value.workspaceId === 'string' && value.workspaceId.trim().length > 0 ? value.workspaceId.trim() : 'ws_default';
+  const state = createNativePipelineState(workspaceId);
   for (const rawFolder of value.folders) {
     const folder = asFolder(rawFolder);
     if (!folder) continue;
@@ -167,6 +171,9 @@ export const deserializeState = (value: unknown): NativePipelineState | null => 
   for (const rawProject of value.projects) {
     const project = asProjectSnapshot(rawProject);
     if (!project) continue;
+    if (!project.workspaceId) {
+      project.workspaceId = workspaceId;
+    }
     if (project.parentFolderId && !state.folders.has(project.parentFolderId)) {
       project.parentFolderId = null;
     }

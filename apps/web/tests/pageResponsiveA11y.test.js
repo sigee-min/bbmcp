@@ -1,14 +1,65 @@
 const assert = require('node:assert/strict');
 
-const { createProjectsFixture, createProjectTreeFixture } = require('./fixtures/projects');
+const { createAuthSessionFixture, createProjectsFixture, createProjectTreeFixture, createWorkspacesFixture } = require('./fixtures/projects');
 const { MockEventSource, flushUpdates, mountHomePage } = require('./helpers/pageHarness');
 
 module.exports = async () => {
+  const authSessionPayload = createAuthSessionFixture();
   {
-    const projectsPayload = { ok: true, projects: createProjectsFixture(), tree: createProjectTreeFixture() };
     const mounted = await mountHomePage({
       fetchImpl: async (requestUrl) => {
-        assert.equal(String(requestUrl), '/api/projects/tree');
+        const url = String(requestUrl);
+        assert.equal(url, '/api/auth/me');
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            code: 'unauthorized',
+            message: '로그인이 필요합니다.'
+          }),
+          {
+            status: 401,
+            headers: { 'content-type': 'application/json; charset=utf-8' }
+          }
+        );
+      },
+      EventSourceImpl: MockEventSource
+    });
+
+    try {
+      await flushUpdates();
+      const { container } = mounted;
+      const githubButton = container.querySelector('button[aria-label="GitHub로 로그인"]');
+      assert.ok(githubButton);
+      assert.match(githubButton.textContent ?? '', /Continue with GitHub/);
+      const localButton = Array.from(container.querySelectorAll('button')).find((button) =>
+        (button.textContent ?? '').includes('로컬 계정 로그인')
+      );
+      assert.ok(localButton);
+    } finally {
+      await mounted.cleanup();
+      MockEventSource.reset();
+    }
+  }
+
+  {
+    const projectsPayload = { ok: true, projects: createProjectsFixture(), tree: createProjectTreeFixture() };
+    const workspacesPayload = { ok: true, workspaces: createWorkspacesFixture() };
+    const mounted = await mountHomePage({
+      fetchImpl: async (requestUrl) => {
+        const url = String(requestUrl);
+        if (url === '/api/auth/me') {
+          return new Response(JSON.stringify(authSessionPayload), {
+            status: 200,
+            headers: { 'content-type': 'application/json; charset=utf-8' }
+          });
+        }
+        if (url === '/api/workspaces') {
+          return new Response(JSON.stringify(workspacesPayload), {
+            status: 200,
+            headers: { 'content-type': 'application/json; charset=utf-8' }
+          });
+        }
+        assert.equal(url, '/api/projects/tree?workspaceId=ws_default');
         return new Response(JSON.stringify(projectsPayload), {
           status: 200,
           headers: { 'content-type': 'application/json; charset=utf-8' }
@@ -55,7 +106,8 @@ module.exports = async () => {
 
   {
     const projectsPayload = { ok: true, projects: createProjectsFixture(), tree: createProjectTreeFixture() };
-    let fetchCount = 0;
+    const workspacesPayload = { ok: true, workspaces: createWorkspacesFixture() };
+    let projectFetchCount = 0;
     let streamCreated = false;
     class PassiveEventSource {
       constructor() {
@@ -71,9 +123,23 @@ module.exports = async () => {
     }
 
     const mounted = await mountHomePage({
-      fetchImpl: async () => {
-        fetchCount += 1;
-        if (fetchCount === 1) {
+      fetchImpl: async (requestUrl) => {
+        const url = String(requestUrl);
+        if (url === '/api/auth/me') {
+          return new Response(JSON.stringify(authSessionPayload), {
+            status: 200,
+            headers: { 'content-type': 'application/json; charset=utf-8' }
+          });
+        }
+        if (url === '/api/workspaces') {
+          return new Response(JSON.stringify(workspacesPayload), {
+            status: 200,
+            headers: { 'content-type': 'application/json; charset=utf-8' }
+          });
+        }
+        assert.equal(url, '/api/projects/tree?workspaceId=ws_default');
+        projectFetchCount += 1;
+        if (projectFetchCount === 1) {
           return new Response(JSON.stringify({ ok: true, projects: [], tree: { maxFolderDepth: 3, roots: [] } }), {
             status: 200,
             headers: { 'content-type': 'application/json; charset=utf-8' }
@@ -103,7 +169,7 @@ module.exports = async () => {
       const reloadedText = mounted.container.textContent ?? '';
       assert.match(reloadedText, /Desert Lynx/);
       assert.equal(streamCreated, true);
-      assert.equal(fetchCount >= 2, true);
+      assert.equal(projectFetchCount >= 2, true);
     } finally {
       await mounted.cleanup();
     }
@@ -111,7 +177,8 @@ module.exports = async () => {
 
   {
     const projectsPayload = { ok: true, projects: createProjectsFixture(), tree: createProjectTreeFixture() };
-    let fetchCount = 0;
+    const workspacesPayload = { ok: true, workspaces: createWorkspacesFixture() };
+    let projectFetchCount = 0;
     let streamCreated = false;
     class PassiveEventSource {
       constructor() {
@@ -127,10 +194,24 @@ module.exports = async () => {
     }
 
     const mounted = await mountHomePage({
-      fetchImpl: async () => {
-        fetchCount += 1;
-        if (fetchCount === 1) {
-          throw new Error('network down');
+      fetchImpl: async (requestUrl) => {
+        const url = String(requestUrl);
+        if (url === '/api/auth/me') {
+          return new Response(JSON.stringify(authSessionPayload), {
+            status: 200,
+            headers: { 'content-type': 'application/json; charset=utf-8' }
+          });
+        }
+        if (url === '/api/workspaces') {
+          return new Response(JSON.stringify(workspacesPayload), {
+            status: 200,
+            headers: { 'content-type': 'application/json; charset=utf-8' }
+          });
+        }
+        assert.equal(url, '/api/projects/tree?workspaceId=ws_default');
+        projectFetchCount += 1;
+        if (projectFetchCount === 1) {
+          throw new Error('project network down');
         }
         return new Response(JSON.stringify(projectsPayload), {
           status: 200,
@@ -155,9 +236,132 @@ module.exports = async () => {
       const retriedText = mounted.container.textContent ?? '';
       assert.match(retriedText, /Desert Lynx/);
       assert.equal(streamCreated, true);
-      assert.equal(fetchCount >= 2, true);
+      assert.equal(projectFetchCount >= 2, true);
     } finally {
       await mounted.cleanup();
+    }
+  }
+
+  {
+    const projectsPayload = { ok: true, projects: createProjectsFixture(), tree: createProjectTreeFixture() };
+    const workspacesPayload = {
+      ok: true,
+      workspaces: [
+        {
+          workspaceId: 'ws_default',
+          name: 'Current Workspace',
+          mode: 'rbac',
+          capabilities: {
+            canManageWorkspace: true,
+            canManageMembers: true,
+            canManageRoles: true,
+            canManageFolderAcl: true
+          }
+        },
+        {
+          workspaceId: 'ws_readonly',
+          name: 'Readonly Workspace',
+          mode: 'rbac',
+          capabilities: {
+            canManageWorkspace: false,
+            canManageMembers: false,
+            canManageRoles: false,
+            canManageFolderAcl: false
+          }
+        }
+      ]
+    };
+
+    const workspaceSettingsPayload = {
+      ok: true,
+      workspace: workspacesPayload.workspaces[0],
+      roles: [],
+      members: [],
+      folderAcl: []
+    };
+
+    const mounted = await mountHomePage({
+      fetchImpl: async (requestUrl) => {
+        const url = String(requestUrl);
+        if (url === '/api/auth/me') {
+          return new Response(JSON.stringify(authSessionPayload), {
+            status: 200,
+            headers: { 'content-type': 'application/json; charset=utf-8' }
+          });
+        }
+        if (url === '/api/workspaces') {
+          return new Response(JSON.stringify(workspacesPayload), {
+            status: 200,
+            headers: { 'content-type': 'application/json; charset=utf-8' }
+          });
+        }
+        if (url === '/api/projects/tree?workspaceId=ws_default' || url === '/api/projects/tree?workspaceId=ws_readonly') {
+          return new Response(JSON.stringify(projectsPayload), {
+            status: 200,
+            headers: { 'content-type': 'application/json; charset=utf-8' }
+          });
+        }
+        if (url === '/api/workspaces/ws_default/settings') {
+          return new Response(JSON.stringify(workspaceSettingsPayload), {
+            status: 200,
+            headers: { 'content-type': 'application/json; charset=utf-8' }
+          });
+        }
+        throw new Error(`unexpected url: ${url}`);
+      },
+      EventSourceImpl: MockEventSource
+    });
+
+    try {
+      await flushUpdates();
+      const { container, dom } = mounted;
+
+      const sidebarMenuButton = container.querySelector('button[aria-label=\"사이드바 설정\"]');
+      assert.ok(sidebarMenuButton);
+      sidebarMenuButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await flushUpdates();
+      assert.match(container.textContent ?? '', /워크스페이스 관리/);
+
+      const openSettingsButton = Array.from(container.querySelectorAll('button')).find((button) =>
+        (button.textContent ?? '').includes('워크스페이스 관리')
+      );
+      assert.ok(openSettingsButton);
+      openSettingsButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await flushUpdates();
+
+      const dialog = container.querySelector('[role=\"dialog\"][aria-label=\"워크스페이스 관리\"]');
+      assert.ok(dialog);
+
+      const closeDialogButton = dialog.querySelector('button[aria-label=\"닫기\"]');
+      assert.ok(closeDialogButton);
+      closeDialogButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await flushUpdates();
+
+      const workspaceSelectorButton = Array.from(container.querySelectorAll('button')).find((button) =>
+        (button.textContent ?? '').includes('Current Workspace')
+      );
+      assert.ok(workspaceSelectorButton);
+      workspaceSelectorButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await flushUpdates();
+
+      const readonlyWorkspaceButton = Array.from(container.querySelectorAll('button')).find((button) =>
+        (button.textContent ?? '').includes('Readonly Workspace')
+      );
+      assert.ok(readonlyWorkspaceButton);
+      readonlyWorkspaceButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await flushUpdates();
+
+      const currentStream = MockEventSource.instances.at(-1);
+      assert.ok(currentStream);
+      assert.match(currentStream.url, /workspaceId=ws_readonly/);
+
+      sidebarMenuButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await flushUpdates();
+      const menuText = container.textContent ?? '';
+      assert.doesNotMatch(menuText, /워크스페이스 관리/);
+    } finally {
+      await mounted.cleanup();
+      MockEventSource.reset();
     }
   }
 };

@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 
-const { createProjectsFixture, createProjectTreeFixture } = require('./fixtures/projects');
+const { createAuthSessionFixture, createProjectsFixture, createProjectTreeFixture, createWorkspacesFixture } = require('./fixtures/projects');
 const { MockEventSource, flushUpdates, mountHomePage } = require('./helpers/pageHarness');
 
 const findProjectButtonByName = (root, projectName) => {
@@ -15,6 +15,8 @@ const findProjectButtonByName = (root, projectName) => {
 
 module.exports = async () => {
   const projectPayload = { ok: true, projects: createProjectsFixture(), tree: createProjectTreeFixture() };
+  const workspacesPayload = { ok: true, workspaces: createWorkspacesFixture() };
+  const authSessionPayload = createAuthSessionFixture();
   const forestFoxProject = projectPayload.projects.find((project) => project.name === 'Forest Fox');
   assert.ok(forestFoxProject, 'missing seeded project: Forest Fox');
   const forestFoxProjectId = forestFoxProject.projectId;
@@ -24,7 +26,24 @@ module.exports = async () => {
 
   const mounted = await mountHomePage({
     fetchImpl: async (requestUrl) => {
-      assert.equal(String(requestUrl), '/api/projects/tree');
+      const url = String(requestUrl);
+      if (url === '/api/auth/me') {
+        return new Response(JSON.stringify(authSessionPayload), {
+          status: 200,
+          headers: {
+            'content-type': 'application/json; charset=utf-8'
+          }
+        });
+      }
+      if (url === '/api/workspaces') {
+        return new Response(JSON.stringify(workspacesPayload), {
+          status: 200,
+          headers: {
+            'content-type': 'application/json; charset=utf-8'
+          }
+        });
+      }
+      assert.equal(url, '/api/projects/tree?workspaceId=ws_default');
       return new Response(JSON.stringify(projectPayload), {
         status: 200,
         headers: {
@@ -49,7 +68,7 @@ module.exports = async () => {
     assert.ok(MockEventSource.instances.length >= 1);
     const firstStream = MockEventSource.instances.at(-1);
     assert.ok(firstStream);
-    assert.equal(firstStream.url, `/api/projects/${forestFoxProjectId}/stream?lastEventId=10`);
+    assert.equal(firstStream.url, `/api/projects/${forestFoxProjectId}/stream?lastEventId=10&workspaceId=ws_default`);
 
     await firstStream.emitError();
     await flushUpdates();
@@ -71,7 +90,7 @@ module.exports = async () => {
     assert.ok(nextStream);
     assert.notEqual(nextStream, firstStream);
     assert.equal(firstStream.closed, true);
-    assert.equal(nextStream.url, `/api/projects/${desertLynxProjectId}/stream?lastEventId=21`);
+    assert.equal(nextStream.url, `/api/projects/${desertLynxProjectId}/stream?lastEventId=21&workspaceId=ws_default`);
   } finally {
     await mounted.cleanup();
     MockEventSource.reset();

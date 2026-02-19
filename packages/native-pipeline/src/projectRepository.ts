@@ -33,6 +33,7 @@ import {
 
 const PROJECT_ID_PREFIX = 'prj';
 const FOLDER_ID_PREFIX = 'fld';
+const DEFAULT_WORKSPACE_ID = 'ws_default';
 
 const normalizeName = (value: string, fallback: string): string => {
   const trimmed = value.trim().replace(/\s+/g, ' ');
@@ -40,6 +41,13 @@ const normalizeName = (value: string, fallback: string): string => {
 };
 
 const normalizeQuery = (query?: string): string => (typeof query === 'string' ? query.trim().toLowerCase() : '');
+const normalizeWorkspaceId = (workspaceId?: string): string => {
+  if (typeof workspaceId !== 'string') {
+    return DEFAULT_WORKSPACE_ID;
+  }
+  const normalized = workspaceId.trim();
+  return normalized.length > 0 ? normalized : DEFAULT_WORKSPACE_ID;
+};
 
 const computeEntityId = (state: NativePipelineState, prefix: string, seed: string): string => {
   while (true) {
@@ -61,9 +69,11 @@ const computeEntityId = (state: NativePipelineState, prefix: string, seed: strin
 const createDefaultProject = (
   projectId: string,
   name: string,
-  parentFolderId: string | null
+  parentFolderId: string | null,
+  workspaceId?: string
 ): NativeProjectSnapshot => ({
   projectId,
+  workspaceId: normalizeWorkspaceId(workspaceId),
   name,
   parentFolderId,
   revision: 1,
@@ -179,7 +189,12 @@ const findFolderById = (state: NativePipelineState, folderId: string): NativePro
 };
 
 
-export const seedProjects = (state: NativePipelineState, emitProjectSnapshot: (project: NativeProjectSnapshot) => void): void => {
+export const seedProjects = (
+  state: NativePipelineState,
+  emitProjectSnapshot: (project: NativeProjectSnapshot) => void,
+  workspaceId?: string
+): void => {
+  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
   const seeded = getDefaultSeedState();
   for (const folder of seeded.folders) {
     state.folders.set(folder.folderId, cloneFolder(folder));
@@ -189,6 +204,7 @@ export const seedProjects = (state: NativePipelineState, emitProjectSnapshot: (p
   }
   for (const project of seeded.projects) {
     const nextProject = cloneProject(project);
+    nextProject.workspaceId = normalizedWorkspaceId;
     synchronizeProjectSnapshot(nextProject);
     state.projects.set(nextProject.projectId, nextProject);
     emitProjectSnapshot(nextProject);
@@ -308,9 +324,10 @@ export const createProject = (
   const parentFolderId = normalizeParentFolderId(input.parentFolderId);
   ensureTargetFolderExists(state, parentFolderId);
 
-  const name = normalizeName(input.name, 'New Project');
-  const projectId = computeEntityId(state, PROJECT_ID_PREFIX, `${parentFolderId ?? 'root'}:${name}`);
-  const project = createDefaultProject(projectId, name, parentFolderId);
+  const name = normalizeName(input.name, 'My Project');
+  const workspaceSeed = normalizeWorkspaceId(input.workspaceId);
+  const projectId = computeEntityId(state, PROJECT_ID_PREFIX, `project:${workspaceSeed}`);
+  const project = createDefaultProject(projectId, name, parentFolderId, input.workspaceId);
   synchronizeProjectSnapshot(project);
   state.projects.set(projectId, project);
 
@@ -377,14 +394,22 @@ export const deleteProject = (state: NativePipelineState, projectId: string): bo
 export const ensureProject = (
   state: NativePipelineState,
   projectId: string,
-  emitProjectSnapshot: (project: NativeProjectSnapshot) => void
+  emitProjectSnapshot: (project: NativeProjectSnapshot) => void,
+  workspaceId?: string
 ): NativeProjectSnapshot => {
+  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
   const existing = findProjectById(state, projectId);
   if (existing) {
+    if (!existing.workspaceId) {
+      existing.workspaceId = normalizedWorkspaceId;
+      synchronizeProjectSnapshot(existing);
+      existing.revision += 1;
+      emitProjectSnapshot(existing);
+    }
     return existing;
   }
 
-  const created = createDefaultProject(projectId, projectId, null);
+  const created = createDefaultProject(projectId, projectId, null, normalizedWorkspaceId);
   synchronizeProjectSnapshot(created);
   state.projects.set(projectId, created);
   state.rootChildren.push({ kind: 'project', id: projectId });

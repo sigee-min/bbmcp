@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createEngineBackend } from '@ashfox/backend-engine';
 import {
+  type AccountRecord,
   BackendRegistry,
   type BlobPointer,
   type BlobReadResult,
@@ -12,14 +13,19 @@ import {
   type PersistedProjectRecord,
   type PersistencePorts,
   type ProjectRepository,
-  type ProjectRepositoryScope
+  type ProjectRepositoryScope,
+  type WorkspaceFolderAclRecord,
+  type WorkspaceMemberRecord,
+  type WorkspaceRecord,
+  type WorkspaceRepository,
+  type WorkspaceRoleStorageRecord
 } from '@ashfox/backend-core';
 import type { NativeJobResult } from '@ashfox/native-pipeline/types';
 import { NativePipelineStore } from '@ashfox/native-pipeline/testing';
 import type { ToolName, ToolPayloadMap, ToolResponse, ToolResultMap } from '@ashfox/contracts/types/internal';
 import type { Logger } from '@ashfox/runtime/logging';
 import { processOneNativeJob } from '../../worker/src/nativeJobProcessor';
-import { GatewayDispatcher } from '../src/gateway/core/gateway-dispatcher';
+import { GatewayDispatcher } from '../src/core/gateway-dispatcher';
 import { registerAsync } from './helpers';
 
 type SessionState = {
@@ -107,14 +113,219 @@ class InMemoryBlobStore implements BlobStore {
   }
 }
 
+class InMemoryWorkspaceRepository implements WorkspaceRepository {
+  private readonly accounts = new Map<string, AccountRecord>();
+  private readonly workspaces = new Map<string, WorkspaceRecord>();
+  private readonly roles = new Map<string, WorkspaceRoleStorageRecord>();
+  private readonly members = new Map<string, WorkspaceMemberRecord>();
+  private readonly folderAcl = new Map<string, WorkspaceFolderAclRecord>();
+
+  constructor() {
+    const now = new Date().toISOString();
+    const workspace: WorkspaceRecord = {
+      workspaceId: 'ws_default',
+      tenantId: 'default-tenant',
+      name: 'Current Workspace',
+      mode: 'all_open',
+      createdBy: 'system',
+      createdAt: now,
+      updatedAt: now
+    };
+    this.workspaces.set(workspace.workspaceId, workspace);
+    this.accounts.set('admin', {
+      accountId: 'admin',
+      email: 'admin@ashfox.local',
+      displayName: 'Administrator',
+      systemRoles: ['system_admin'],
+      localLoginId: 'admin',
+      passwordHash: null,
+      githubUserId: null,
+      githubLogin: null,
+      createdAt: now,
+      updatedAt: now
+    });
+    const userRole: WorkspaceRoleStorageRecord = {
+      workspaceId: workspace.workspaceId,
+      roleId: 'role_user',
+      name: 'User',
+      builtin: 'user',
+      permissions: ['workspace.read', 'folder.read', 'folder.write', 'project.read', 'project.write'],
+      createdAt: now,
+      updatedAt: now
+    };
+    this.roles.set(this.toRoleKey(userRole.workspaceId, userRole.roleId), userRole);
+    const adminRole: WorkspaceRoleStorageRecord = {
+      workspaceId: workspace.workspaceId,
+      roleId: 'role_workspace_admin',
+      name: 'Workspace Admin',
+      builtin: 'workspace_admin',
+      permissions: [
+        'workspace.read',
+        'workspace.settings.manage',
+        'workspace.members.manage',
+        'workspace.roles.manage',
+        'folder.read',
+        'folder.write',
+        'project.read',
+        'project.write'
+      ],
+      createdAt: now,
+      updatedAt: now
+    };
+    this.roles.set(this.toRoleKey(adminRole.workspaceId, adminRole.roleId), adminRole);
+    this.members.set(this.toMemberKey(workspace.workspaceId, 'admin'), {
+      workspaceId: workspace.workspaceId,
+      accountId: 'admin',
+      roleIds: [adminRole.roleId],
+      joinedAt: now
+    });
+  }
+
+  async listWorkspaces(accountId: string): Promise<WorkspaceRecord[]> {
+    const normalizedAccountId = accountId.trim();
+    if (!normalizedAccountId) {
+      return Array.from(this.workspaces.values()).map((workspace) => ({ ...workspace }));
+    }
+    const memberWorkspaceIds = new Set(
+      Array.from(this.members.values())
+        .filter((member) => member.accountId === normalizedAccountId)
+        .map((member) => member.workspaceId)
+    );
+    return Array.from(this.workspaces.values())
+      .filter((workspace) => memberWorkspaceIds.has(workspace.workspaceId))
+      .map((workspace) => ({ ...workspace }));
+  }
+
+  async getAccount(accountId: string): Promise<AccountRecord | null> {
+    const found = this.accounts.get(accountId);
+    return found ? { ...found, systemRoles: [...found.systemRoles] } : null;
+  }
+
+  async getAccountByLocalLoginId(localLoginId: string): Promise<AccountRecord | null> {
+    const normalized = localLoginId.trim().toLowerCase();
+    if (!normalized) {
+      return null;
+    }
+    const found = Array.from(this.accounts.values()).find((account) => (account.localLoginId ?? '').toLowerCase() === normalized);
+    return found ? { ...found, systemRoles: [...found.systemRoles] } : null;
+  }
+
+  async getAccountByGithubUserId(githubUserId: string): Promise<AccountRecord | null> {
+    const normalized = githubUserId.trim();
+    if (!normalized) {
+      return null;
+    }
+    const found = Array.from(this.accounts.values()).find((account) => account.githubUserId === normalized);
+    return found ? { ...found, systemRoles: [...found.systemRoles] } : null;
+  }
+
+  async upsertAccount(record: AccountRecord): Promise<void> {
+    this.accounts.set(record.accountId, {
+      ...record,
+      systemRoles: [...record.systemRoles]
+    });
+  }
+
+  async getWorkspace(workspaceId: string): Promise<WorkspaceRecord | null> {
+    const found = this.workspaces.get(workspaceId);
+    return found ? { ...found } : null;
+  }
+
+  async upsertWorkspace(record: WorkspaceRecord): Promise<void> {
+    this.workspaces.set(record.workspaceId, { ...record });
+  }
+
+  async removeWorkspace(workspaceId: string): Promise<void> {
+    this.workspaces.delete(workspaceId);
+    for (const key of Array.from(this.roles.keys())) {
+      if (key.startsWith(`${workspaceId}:`)) {
+        this.roles.delete(key);
+      }
+    }
+    for (const key of Array.from(this.members.keys())) {
+      if (key.startsWith(`${workspaceId}:`)) {
+        this.members.delete(key);
+      }
+    }
+    for (const key of Array.from(this.folderAcl.keys())) {
+      if (key.startsWith(`${workspaceId}:`)) {
+        this.folderAcl.delete(key);
+      }
+    }
+  }
+
+  async listWorkspaceRoles(workspaceId: string): Promise<WorkspaceRoleStorageRecord[]> {
+    return Array.from(this.roles.values())
+      .filter((role) => role.workspaceId === workspaceId)
+      .map((role) => ({ ...role, permissions: [...role.permissions] }));
+  }
+
+  async upsertWorkspaceRole(record: WorkspaceRoleStorageRecord): Promise<void> {
+    this.roles.set(this.toRoleKey(record.workspaceId, record.roleId), {
+      ...record,
+      permissions: [...record.permissions]
+    });
+  }
+
+  async removeWorkspaceRole(workspaceId: string, roleId: string): Promise<void> {
+    this.roles.delete(this.toRoleKey(workspaceId, roleId));
+  }
+
+  async listWorkspaceMembers(workspaceId: string): Promise<WorkspaceMemberRecord[]> {
+    return Array.from(this.members.values())
+      .filter((member) => member.workspaceId === workspaceId)
+      .map((member) => ({ ...member, roleIds: [...member.roleIds] }));
+  }
+
+  async upsertWorkspaceMember(record: WorkspaceMemberRecord): Promise<void> {
+    this.members.set(this.toMemberKey(record.workspaceId, record.accountId), {
+      ...record,
+      roleIds: [...record.roleIds]
+    });
+  }
+
+  async removeWorkspaceMember(workspaceId: string, accountId: string): Promise<void> {
+    this.members.delete(this.toMemberKey(workspaceId, accountId));
+  }
+
+  async listWorkspaceFolderAcl(workspaceId: string): Promise<WorkspaceFolderAclRecord[]> {
+    return Array.from(this.folderAcl.values())
+      .filter((rule) => rule.workspaceId === workspaceId)
+      .map((rule) => ({ ...rule }));
+  }
+
+  async upsertWorkspaceFolderAcl(record: WorkspaceFolderAclRecord): Promise<void> {
+    this.folderAcl.set(this.toAclKey(record.workspaceId, record.folderId, record.roleId), { ...record });
+  }
+
+  async removeWorkspaceFolderAcl(workspaceId: string, folderId: string | null, roleId: string): Promise<void> {
+    this.folderAcl.delete(this.toAclKey(workspaceId, folderId, roleId));
+  }
+
+  private toRoleKey(workspaceId: string, roleId: string): string {
+    return `${workspaceId}:${roleId}`;
+  }
+
+  private toMemberKey(workspaceId: string, accountId: string): string {
+    return `${workspaceId}:${accountId}`;
+  }
+
+  private toAclKey(workspaceId: string, folderId: string | null, roleId: string): string {
+    return `${workspaceId}:${folderId ?? '__root__'}:${roleId}`;
+  }
+}
+
 const createInMemoryPersistence = (): PersistencePorts & {
   projectRepository: InMemoryProjectRepository;
+  workspaceRepository: InMemoryWorkspaceRepository;
   blobStore: InMemoryBlobStore;
 } => {
   const projectRepository = new InMemoryProjectRepository();
+  const workspaceRepository = new InMemoryWorkspaceRepository();
   const blobStore = new InMemoryBlobStore();
   return {
     projectRepository,
+    workspaceRepository,
     blobStore,
     health: {
       selection: {
@@ -134,7 +345,11 @@ const createInMemoryPersistence = (): PersistencePorts & {
   };
 };
 
-const buildDispatcher = (persistence: PersistencePorts, lockStore: NativePipelineStore = new NativePipelineStore()): GatewayDispatcher => {
+const buildDispatcher = (
+  persistence: PersistencePorts,
+  lockStore: NativePipelineStore = new NativePipelineStore(),
+  lockTtlMs?: number
+): GatewayDispatcher => {
   const registry = new BackendRegistry();
   registry.register(
     createEngineBackend({
@@ -146,7 +361,9 @@ const buildDispatcher = (persistence: PersistencePorts, lockStore: NativePipelin
   return new GatewayDispatcher({
     registry,
     defaultBackend: 'engine',
-    lockStore
+    lockStore,
+    workspaceRepository: persistence.workspaceRepository,
+    ...(typeof lockTtlMs === 'number' ? { lockTtlMs } : {})
   });
 };
 
@@ -269,6 +486,386 @@ registerAsync(
       ownerAgentId: 'mcp:session-holder',
       ownerSessionId: 'session-holder'
     });
+
+    const idleTimeoutLockStore = new NativePipelineStore();
+    const idleTimeoutDispatcher = buildDispatcher(persistence, idleTimeoutLockStore, 5_000);
+    const ownerMutation = await idleTimeoutDispatcher.handle(
+      'ensure_project',
+      {
+        projectId: 'prj_lock_idle_timeout',
+        name: 'idle-timeout-project',
+        onMissing: 'create'
+      } as ToolPayloadMap['ensure_project'],
+      { mcpSessionId: 'session-holder' }
+    );
+    assert.equal(ownerMutation.ok, true);
+
+    const heldAfterMutation = await idleTimeoutLockStore.getProjectLock('prj_lock_idle_timeout');
+    assert.equal(heldAfterMutation?.ownerSessionId, 'session-holder');
+
+    const conflictBeforeExpiry = await idleTimeoutDispatcher.handle(
+      'add_bone',
+      {
+        projectId: 'prj_lock_idle_timeout',
+        name: 'root'
+      } as ToolPayloadMap['add_bone'],
+      { mcpSessionId: 'session-other' }
+    );
+    assert.equal(conflictBeforeExpiry.ok, false);
+    if (!conflictBeforeExpiry.ok) {
+      assert.equal(conflictBeforeExpiry.error.code, 'invalid_state');
+      assert.equal(conflictBeforeExpiry.error.details?.reason, 'project_locked');
+    }
+
+    const originalNowForLockExpiry = Date.now;
+    try {
+      const expiresAt = Date.parse(heldAfterMutation?.expiresAt ?? '');
+      assert.equal(Number.isFinite(expiresAt), true);
+      Date.now = () => expiresAt + 1;
+      const takeOverAfterExpiry = await idleTimeoutDispatcher.handle(
+        'add_bone',
+        {
+          projectId: 'prj_lock_idle_timeout',
+          name: 'root'
+        } as ToolPayloadMap['add_bone'],
+        { mcpSessionId: 'session-other' }
+      );
+      assert.equal(takeOverAfterExpiry.ok, true);
+    } finally {
+      Date.now = originalNowForLockExpiry;
+    }
+
+    const lockAfterTakeOver = await idleTimeoutLockStore.getProjectLock('prj_lock_idle_timeout');
+    assert.equal(lockAfterTakeOver?.ownerSessionId, 'session-other');
+
+    await persistence.workspaceRepository.upsertWorkspace({
+      workspaceId: 'ws_rbac',
+      tenantId: DEFAULT_TENANT,
+      name: 'RBAC Workspace',
+      mode: 'rbac',
+      createdBy: 'system',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceRole({
+      workspaceId: 'ws_rbac',
+      roleId: 'role_reader',
+      name: 'Reader',
+      builtin: null,
+      permissions: ['workspace.read', 'folder.read', 'project.read'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceRole({
+      workspaceId: 'ws_rbac',
+      roleId: 'role_writer',
+      name: 'Writer',
+      builtin: null,
+      permissions: ['workspace.read', 'folder.read', 'folder.write', 'project.read', 'project.write'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceMember({
+      workspaceId: 'ws_rbac',
+      accountId: 'reader-account',
+      roleIds: ['role_reader'],
+      joinedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceMember({
+      workspaceId: 'ws_rbac',
+      accountId: 'writer-account',
+      roleIds: ['role_writer'],
+      joinedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+      workspaceId: 'ws_rbac',
+      folderId: null,
+      roleId: 'role_writer',
+      read: 'allow',
+      write: 'allow',
+      updatedAt: new Date().toISOString()
+    });
+
+    const rbacProject = await lockStore.createProject({
+      workspaceId: 'ws_rbac',
+      name: 'rbac-target'
+    });
+
+    const deniedRbacMutation = await lockAwareDispatcher.handle(
+      'add_bone',
+      {
+        projectId: rbacProject.projectId,
+        workspaceId: 'ws_rbac',
+        name: 'root'
+      } as ToolPayloadMap['add_bone'] & { workspaceId: string },
+      {
+        mcpSessionId: 'session-reader',
+        mcpAccountId: 'reader-account',
+        mcpWorkspaceId: 'ws_rbac'
+      }
+    );
+    assert.equal(deniedRbacMutation.ok, false);
+    if (!deniedRbacMutation.ok) {
+      assert.equal(deniedRbacMutation.error.code, 'invalid_state');
+      assert.equal(deniedRbacMutation.error.details?.reason, 'forbidden_workspace_project_write');
+    }
+
+    const allowedRbacEnsure = await lockAwareDispatcher.handle(
+      'ensure_project',
+      {
+        projectId: rbacProject.projectId,
+        workspaceId: 'ws_rbac',
+        name: rbacProject.name,
+        onMissing: 'create'
+      } as ToolPayloadMap['ensure_project'] & { workspaceId: string },
+      {
+        mcpSessionId: 'session-writer',
+        mcpAccountId: 'writer-account',
+        mcpWorkspaceId: 'ws_rbac'
+      }
+    );
+    if (!allowedRbacEnsure.ok) {
+      assert.fail(`RBAC writer ensure should pass: ${JSON.stringify(allowedRbacEnsure.error)}`);
+    }
+
+    const allowedRbacMutation = await lockAwareDispatcher.handle(
+      'add_bone',
+      {
+        projectId: rbacProject.projectId,
+        workspaceId: 'ws_rbac',
+        name: 'root'
+      } as ToolPayloadMap['add_bone'] & { workspaceId: string },
+      {
+        mcpSessionId: 'session-writer',
+        mcpAccountId: 'writer-account',
+        mcpWorkspaceId: 'ws_rbac'
+      }
+    );
+    assert.equal(allowedRbacMutation.ok, true);
+
+    await persistence.workspaceRepository.upsertWorkspace({
+      workspaceId: 'ws_acl',
+      tenantId: DEFAULT_TENANT,
+      name: 'ACL Workspace',
+      mode: 'rbac',
+      createdBy: 'system',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceRole({
+      workspaceId: 'ws_acl',
+      roleId: 'role_workspace_admin_acl',
+      name: 'Workspace Admin',
+      builtin: 'workspace_admin',
+      permissions: [
+        'workspace.read',
+        'workspace.settings.manage',
+        'workspace.members.manage',
+        'workspace.roles.manage',
+        'folder.read',
+        'folder.write',
+        'project.read',
+        'project.write'
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceRole({
+      workspaceId: 'ws_acl',
+      roleId: 'role_user_acl',
+      name: 'User',
+      builtin: 'user',
+      permissions: ['workspace.read', 'folder.read', 'folder.write', 'project.read', 'project.write'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceMember({
+      workspaceId: 'ws_acl',
+      accountId: 'workspace-admin-account',
+      roleIds: ['role_workspace_admin_acl'],
+      joinedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceMember({
+      workspaceId: 'ws_acl',
+      accountId: 'user-account',
+      roleIds: ['role_user_acl'],
+      joinedAt: new Date().toISOString()
+    });
+    const restrictedRoot = await lockStore.createFolder({ workspaceId: 'ws_acl', name: 'Restricted Root' });
+    const restrictedChild = await lockStore.createFolder({
+      workspaceId: 'ws_acl',
+      name: 'Restricted Child',
+      parentFolderId: restrictedRoot.folderId
+    });
+    const restoredChild = await lockStore.createFolder({
+      workspaceId: 'ws_acl',
+      name: 'Restored Child',
+      parentFolderId: restrictedChild.folderId
+    });
+    await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+      workspaceId: 'ws_acl',
+      folderId: null,
+      roleId: 'role_user_acl',
+      read: 'allow',
+      write: 'allow',
+      updatedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+      workspaceId: 'ws_acl',
+      folderId: restrictedChild.folderId,
+      roleId: 'role_user_acl',
+      read: 'allow',
+      write: 'deny',
+      updatedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+      workspaceId: 'ws_acl',
+      folderId: restoredChild.folderId,
+      roleId: 'role_user_acl',
+      read: 'allow',
+      write: 'allow',
+      updatedAt: new Date().toISOString()
+    });
+
+    const blockedProject = await lockStore.createProject({
+      workspaceId: 'ws_acl',
+      name: 'acl-blocked',
+      parentFolderId: restrictedChild.folderId
+    });
+    const blockedProjectForWorkspaceAdmin = await lockStore.createProject({
+      workspaceId: 'ws_acl',
+      name: 'acl-blocked-workspace-admin',
+      parentFolderId: restrictedChild.folderId
+    });
+    const blockedProjectForCsAdmin = await lockStore.createProject({
+      workspaceId: 'ws_acl',
+      name: 'acl-blocked-cs-admin',
+      parentFolderId: restrictedChild.folderId
+    });
+    const blockedProjectForSystemAdmin = await lockStore.createProject({
+      workspaceId: 'ws_acl',
+      name: 'acl-blocked-system-admin',
+      parentFolderId: restrictedChild.folderId
+    });
+    const restoredProject = await lockStore.createProject({
+      workspaceId: 'ws_acl',
+      name: 'acl-restored',
+      parentFolderId: restoredChild.folderId
+    });
+
+    const userBlockedByFolderAcl = await lockAwareDispatcher.handle(
+      'ensure_project',
+      {
+        projectId: blockedProject.projectId,
+        workspaceId: 'ws_acl',
+        name: blockedProject.name,
+        onMissing: 'create'
+      } as ToolPayloadMap['ensure_project'] & { workspaceId: string },
+      {
+        mcpSessionId: 'session-acl-user',
+        mcpAccountId: 'user-account',
+        mcpWorkspaceId: 'ws_acl'
+      }
+    );
+    assert.equal(userBlockedByFolderAcl.ok, false);
+    if (!userBlockedByFolderAcl.ok) {
+      assert.equal(userBlockedByFolderAcl.error.details?.reason, 'forbidden_workspace_folder_write');
+    }
+
+    const userRestoredByDeeperAllow = await lockAwareDispatcher.handle(
+      'ensure_project',
+      {
+        projectId: restoredProject.projectId,
+        workspaceId: 'ws_acl',
+        name: restoredProject.name,
+        onMissing: 'create'
+      } as ToolPayloadMap['ensure_project'] & { workspaceId: string },
+      {
+        mcpSessionId: 'session-acl-user-restored',
+        mcpAccountId: 'user-account',
+        mcpWorkspaceId: 'ws_acl'
+      }
+    );
+    assert.equal(userRestoredByDeeperAllow.ok, true);
+
+    const workspaceAdminAllowed = await lockAwareDispatcher.handle(
+      'ensure_project',
+      {
+        projectId: blockedProjectForWorkspaceAdmin.projectId,
+        workspaceId: 'ws_acl',
+        name: blockedProjectForWorkspaceAdmin.name,
+        onMissing: 'create'
+      } as ToolPayloadMap['ensure_project'] & { workspaceId: string },
+      {
+        mcpSessionId: 'session-acl-admin',
+        mcpAccountId: 'workspace-admin-account',
+        mcpWorkspaceId: 'ws_acl'
+      }
+    );
+    assert.equal(workspaceAdminAllowed.ok, true);
+
+    const csAdminAllowed = await lockAwareDispatcher.handle(
+      'ensure_project',
+      {
+        projectId: blockedProjectForCsAdmin.projectId,
+        workspaceId: 'ws_acl',
+        name: blockedProjectForCsAdmin.name,
+        onMissing: 'create'
+      } as ToolPayloadMap['ensure_project'] & { workspaceId: string },
+      {
+        mcpSessionId: 'session-acl-cs',
+        mcpAccountId: 'support-agent',
+        mcpSystemRoles: ['cs_admin'],
+        mcpWorkspaceId: 'ws_acl'
+      }
+    );
+    assert.equal(csAdminAllowed.ok, true);
+
+    const systemAdminAllowed = await lockAwareDispatcher.handle(
+      'ensure_project',
+      {
+        projectId: blockedProjectForSystemAdmin.projectId,
+        workspaceId: 'ws_acl',
+        name: blockedProjectForSystemAdmin.name,
+        onMissing: 'create'
+      } as ToolPayloadMap['ensure_project'] & { workspaceId: string },
+      {
+        mcpSessionId: 'session-acl-system',
+        mcpAccountId: 'root-admin',
+        mcpSystemRoles: ['system_admin'],
+        mcpWorkspaceId: 'ws_acl'
+      }
+    );
+    assert.equal(systemAdminAllowed.ok, true);
+
+    await persistence.workspaceRepository.upsertWorkspace({
+      workspaceId: 'ws_all_open_acl',
+      tenantId: DEFAULT_TENANT,
+      name: 'Open Workspace',
+      mode: 'all_open',
+      createdBy: 'system',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    const openProject = await lockStore.createProject({
+      workspaceId: 'ws_all_open_acl',
+      name: 'open-project'
+    });
+    const allOpenAllowed = await lockAwareDispatcher.handle(
+      'ensure_project',
+      {
+        projectId: openProject.projectId,
+        workspaceId: 'ws_all_open_acl',
+        name: openProject.name,
+        onMissing: 'create'
+      } as ToolPayloadMap['ensure_project'] & { workspaceId: string },
+      {
+        mcpSessionId: 'session-all-open',
+        mcpAccountId: 'regular-user',
+        mcpWorkspaceId: 'ws_all_open_acl'
+      }
+    );
+    assert.equal(allOpenAllowed.ok, true);
 
     // TKT-20260214-001: native backend routing skeleton -> tool execution + persistence
     const health = await engine.getHealth();

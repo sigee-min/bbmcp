@@ -12,6 +12,47 @@ registerAsync(
 
     const allProjects = await store.listProjects();
     assert.ok(allProjects.length >= 3);
+    const wsAlphaProject = await store.createProject({ workspaceId: 'ws_alpha', name: 'Shared Name Alpha' });
+    const wsBetaProject = await store.createProject({ workspaceId: 'ws_beta', name: 'Shared Name Beta' });
+    const duplicateNameA = await store.createProject({ workspaceId: 'ws_alpha', name: 'Duplicated Name' });
+    const duplicateNameB = await store.createProject({ workspaceId: 'ws_alpha', name: 'Duplicated Name' });
+    assert.equal(duplicateNameA.name, 'Duplicated Name');
+    assert.equal(duplicateNameB.name, 'Duplicated Name');
+    assert.notEqual(duplicateNameA.projectId, duplicateNameB.projectId);
+    const defaultNamed = await store.createProject({ workspaceId: 'ws_alpha', name: '   ' });
+    assert.equal(defaultNamed.name, 'My Project');
+    const alphaScopedProjects = await store.listProjects(undefined, 'ws_alpha');
+    const betaScopedProjects = await store.listProjects(undefined, 'ws_beta');
+    assert.equal(alphaScopedProjects.some((project) => project.projectId === wsAlphaProject.projectId), true);
+    assert.equal(betaScopedProjects.some((project) => project.projectId === wsBetaProject.projectId), true);
+    assert.equal(alphaScopedProjects.some((project) => project.projectId === wsBetaProject.projectId), false);
+    assert.equal(betaScopedProjects.some((project) => project.projectId === wsAlphaProject.projectId), false);
+    await store.acquireProjectLock({
+      workspaceId: 'ws_alpha',
+      projectId: wsAlphaProject.projectId,
+      ownerAgentId: 'ws-alpha-agent',
+      ownerSessionId: 'ws-alpha-session'
+    });
+    const crossWorkspaceLock = await store.acquireProjectLock({
+      workspaceId: 'ws_beta',
+      projectId: wsBetaProject.projectId,
+      ownerAgentId: 'ws-beta-agent',
+      ownerSessionId: 'ws-beta-session'
+    });
+    assert.equal(crossWorkspaceLock.ownerAgentId, 'ws-beta-agent');
+    await store.releaseProjectLock({
+      workspaceId: 'ws_alpha',
+      projectId: wsAlphaProject.projectId,
+      ownerAgentId: 'ws-alpha-agent',
+      ownerSessionId: 'ws-alpha-session'
+    });
+    await store.releaseProjectLock({
+      workspaceId: 'ws_beta',
+      projectId: wsBetaProject.projectId,
+      ownerAgentId: 'ws-beta-agent',
+      ownerSessionId: 'ws-beta-session'
+    });
+
     const findProjectIdByName = (name: string): string => {
       const project = allProjects.find((candidate) => candidate.name === name);
       assert.ok(project, `missing seeded project: ${name}`);

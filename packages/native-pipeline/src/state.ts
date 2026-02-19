@@ -7,7 +7,10 @@ import type {
   NativeTreeChildRef
 } from './types';
 
+const DEFAULT_WORKSPACE_ID = 'ws_default';
+
 export interface NativePipelineState {
+  readonly workspaceId: string;
   readonly projects: Map<string, NativeProjectSnapshot>;
   readonly folders: Map<string, NativeProjectFolder>;
   readonly rootChildren: NativeTreeChildRef[];
@@ -20,7 +23,8 @@ export interface NativePipelineState {
   nextSeq: number;
 }
 
-export const createNativePipelineState = (): NativePipelineState => ({
+export const createNativePipelineState = (workspaceId: string = DEFAULT_WORKSPACE_ID): NativePipelineState => ({
+  workspaceId,
   projects: new Map<string, NativeProjectSnapshot>(),
   folders: new Map<string, NativeProjectFolder>(),
   rootChildren: [],

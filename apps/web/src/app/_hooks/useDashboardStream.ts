@@ -14,6 +14,7 @@ import {
 } from '../../lib/dashboardModel';
 
 interface UseDashboardStreamOptions {
+  workspaceId: string;
   state: DashboardState;
   setState: Dispatch<SetStateAction<DashboardState>>;
   reconnectDelayMs?: number;
@@ -28,6 +29,7 @@ interface StreamContext {
 const DEFAULT_RECONNECT_DELAY_MS = 1200;
 
 export const useDashboardStream = ({
+  workspaceId,
   state,
   setState,
   reconnectDelayMs = DEFAULT_RECONNECT_DELAY_MS
@@ -70,13 +72,13 @@ export const useDashboardStream = ({
     clearPendingSnapshot();
   };
 
-  const openStream = (projectId: string, lastEventId: number) => {
+  const openStream = (projectId: string, lastEventId: number, selectedWorkspaceId: string) => {
     clearReconnectTimer();
     cancelScheduledFlush();
     contextRef.current.generation += 1;
     const generation = contextRef.current.generation;
 
-    const stream = new EventSource(buildStreamUrl(projectId, lastEventId));
+    const stream = new EventSource(buildStreamUrl(projectId, lastEventId, selectedWorkspaceId));
     closeActiveStream();
     streamRef.current = stream;
     setState((prev) => markStreamConnecting(prev));
@@ -172,10 +174,19 @@ export const useDashboardStream = ({
         if (contextRef.current.activeProjectId !== projectId || contextRef.current.generation !== generation) {
           return;
         }
-        openStream(projectId, contextRef.current.lastEventId);
+        openStream(projectId, contextRef.current.lastEventId, selectedWorkspaceId);
       }, reconnectDelayMs);
     };
   };
+
+  useEffect(() => {
+    contextRef.current.generation += 1;
+    contextRef.current.activeProjectId = null;
+    contextRef.current.lastEventId = -1;
+    clearReconnectTimer();
+    cancelScheduledFlush();
+    closeActiveStream();
+  }, [workspaceId]);
 
   useEffect(() => {
     contextRef.current.lastEventId = state.lastAppliedRevision;
@@ -192,7 +203,7 @@ export const useDashboardStream = ({
 
     contextRef.current.activeProjectId = state.selectedProjectId;
     contextRef.current.lastEventId = state.lastAppliedRevision;
-    openStream(state.selectedProjectId, state.lastAppliedRevision);
+    openStream(state.selectedProjectId, state.lastAppliedRevision, workspaceId);
 
     return () => {
       clearReconnectTimer();
@@ -200,7 +211,7 @@ export const useDashboardStream = ({
       closeActiveStream();
     };
     // selectedProjectId defines the active stream; revisions are tracked through contextRef.
-  }, [state.status, state.selectedProjectId]);
+  }, [state.status, state.selectedProjectId, workspaceId]);
 
   useEffect(
     () => () => {

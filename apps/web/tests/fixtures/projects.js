@@ -119,12 +119,45 @@ const BASE_TREE = Object.freeze({
   ]
 });
 
+const BASE_WORKSPACES = Object.freeze([
+  {
+    workspaceId: 'ws_default',
+    name: 'Current Workspace',
+    mode: 'all_open',
+    capabilities: {
+      canManageWorkspace: true,
+      canManageMembers: true,
+      canManageRoles: true,
+      canManageFolderAcl: true
+    }
+  }
+]);
+
+const BASE_AUTH_SESSION = Object.freeze({
+  ok: true,
+  githubEnabled: true,
+  user: {
+    accountId: 'admin',
+    displayName: 'Administrator',
+    email: 'admin@ashfox.local',
+    systemRoles: ['system_admin'],
+    localLoginId: 'admin',
+    githubLogin: null,
+    hasPassword: true,
+    canSetPassword: false
+  }
+});
+
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 const createProjectsFixture = () => clone(BASE_PROJECTS);
 const createProjectTreeFixture = () => clone(BASE_TREE);
+const createWorkspacesFixture = () => clone(BASE_WORKSPACES);
+const createAuthSessionFixture = () => clone(BASE_AUTH_SESSION);
 
 module.exports = {
+  createAuthSessionFixture,
   createProjectTreeFixture,
-  createProjectsFixture
+  createProjectsFixture,
+  createWorkspacesFixture
 };

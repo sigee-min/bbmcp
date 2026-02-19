@@ -79,6 +79,7 @@ export interface NativeProjectLock {
 export type NativeProjectLockState = 'unlocked' | 'locked-by-self' | 'locked-by-other';
 
 export interface NativeAcquireProjectLockInput {
+  workspaceId?: string;
   projectId: string;
   ownerAgentId: string;
   ownerSessionId?: string | null;
@@ -86,6 +87,7 @@ export interface NativeAcquireProjectLockInput {
 }
 
 export interface NativeRenewProjectLockInput {
+  workspaceId?: string;
   projectId: string;
   ownerAgentId: string;
   ownerSessionId?: string | null;
@@ -93,6 +95,7 @@ export interface NativeRenewProjectLockInput {
 }
 
 export interface NativeReleaseProjectLockInput {
+  workspaceId?: string;
   projectId: string;
   ownerAgentId: string;
   ownerSessionId?: string | null;
@@ -100,6 +103,7 @@ export interface NativeReleaseProjectLockInput {
 
 export interface NativeProjectSnapshot {
   projectId: string;
+  workspaceId?: string;
   name: string;
   parentFolderId: string | null;
   revision: number;
@@ -154,24 +158,28 @@ export interface NativeProjectTreeSnapshot {
 }
 
 export interface NativeCreateFolderInput {
+  workspaceId?: string;
   name: string;
   parentFolderId?: string | null;
   index?: number;
 }
 
 export interface NativeMoveFolderInput {
+  workspaceId?: string;
   folderId: string;
   parentFolderId?: string | null;
   index?: number;
 }
 
 export interface NativeCreateProjectInput {
+  workspaceId?: string;
   name: string;
   parentFolderId?: string | null;
   index?: number;
 }
 
 export interface NativeMoveProjectInput {
+  workspaceId?: string;
   projectId: string;
   parentFolderId?: string | null;
   index?: number;
@@ -207,6 +215,7 @@ export interface NativeProjectEvent {
 }
 
 export type NativeJobSubmitInput = {
+  workspaceId?: string;
   projectId: string;
   maxAttempts?: number;
   leaseMs?: number;

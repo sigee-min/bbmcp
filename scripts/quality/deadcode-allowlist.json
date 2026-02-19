@@ -21,6 +21,7 @@
         "DeleteCubePayload",
         "DeleteTexturePayload",
         "Dispatcher",
+        "DispatcherExecutionContext",
         "ENSURE_PROJECT_ACTIONS",
         "ENSURE_PROJECT_MATCHES",
         "ENSURE_PROJECT_ON_MISMATCH",

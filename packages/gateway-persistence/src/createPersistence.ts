@@ -1,4 +1,4 @@
-import type { BlobStore, PersistencePorts, ProjectRepository, ProviderReadiness } from '@ashfox/backend-core';
+import type { BlobStore, PersistencePorts, ProjectRepository, ProviderReadiness, WorkspaceRepository } from '@ashfox/backend-core';
 import {
   resolveAppwriteBlobStoreConfig,
   resolveAppwriteDatabaseConfig,
@@ -20,7 +20,7 @@ import { PostgresProjectRepository } from './infrastructure/PostgresProjectRepos
 import { S3BlobStore } from './infrastructure/S3BlobStore';
 import { SqliteDbBlobStore } from './infrastructure/SqliteDbBlobStore';
 import { SqliteProjectRepository } from './infrastructure/SqliteProjectRepository';
-import { UnsupportedBlobStore, UnsupportedProjectRepository } from './infrastructure/UnsupportedAdapters';
+import { UnsupportedBlobStore, UnsupportedProjectRepository, UnsupportedWorkspaceRepository } from './infrastructure/UnsupportedAdapters';
 
 export interface CreateGatewayPersistenceOptions {
   failFast?: boolean;
@@ -30,6 +30,8 @@ type BuiltPort<TPort> = {
   port: TPort;
   readiness: ProviderReadiness;
 };
+
+type WorkspaceCapableRepository = ProjectRepository & WorkspaceRepository;
 
 type Closable = {
   close?: () => Promise<void> | void;
@@ -184,6 +186,62 @@ const createProjectRepository = (
       provider: selection.databaseProvider,
       ready: false,
       reason: 'unknown_provider'
+    }
+  };
+};
+
+const hasWorkspaceRepository = (port: ProjectRepository): port is WorkspaceCapableRepository => {
+  const candidate = port as Partial<WorkspaceRepository>;
+  return (
+    typeof candidate.getAccount === 'function' &&
+    typeof candidate.getAccountByLocalLoginId === 'function' &&
+    typeof candidate.getAccountByGithubUserId === 'function' &&
+    typeof candidate.upsertAccount === 'function' &&
+    typeof candidate.listWorkspaces === 'function' &&
+    typeof candidate.getWorkspace === 'function' &&
+    typeof candidate.upsertWorkspace === 'function' &&
+    typeof candidate.removeWorkspace === 'function' &&
+    typeof candidate.listWorkspaceRoles === 'function' &&
+    typeof candidate.upsertWorkspaceRole === 'function' &&
+    typeof candidate.removeWorkspaceRole === 'function' &&
+    typeof candidate.listWorkspaceMembers === 'function' &&
+    typeof candidate.upsertWorkspaceMember === 'function' &&
+    typeof candidate.removeWorkspaceMember === 'function' &&
+    typeof candidate.listWorkspaceFolderAcl === 'function' &&
+    typeof candidate.upsertWorkspaceFolderAcl === 'function' &&
+    typeof candidate.removeWorkspaceFolderAcl === 'function'
+  );
+};
+
+const createWorkspaceRepository = (
+  selection: ReturnType<typeof resolvePersistenceSelection>,
+  projectRepository: ProjectRepository
+): BuiltPort<WorkspaceRepository> => {
+  if (hasWorkspaceRepository(projectRepository)) {
+    return {
+      port: projectRepository,
+      readiness: {
+        provider: selection.databaseProvider,
+        ready: true,
+        details: {
+          adapter: 'workspace_repository',
+          databaseProvider: selection.databaseProvider
+        }
+      }
+    };
+  }
+  return {
+    port: new UnsupportedWorkspaceRepository(
+      selection.databaseProvider,
+      'WorkspaceRepository contract is not implemented for this database adapter.'
+    ),
+    readiness: {
+      provider: selection.databaseProvider,
+      ready: false,
+      reason: 'workspace_repository_unavailable',
+      details: {
+        databaseProvider: selection.databaseProvider
+      }
     }
   };
 };
@@ -412,7 +470,9 @@ const closeIfSupported = async (candidate: unknown): Promise<void> => {
 
 export const closeGatewayPersistence = async (persistence: PersistencePorts): Promise<void> => {
   const errors: string[] = [];
-  const candidates: unknown[] = [persistence.projectRepository, persistence.blobStore];
+  const candidates = Array.from(
+    new Set<unknown>([persistence.projectRepository, persistence.workspaceRepository, persistence.blobStore])
+  );
   for (const candidate of candidates) {
     try {
       await closeIfSupported(candidate);
@@ -436,13 +496,27 @@ export const createGatewayPersistence = (
   assertNodeRuntimePreflight();
   const selection = resolvePersistenceSelection(env);
   const repository = createProjectRepository(selection, env);
+  const workspaceRepository = createWorkspaceRepository(selection, repository.port);
   const blobStore = createBlobStore(selection, env);
+  const databaseReadiness: ProviderReadiness =
+    repository.readiness.ready && workspaceRepository.readiness.ready
+      ? repository.readiness
+      : {
+          ...repository.readiness,
+          ready: false,
+          reason: repository.readiness.reason ?? workspaceRepository.readiness.reason ?? 'workspace_repository_unavailable',
+          details: {
+            ...(repository.readiness.details ?? {}),
+            workspace: workspaceRepository.readiness
+          }
+        };
   const persistence: PersistencePorts = {
     projectRepository: repository.port,
+    workspaceRepository: workspaceRepository.port,
     blobStore: blobStore.port,
     health: {
       selection,
-      database: repository.readiness,
+      database: databaseReadiness,
       storage: blobStore.readiness
     }
   };

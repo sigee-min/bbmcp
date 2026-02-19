@@ -454,6 +454,8 @@ export const ModelPreview = ({
   const smoothPitchRef = useRef<number>(pitchDeg);
   const modelRootRef = useRef<Group | null>(null);
   const rafRef = useRef<number | null>(null);
+  const renderDirtyRef = useRef(false);
+  const requestRenderRef = useRef<(() => void) | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animationClockRef = useRef<Clock>(new Clock(false));
@@ -474,6 +476,7 @@ export const ModelPreview = ({
     animationClockRef.current.stop();
     activeActionRef.current = null;
     activeClipNameRef.current = null;
+    requestRenderRef.current?.();
   };
 
   const resolvePreviewClip = (): AnimationClip | null => {
@@ -540,6 +543,7 @@ export const ModelPreview = ({
       animationMixerRef.current = null;
       animationClipsRef.current = [];
       resetAnimationPlayback();
+      requestRenderRef.current?.();
     };
 
     if (!hasGeometry) {
@@ -660,22 +664,11 @@ export const ModelPreview = ({
     modelRootRef.current = modelRoot;
     host.appendChild(renderer.domElement);
 
-    const resize = () => {
-      const width = Math.max(host.clientWidth, 1);
-      const height = Math.max(host.clientHeight, 1);
-      renderer.setSize(width, height);
-      baseDistanceRef.current = fitCameraToModel(camera, modelRoot, host, orbitTargetRef.current);
-      snapOrbitToTargetAngles(camera);
-      recenterProjectedBounds(camera, modelRoot, orbitTargetRef.current);
-    };
-    resize();
-    const observer = new ResizeObserver(() => {
-      resize();
-    });
-    observer.observe(host);
-    resizeObserverRef.current = observer;
+    const renderFrame = () => {
+      rafRef.current = null;
+      let shouldRender = renderDirtyRef.current;
+      renderDirtyRef.current = false;
 
-    const renderLoop = () => {
       const yawDelta = yawRef.current - smoothYawRef.current;
       const pitchDelta = pitchRef.current - smoothPitchRef.current;
       if (Math.abs(yawDelta) > ORBIT_SNAP_EPSILON || Math.abs(pitchDelta) > ORBIT_SNAP_EPSILON) {
@@ -688,24 +681,78 @@ export const ModelPreview = ({
           smoothPitchRef.current = pitchRef.current;
         }
         applySmoothedOrbit(camera);
+        shouldRender = true;
       }
+
+      const hasOrbitMomentum =
+        Math.abs(yawRef.current - smoothYawRef.current) > ORBIT_SNAP_EPSILON ||
+        Math.abs(pitchRef.current - smoothPitchRef.current) > ORBIT_SNAP_EPSILON;
+
       const mixer = animationMixerRef.current;
       if (mixer && animationClockRef.current.running) {
         const deltaSeconds = animationClockRef.current.getDelta();
         if (deltaSeconds > 0) {
           mixer.update(Math.min(deltaSeconds, 0.05));
+          shouldRender = true;
         }
       }
-      renderer.render(scene, camera);
-      rafRef.current = requestAnimationFrame(renderLoop);
+
+      if (shouldRender) {
+        renderer.render(scene, camera);
+      }
+
+      if (hasOrbitMomentum || (mixer && animationClockRef.current.running) || renderDirtyRef.current) {
+        if (rafRef.current === null) {
+          rafRef.current = requestAnimationFrame(renderFrame);
+        }
+      }
     };
-    renderLoop();
+
+    const requestRender = () => {
+      renderDirtyRef.current = true;
+      if (rafRef.current !== null) {
+        return;
+      }
+      rafRef.current = requestAnimationFrame(renderFrame);
+    };
+    requestRenderRef.current = requestRender;
+
+    const resize = () => {
+      const width = Math.max(host.clientWidth, 1);
+      const height = Math.max(host.clientHeight, 1);
+      renderer.setSize(width, height);
+      baseDistanceRef.current = fitCameraToModel(camera, modelRoot, host, orbitTargetRef.current);
+      snapOrbitToTargetAngles(camera);
+      recenterProjectedBounds(camera, modelRoot, orbitTargetRef.current);
+      requestRender();
+    };
+    const observer = new ResizeObserver(() => {
+      resize();
+    });
+    observer.observe(host);
+    resizeObserverRef.current = observer;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        if (rafRef.current !== null) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
+        return;
+      }
+      requestRender();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    resize();
 
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      requestRenderRef.current = null;
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
       }
       rafRef.current = null;
+      renderDirtyRef.current = false;
       resetAnimationPlayback();
       animationMixerRef.current = null;
       animationClipsRef.current = [];
@@ -724,6 +771,7 @@ export const ModelPreview = ({
   useEffect(() => {
     yawRef.current = yawDeg;
     pitchRef.current = pitchDeg;
+    requestRenderRef.current?.();
   }, [yawDeg, pitchDeg]);
 
   useEffect(() => {
@@ -755,6 +803,7 @@ export const ModelPreview = ({
       }
       setStatusLabel(label);
       setIsReady(true);
+      requestRenderRef.current?.();
     };
     loader.parse(
       gltfSource,
@@ -783,6 +832,7 @@ export const ModelPreview = ({
             }
             setStatusLabel('Preview source is empty. Showing proxy model.');
             setIsReady(true);
+            requestRenderRef.current?.();
             return;
           }
           enhanceModelVisibility(gltf.scene, projectId);
@@ -798,6 +848,7 @@ export const ModelPreview = ({
             recenterProjectedBounds(cameraRef.current, modelRoot, orbitTargetRef.current);
           }
           setIsReady(true);
+          requestRenderRef.current?.();
         } catch (error) {
           console.error('ashfox preview render failed', error);
           showProxyFallback('Preview render failed. Showing proxy model.');
@@ -850,6 +901,7 @@ export const ModelPreview = ({
     if (!animationClockRef.current.running) {
       animationClockRef.current.start();
     }
+    requestRenderRef.current?.();
   }, [animationLoopEnabled, animationPlaying, gltfSource, isReady, selectedAnimationId, selectedAnimationName]);
 
   return (

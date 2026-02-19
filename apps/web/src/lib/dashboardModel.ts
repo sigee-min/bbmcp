@@ -3,6 +3,59 @@ import { buildGatewayApiUrl } from './gatewayApi';
 export type DashboardStatus = 'loading' | 'empty' | 'success' | 'error';
 export type StreamStatus = 'idle' | 'connecting' | 'open' | 'reconnecting';
 export type DashboardErrorCode = 'project_load_failed' | 'stream_unavailable';
+export type WorkspaceMode = 'all_open' | 'rbac';
+
+export interface WorkspaceCapabilities {
+  canManageWorkspace: boolean;
+  canManageMembers: boolean;
+  canManageRoles: boolean;
+  canManageFolderAcl: boolean;
+}
+
+export interface WorkspaceSummary {
+  workspaceId: string;
+  name: string;
+  mode: WorkspaceMode;
+  capabilities: WorkspaceCapabilities;
+}
+
+export interface WorkspaceRoleRecord {
+  workspaceId: string;
+  roleId: string;
+  name: string;
+  builtin: 'workspace_admin' | 'user' | null;
+  permissions: WorkspacePermissionKey[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceMemberRecord {
+  workspaceId: string;
+  accountId: string;
+  roleIds: string[];
+  joinedAt: string;
+}
+
+export interface WorkspaceFolderAclRecord {
+  workspaceId: string;
+  folderId: string | null;
+  roleId: string;
+  read: WorkspaceAclEffect;
+  write: WorkspaceAclEffect;
+  updatedAt: string;
+}
+
+export type WorkspaceAclEffect = 'allow' | 'deny' | 'inherit';
+
+export type WorkspacePermissionKey =
+  | 'workspace.read'
+  | 'workspace.settings.manage'
+  | 'workspace.members.manage'
+  | 'workspace.roles.manage'
+  | 'folder.read'
+  | 'folder.write'
+  | 'project.read'
+  | 'project.write';
 
 export type HierarchyKind = 'bone' | 'cube';
 export type ActiveJobStatus = 'queued' | 'running' | 'completed' | 'failed' | null;
@@ -72,6 +125,7 @@ export interface ProjectTextureAtlas {
 
 export interface ProjectSnapshot {
   projectId: string;
+  workspaceId?: string;
   name: string;
   parentFolderId: string | null;
   revision: number;
@@ -143,7 +197,9 @@ export interface DashboardState {
   streamStatus: StreamStatus;
   errorCode: DashboardErrorCode | null;
   projects: readonly ProjectSnapshot[];
+  projectIndexById: ReadonlyMap<string, number>;
   projectTree: ProjectTreeSnapshot;
+  treeProjectPathById: ReadonlyMap<string, readonly number[]>;
   selectedProjectId: string | null;
   activeTab: InspectorTabId;
   viewer: ViewerState;
@@ -153,6 +209,32 @@ export interface DashboardState {
 const EMPTY_TREE: ProjectTreeSnapshot = {
   maxFolderDepth: 3,
   roots: []
+};
+const EMPTY_PROJECT_INDEX = new Map<string, number>();
+const EMPTY_TREE_PROJECT_PATH_INDEX = new Map<string, readonly number[]>();
+
+const buildProjectIndexById = (projects: readonly ProjectSnapshot[]): ReadonlyMap<string, number> => {
+  const index = new Map<string, number>();
+  projects.forEach((project, projectIndex) => {
+    index.set(project.projectId, projectIndex);
+  });
+  return index;
+};
+
+const buildTreeProjectPathById = (tree: ProjectTreeSnapshot): ReadonlyMap<string, readonly number[]> => {
+  const index = new Map<string, readonly number[]>();
+  const walk = (nodes: readonly ProjectTreeNode[], parentPath: readonly number[]) => {
+    nodes.forEach((node, nodeIndex) => {
+      const path = [...parentPath, nodeIndex];
+      if (node.kind === 'project') {
+        index.set(node.projectId, path);
+        return;
+      }
+      walk(node.children, path);
+    });
+  };
+  walk(tree.roots, []);
+  return index;
 };
 
 const clamp = (value: number, min: number, max: number): number => {
@@ -189,12 +271,24 @@ const buildViewerState = (): ViewerState => ({
   pitchDeg: 0
 });
 
-const getProjectById = (projects: readonly ProjectSnapshot[], projectId: string | null): ProjectSnapshot | null => {
+const getProjectById = (
+  projects: readonly ProjectSnapshot[],
+  projectId: string | null,
+  projectIndexById?: ReadonlyMap<string, number>
+): ProjectSnapshot | null => {
   if (!projectId) {
     return null;
   }
-  for (const project of projects) {
-    if (project.projectId === projectId) {
+  if (projectIndexById) {
+    const projectIndex = projectIndexById.get(projectId);
+    if (projectIndex === undefined) {
+      return null;
+    }
+    return projects[projectIndex] ?? null;
+  }
+  for (let projectIndex = 0; projectIndex < projects.length; projectIndex += 1) {
+    const project = projects[projectIndex];
+    if (project?.projectId === projectId) {
       return project;
     }
   }
@@ -241,7 +335,9 @@ export const createInitialDashboardState = (): DashboardState => ({
   streamStatus: 'idle',
   errorCode: null,
   projects: [],
+  projectIndexById: EMPTY_PROJECT_INDEX,
   projectTree: EMPTY_TREE,
+  treeProjectPathById: EMPTY_TREE_PROJECT_PATH_INDEX,
   selectedProjectId: null,
   activeTab: 'hierarchy',
   viewer: buildViewerState(),
@@ -253,7 +349,9 @@ export const createErrorState = (code: DashboardErrorCode): DashboardState => ({
   streamStatus: 'idle',
   errorCode: code,
   projects: [],
+  projectIndexById: EMPTY_PROJECT_INDEX,
   projectTree: EMPTY_TREE,
+  treeProjectPathById: EMPTY_TREE_PROJECT_PATH_INDEX,
   selectedProjectId: null,
   activeTab: 'hierarchy',
   viewer: buildViewerState(),
@@ -265,7 +363,8 @@ export const applyDashboardError = (state: DashboardState, code: DashboardErrorC
     return createErrorState(code);
   }
 
-  const selectedProject = getProjectById(state.projects, state.selectedProjectId) ?? state.projects[0] ?? null;
+  const selectedProject =
+    getProjectById(state.projects, state.selectedProjectId, state.projectIndexById) ?? state.projects[0] ?? null;
   const selectedProjectId = selectedProject?.projectId ?? null;
   const shouldResetViewer = selectedProjectId !== state.selectedProjectId;
 
@@ -284,13 +383,17 @@ export const createLoadedState = (
   tree: ProjectTreeSnapshot,
   preferredProjectId: string | null = null
 ): DashboardState => {
+  const projectIndexById = buildProjectIndexById(projects);
+  const treeProjectPathById = buildTreeProjectPathById(tree);
   if (projects.length === 0) {
     return {
       status: 'empty',
       streamStatus: 'idle',
       errorCode: null,
       projects: [],
+      projectIndexById,
       projectTree: tree,
+      treeProjectPathById,
       selectedProjectId: null,
       activeTab: 'hierarchy',
       viewer: buildViewerState(),
@@ -305,7 +408,9 @@ export const createLoadedState = (
     streamStatus: 'idle',
     errorCode: null,
     projects,
+    projectIndexById,
     projectTree: tree,
+    treeProjectPathById,
     selectedProjectId: selectedProject?.projectId ?? null,
     activeTab: 'hierarchy',
     viewer: buildViewerState(),
@@ -314,7 +419,7 @@ export const createLoadedState = (
 };
 
 export const selectProject = (state: DashboardState, projectId: string): DashboardState => {
-  const selectedProject = getProjectById(state.projects, projectId);
+  const selectedProject = getProjectById(state.projects, projectId, state.projectIndexById);
   if (!selectedProject) {
     return state;
   }
@@ -333,13 +438,17 @@ export const replaceProjectTree = (
   projects: readonly ProjectSnapshot[],
   tree: ProjectTreeSnapshot
 ): DashboardState => {
+  const projectIndexById = buildProjectIndexById(projects);
+  const treeProjectPathById = buildTreeProjectPathById(tree);
   const selectedProjectId = resolveSelectedProjectId(projects, tree, state.selectedProjectId);
-  const selectedProject = getProjectById(projects, selectedProjectId);
+  const selectedProject = getProjectById(projects, selectedProjectId, projectIndexById);
   return {
     ...state,
     status: projects.length === 0 ? 'empty' : 'success',
     projects,
+    projectIndexById,
     projectTree: tree,
+    treeProjectPathById,
     selectedProjectId,
     errorCode: null,
     lastAppliedRevision: selectedProject?.revision ?? -1
@@ -393,7 +502,8 @@ export const shouldApplyStreamPayload = (state: DashboardState, payload: Project
   if (payload.revision > state.lastAppliedRevision) {
     return true;
   }
-  const current = state.projects.find((project) => project.projectId === payload.projectId);
+  const projectIndex = state.projectIndexById.get(payload.projectId);
+  const current = projectIndex === undefined ? null : state.projects[projectIndex] ?? null;
   if (!current) {
     return true;
   }
@@ -411,47 +521,66 @@ export const shouldApplyStreamPayload = (state: DashboardState, payload: Project
 
 const upsertProject = (
   projects: readonly ProjectSnapshot[],
+  projectIndexById: ReadonlyMap<string, number>,
   payload: ProjectStreamPayload
-): readonly ProjectSnapshot[] => {
-  let found = false;
-  const next = projects.map((project) => {
-    if (project.projectId !== payload.projectId) {
-      return project;
-    }
-    found = true;
+): {
+  projects: readonly ProjectSnapshot[];
+  projectIndexById: ReadonlyMap<string, number>;
+} => {
+  const projectIndex = projectIndexById.get(payload.projectId);
+  if (projectIndex === undefined) {
+    const nextProjects = [
+      ...projects,
+      {
+        projectId: payload.projectId,
+        name: payload.name ?? payload.projectId,
+        parentFolderId: payload.parentFolderId ?? null,
+        revision: payload.revision,
+        hasGeometry: payload.hasGeometry,
+        hierarchy: payload.hierarchy,
+        animations: payload.animations,
+        stats: payload.stats,
+        activeJobStatus: payload.activeJobStatus ?? null,
+        ...(payload.projectLock ? { projectLock: payload.projectLock } : {}),
+        textures: payload.textures ?? []
+      }
+    ] as const;
+    const nextProjectIndexById = new Map(projectIndexById);
+    nextProjectIndexById.set(payload.projectId, projects.length);
     return {
-      ...project,
-      name: payload.name ?? project.name,
-      parentFolderId: payload.parentFolderId ?? project.parentFolderId,
-      revision: payload.revision,
-      hasGeometry: payload.hasGeometry,
-      hierarchy: payload.hierarchy,
-      animations: payload.animations,
-      stats: payload.stats,
-      activeJobStatus: payload.activeJobStatus ?? project.activeJobStatus ?? null,
-      projectLock: payload.projectLock ?? project.projectLock,
-      textures: payload.textures ?? project.textures
+      projects: nextProjects,
+      projectIndexById: nextProjectIndexById
     };
-  });
-  if (found) {
-    return next;
   }
-  return [
-    ...next,
-    {
-      projectId: payload.projectId,
-      name: payload.name ?? payload.projectId,
-      parentFolderId: payload.parentFolderId ?? null,
-      revision: payload.revision,
-      hasGeometry: payload.hasGeometry,
-      hierarchy: payload.hierarchy,
-      animations: payload.animations,
-      stats: payload.stats,
-      activeJobStatus: payload.activeJobStatus ?? null,
-      ...(payload.projectLock ? { projectLock: payload.projectLock } : {}),
-      textures: payload.textures ?? []
-    }
-  ];
+
+  const project = projects[projectIndex];
+  if (!project) {
+    return {
+      projects,
+      projectIndexById
+    };
+  }
+
+  const nextProject: ProjectSnapshot = {
+    ...project,
+    name: payload.name ?? project.name,
+    parentFolderId: payload.parentFolderId ?? project.parentFolderId,
+    revision: payload.revision,
+    hasGeometry: payload.hasGeometry,
+    hierarchy: payload.hierarchy,
+    animations: payload.animations,
+    stats: payload.stats,
+    activeJobStatus: payload.activeJobStatus ?? project.activeJobStatus ?? null,
+    projectLock: payload.projectLock ?? project.projectLock,
+    textures: payload.textures ?? project.textures
+  };
+
+  const nextProjects = [...projects];
+  nextProjects[projectIndex] = nextProject;
+  return {
+    projects: nextProjects,
+    projectIndexById
+  };
 };
 
 export const applyProjectStreamPayload = (state: DashboardState, payload: ProjectStreamPayload): DashboardState => {
@@ -459,11 +588,12 @@ export const applyProjectStreamPayload = (state: DashboardState, payload: Projec
     return state;
   }
 
-  const projects = upsertProject(state.projects, payload);
-  const nextTree = updateProjectTreeStatusFromStream(state.projectTree, payload);
+  const nextProjects = upsertProject(state.projects, state.projectIndexById, payload);
+  const nextTree = updateProjectTreeStatusFromStream(state.projectTree, state.treeProjectPathById, payload);
   return {
     ...state,
-    projects,
+    projects: nextProjects.projects,
+    projectIndexById: nextProjects.projectIndexById,
     projectTree: nextTree,
     streamStatus: 'open',
     errorCode: null,
@@ -473,42 +603,101 @@ export const applyProjectStreamPayload = (state: DashboardState, payload: Projec
 
 const updateProjectTreeStatusFromStreamNode = (
   node: ProjectTreeNode,
+  path: readonly number[],
+  depth: number,
   payload: ProjectStreamPayload
 ): ProjectTreeNode => {
-  if (node.kind === 'folder') {
+  if (depth === path.length - 1) {
+    if (node.kind !== 'project' || node.projectId !== payload.projectId) {
+      return node;
+    }
+    const nextLock = payload.projectLock;
+    const nextActiveJobStatus = payload.activeJobStatus ?? node.activeJobStatus;
+    const nextLockState = resolveLockState(nextLock);
+    const nextLockOwnerAgentId = nextLock?.ownerAgentId ?? null;
+    if (
+      node.activeJobStatus === nextActiveJobStatus &&
+      node.lockState === nextLockState &&
+      node.lockedBySelf === false &&
+      (node.lockOwnerAgentId ?? null) === nextLockOwnerAgentId
+    ) {
+      return node;
+    }
     return {
       ...node,
-      children: node.children.map((child) => updateProjectTreeStatusFromStreamNode(child, payload))
+      activeJobStatus: nextActiveJobStatus,
+      lockState: nextLockState,
+      lockedBySelf: false,
+      lockOwnerAgentId: nextLockOwnerAgentId
     };
   }
-  if (node.projectId !== payload.projectId) {
+
+  if (node.kind !== 'folder') {
     return node;
   }
-  const nextLock = payload.projectLock;
+
+  const childIndex = path[depth + 1];
+  if (childIndex === undefined) {
+    return node;
+  }
+  const child = node.children[childIndex];
+  if (!child) {
+    return node;
+  }
+
+  const nextChild = updateProjectTreeStatusFromStreamNode(child, path, depth + 1, payload);
+  if (nextChild === child) {
+    return node;
+  }
+  const nextChildren = [...node.children];
+  nextChildren[childIndex] = nextChild;
   return {
     ...node,
-    activeJobStatus: payload.activeJobStatus ?? node.activeJobStatus,
-    lockState: resolveLockState(nextLock),
-    lockedBySelf: false,
-    lockOwnerAgentId: nextLock?.ownerAgentId ?? null
+    children: nextChildren
   };
 };
 
 const updateProjectTreeStatusFromStream = (
   tree: ProjectTreeSnapshot,
+  projectPathById: ReadonlyMap<string, readonly number[]>,
   payload: ProjectStreamPayload
-): ProjectTreeSnapshot => ({
-  ...tree,
-  roots: tree.roots.map((node) => updateProjectTreeStatusFromStreamNode(node, payload))
-});
+): ProjectTreeSnapshot => {
+  const path = projectPathById.get(payload.projectId);
+  if (!path || path.length === 0) {
+    return tree;
+  }
+  const rootIndex = path[0];
+  if (rootIndex === undefined) {
+    return tree;
+  }
+  const rootNode = tree.roots[rootIndex];
+  if (!rootNode) {
+    return tree;
+  }
+  const nextRoot = updateProjectTreeStatusFromStreamNode(rootNode, path, 0, payload);
+  if (nextRoot === rootNode) {
+    return tree;
+  }
+  const nextRoots = [...tree.roots];
+  nextRoots[rootIndex] = nextRoot;
+  return {
+    ...tree,
+    roots: nextRoots
+  };
+};
 
-export const buildStreamUrl = (projectId: string, lastEventId: number): string => {
+export const buildStreamUrl = (projectId: string, lastEventId: number, workspaceId?: string): string => {
   const encoded = encodeURIComponent(projectId);
   const basePath = `/projects/${encoded}/stream`;
-  if (lastEventId < 0) {
-    return buildGatewayApiUrl(basePath);
+  const query = new URLSearchParams();
+  if (lastEventId >= 0) {
+    query.set('lastEventId', String(lastEventId));
   }
-  return buildGatewayApiUrl(`${basePath}?lastEventId=${lastEventId}`);
+  if (workspaceId && workspaceId.trim().length > 0) {
+    query.set('workspaceId', workspaceId.trim());
+  }
+  const queryString = query.toString();
+  return buildGatewayApiUrl(queryString ? `${basePath}?${queryString}` : basePath);
 };
 
 export const isProjectStreamPayload = (value: unknown): value is ProjectStreamPayload => {

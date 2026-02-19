@@ -22,9 +22,47 @@ import {
   parseLockState,
   serializeState
 } from './persistenceState';
-import { ensureProject, getProject as readProject, listProjects as readProjects, seedProjects } from './projectRepository';
+import {
+  createFolder as createProjectFolder,
+  createProject as createProjectSnapshot,
+  deleteFolder as deleteProjectFolder,
+  deleteProject as deleteProjectSnapshot,
+  ensureProject,
+  getProject as readProject,
+  getProjectTree as readProjectTree,
+  listProjects as readProjects,
+  moveFolder as moveProjectFolder,
+  moveProject as moveProjectSnapshot,
+  renameFolder as renameProjectFolder,
+  renameProject as renameProjectSnapshot,
+  seedProjects
+} from './projectRepository';
+import {
+  acquireProjectLock as acquireNativeProjectLock,
+  getProjectLock as readProjectLock,
+  releaseExpiredProjectLocks,
+  releaseProjectLock as releaseNativeProjectLock,
+  releaseProjectLocksByOwner as releaseNativeProjectLocksByOwner,
+  renewProjectLock as renewNativeProjectLock
+} from './projectLockRepository';
 import { createNativePipelineState, resetNativePipelineState, type NativePipelineState } from './state';
-import type { NativeJob, NativeJobResult, NativeJobSubmitInput, NativeProjectEvent, NativeProjectSnapshot } from './types';
+import type {
+  NativeAcquireProjectLockInput,
+  NativeCreateFolderInput,
+  NativeCreateProjectInput,
+  NativeJob,
+  NativeJobResult,
+  NativeJobSubmitInput,
+  NativeMoveFolderInput,
+  NativeMoveProjectInput,
+  NativeProjectLock,
+  NativeProjectEvent,
+  NativeProjectFolder,
+  NativeReleaseProjectLockInput,
+  NativeRenewProjectLockInput,
+  NativeProjectSnapshot,
+  NativeProjectTreeSnapshot
+} from './types';
 
 const DEFAULT_STATE_SCOPE: ProjectRepositoryScope = {
   tenantId: 'native-pipeline',
@@ -62,6 +100,8 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
   private readonly lockAcquireTimeoutMs: number;
   private readonly lockRetryMs: number;
   private initializationPromise: Promise<void> | null = null;
+  private cachedState: NativePipelineState | null = null;
+  private cachedStateRevision: string | null = null;
 
   constructor(
     private readonly repository: ProjectRepository,
@@ -86,9 +126,82 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
     return readProjects(state, query);
   }
 
+  async getProjectTree(query?: string): Promise<NativeProjectTreeSnapshot> {
+    const state = await this.readState();
+    return readProjectTree(state, query);
+  }
+
   async getProject(projectId: string): Promise<NativeProjectSnapshot | null> {
     const state = await this.readState();
     return readProject(state, projectId);
+  }
+
+  async createFolder(input: NativeCreateFolderInput): Promise<NativeProjectFolder> {
+    return this.withMutation((state) => createProjectFolder(state, input));
+  }
+
+  async renameFolder(folderId: string, nextName: string): Promise<NativeProjectFolder | null> {
+    return this.withMutation((state) => renameProjectFolder(state, folderId, nextName));
+  }
+
+  async moveFolder(input: NativeMoveFolderInput): Promise<NativeProjectFolder | null> {
+    return this.withMutation((state) => moveProjectFolder(state, input));
+  }
+
+  async deleteFolder(folderId: string): Promise<boolean> {
+    return this.withMutation((state) => deleteProjectFolder(state, folderId));
+  }
+
+  async createProject(input: NativeCreateProjectInput): Promise<NativeProjectSnapshot> {
+    return this.withMutation((state) => createProjectSnapshot(state, input, (project) => appendProjectSnapshotEvent(state, project)));
+  }
+
+  async renameProject(projectId: string, nextName: string): Promise<NativeProjectSnapshot | null> {
+    return this.withMutation((state) => renameProjectSnapshot(state, projectId, nextName, (project) => appendProjectSnapshotEvent(state, project)));
+  }
+
+  async moveProject(input: NativeMoveProjectInput): Promise<NativeProjectSnapshot | null> {
+    return this.withMutation((state) => moveProjectSnapshot(state, input, (project) => appendProjectSnapshotEvent(state, project)));
+  }
+
+  async deleteProject(projectId: string): Promise<boolean> {
+    return this.withMutation((state) => deleteProjectSnapshot(state, projectId));
+  }
+
+  async getProjectLock(projectId: string): Promise<NativeProjectLock | null> {
+    return this.withMutation((nextState) => {
+      releaseExpiredProjectLocks(nextState, (project) => appendProjectSnapshotEvent(nextState, project));
+      return readProjectLock(nextState, projectId);
+    });
+  }
+
+  async acquireProjectLock(input: NativeAcquireProjectLockInput): Promise<NativeProjectLock> {
+    return this.withMutation((state) =>
+      acquireNativeProjectLock(state, input, (project) => appendProjectSnapshotEvent(state, project))
+    );
+  }
+
+  async renewProjectLock(input: NativeRenewProjectLockInput): Promise<NativeProjectLock | null> {
+    return this.withMutation((state) =>
+      renewNativeProjectLock(state, input, (project) => appendProjectSnapshotEvent(state, project))
+    );
+  }
+
+  async releaseProjectLock(input: NativeReleaseProjectLockInput): Promise<boolean> {
+    return this.withMutation((state) =>
+      releaseNativeProjectLock(state, input, (project) => appendProjectSnapshotEvent(state, project))
+    );
+  }
+
+  async releaseProjectLocksByOwner(ownerAgentId: string, ownerSessionId?: string | null): Promise<number> {
+    return this.withMutation((state) =>
+      releaseNativeProjectLocksByOwner(
+        state,
+        ownerAgentId,
+        ownerSessionId,
+        (project) => appendProjectSnapshotEvent(state, project)
+      )
+    );
   }
 
   async listProjectJobs(projectId: string): Promise<NativeJob[]> {
@@ -133,13 +246,23 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
     if (!this.initializationPromise) {
       this.initializationPromise = this.withLock(async () => {
         const existingRecord = await this.repository.find(this.stateScope);
+        const cached = this.getCachedState(existingRecord);
+        if (cached) {
+          return;
+        }
         const hydrated = deserializeState(existingRecord?.state);
-        if (hydrated) return;
+        if (hydrated) {
+          if (existingRecord) {
+            this.setCachedState(existingRecord.revision, hydrated);
+          }
+          return;
+        }
         const seeded = createNativePipelineState();
         seedProjects(seeded, (project) => appendProjectSnapshotEvent(seeded, project));
         await this.persistState(seeded, existingRecord ?? null);
       }).catch((error) => {
         this.initializationPromise = null;
+        this.clearCache();
         throw error;
       });
     }
@@ -149,13 +272,31 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
   private async readState(): Promise<NativePipelineState> {
     await this.ensureInitialized();
     const record = await this.repository.find(this.stateScope);
+    const cached = this.getCachedState(record);
+    if (cached) {
+      return cached;
+    }
     const hydrated = deserializeState(record?.state);
-    if (hydrated) return hydrated;
+    if (hydrated) {
+      if (record) {
+        this.setCachedState(record.revision, hydrated);
+      }
+      return hydrated;
+    }
 
     return this.withLock(async () => {
       const latestRecord = await this.repository.find(this.stateScope);
+      const latestCached = this.getCachedState(latestRecord);
+      if (latestCached) {
+        return latestCached;
+      }
       const latestHydrated = deserializeState(latestRecord?.state);
-      if (latestHydrated) return latestHydrated;
+      if (latestHydrated) {
+        if (latestRecord) {
+          this.setCachedState(latestRecord.revision, latestHydrated);
+        }
+        return latestHydrated;
+      }
       const seeded = createNativePipelineState();
       seedProjects(seeded, (project) => appendProjectSnapshotEvent(seeded, project));
       await this.persistState(seeded, latestRecord ?? null);
@@ -167,7 +308,8 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
     await this.ensureInitialized();
     return this.withLock(async () => {
       const existingRecord = await this.repository.find(this.stateScope);
-      const hydrated = deserializeState(existingRecord?.state);
+      const cached = this.getCachedState(existingRecord);
+      const hydrated = cached ?? deserializeState(existingRecord?.state);
       const state = hydrated ?? createNativePipelineState();
       if (!hydrated) {
         seedProjects(state, (project) => appendProjectSnapshotEvent(state, project));
@@ -193,8 +335,10 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
     const expectedRevision = existingRecord?.revision ?? null;
     const applied = await this.saveRecord(nextRecord, expectedRevision);
     if (!applied) {
+      this.clearCache();
       throw new Error('Persistent native pipeline state conflict detected while saving.');
     }
+    this.setCachedState(revision, state);
   }
 
   private async saveRecord(record: PersistedProjectRecord, expectedRevision: string | null): Promise<boolean> {
@@ -277,5 +421,28 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
     } catch {
       return;
     }
+  }
+
+  private getCachedState(record: PersistedProjectRecord | null): NativePipelineState | null {
+    if (!record) {
+      return null;
+    }
+    if (!this.cachedState || !this.cachedStateRevision) {
+      return null;
+    }
+    if (record.revision !== this.cachedStateRevision) {
+      return null;
+    }
+    return this.cachedState;
+  }
+
+  private setCachedState(revision: string, state: NativePipelineState): void {
+    this.cachedStateRevision = revision;
+    this.cachedState = state;
+  }
+
+  private clearCache(): void {
+    this.cachedState = null;
+    this.cachedStateRevision = null;
   }
 }

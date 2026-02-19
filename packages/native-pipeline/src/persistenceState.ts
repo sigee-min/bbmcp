@@ -1,29 +1,50 @@
-import { cloneEvent, cloneJob, cloneProject } from './clone';
-import { createNativePipelineState, type NativePipelineState } from './state';
+import { cloneEvent, cloneFolder, cloneJob, cloneProject, cloneTreeChildRef } from './clone';
 import {
-  isSupportedNativeJobKind,
-  normalizeNativeJobPayload,
-  normalizeNativeJobResult,
-  type NativeJob,
-  type NativeJobStatus,
-  type NativeProjectEvent,
-  type NativeProjectSnapshot
+  asFolder,
+  asLockState,
+  asNativeJob,
+  asProjectLock,
+  asProjectEvent,
+  asProjectSnapshot,
+  asTreeChildRef,
+  normalizeCounter
+} from './persistenceParsers';
+import { cloneHierarchy, deriveHierarchyStats, synchronizeProjectSnapshot } from './projectSnapshotSync';
+import { getDefaultSeedState } from './seeds';
+import { createNativePipelineState, type NativePipelineState } from './state';
+import type {
+  NativeJob,
+  NativeProjectEvent,
+  NativeProjectFolder,
+  NativeProjectSnapshot,
+  NativeTreeChildRef
 } from './types';
 
-const PERSISTED_STATE_VERSION = 1;
+const PERSISTED_STATE_VERSION = 2;
 
 type PersistedProjectEventsEntry = {
   projectId: string;
   events: NativeProjectEvent[];
 };
 
+type PersistedFolderEntry = NativeProjectFolder;
+
+type PersistedProjectLockEntry = {
+  projectId: string;
+  lock: NativeProjectSnapshot['projectLock'];
+};
+
 export type PersistedPipelineState = {
   version: number;
   nextJobId: number;
+  nextEntityNonce: number;
   nextSeq: number;
   projects: NativeProjectSnapshot[];
+  folders: PersistedFolderEntry[];
+  rootChildren: NativeTreeChildRef[];
   jobs: NativeJob[];
   queuedJobIds: string[];
+  projectLocks: PersistedProjectLockEntry[];
   projectEvents: PersistedProjectEventsEntry[];
 };
 
@@ -32,245 +53,34 @@ export type LockState = {
   expiresAt: string;
 };
 
+export { normalizeCounter } from './persistenceParsers';
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-
-export const normalizeCounter = (value: unknown, fallback: number): number => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
-  const next = Math.trunc(value);
-  return next < 1 ? fallback : next;
-};
-
-const isNativeJobStatus = (value: unknown): value is NativeJobStatus =>
-  value === 'queued' || value === 'running' || value === 'completed' || value === 'failed';
-
-const asFocusAnchor = (value: unknown): readonly [number, number, number] | undefined => {
-  if (!Array.isArray(value) || value.length !== 3) return undefined;
-  const [x, y, z] = value;
-  if (
-    typeof x !== 'number' ||
-    !Number.isFinite(x) ||
-    typeof y !== 'number' ||
-    !Number.isFinite(y) ||
-    typeof z !== 'number' ||
-    !Number.isFinite(z)
-  ) {
-    return undefined;
-  }
-  return [x, y, z];
-};
-
-const asHierarchyChild = (
-  value: unknown
-): {
-  id: string;
-  name: string;
-  kind: 'bone' | 'cube';
-  children: never[];
-} | null => {
-  if (!isRecord(value)) return null;
-  if (typeof value.id !== 'string' || typeof value.name !== 'string') return null;
-  if (value.kind !== 'bone' && value.kind !== 'cube') return null;
-  return {
-    id: value.id,
-    name: value.name,
-    kind: value.kind,
-    children: []
-  };
-};
-
-const asHierarchyNode = (
-  value: unknown
-): {
-  id: string;
-  name: string;
-  kind: 'bone' | 'cube';
-  children: Array<{
-    id: string;
-    name: string;
-    kind: 'bone' | 'cube';
-    children: never[];
-  }>;
-} | null => {
-  if (!isRecord(value)) return null;
-  if (typeof value.id !== 'string' || typeof value.name !== 'string') return null;
-  if (value.kind !== 'bone' && value.kind !== 'cube') return null;
-  const children = Array.isArray(value.children)
-    ? value.children
-        .map((entry) => asHierarchyChild(entry))
-        .filter(
-          (
-            entry
-          ): entry is {
-            id: string;
-            name: string;
-            kind: 'bone' | 'cube';
-            children: never[];
-          } => Boolean(entry)
-        )
-    : [];
-  return {
-    id: value.id,
-    name: value.name,
-    kind: value.kind,
-    children
-  };
-};
-
-const asAnimationEntry = (
-  value: unknown
-): {
-  id: string;
-  name: string;
-  length: number;
-  loop: boolean;
-} | null => {
-  if (!isRecord(value)) return null;
-  if (typeof value.id !== 'string' || typeof value.name !== 'string') return null;
-  if (typeof value.length !== 'number' || !Number.isFinite(value.length)) return null;
-  if (typeof value.loop !== 'boolean') return null;
-  return {
-    id: value.id,
-    name: value.name,
-    length: value.length,
-    loop: value.loop
-  };
-};
-
-const asProjectSnapshot = (value: unknown): NativeProjectSnapshot | null => {
-  if (!isRecord(value)) return null;
-  if (typeof value.projectId !== 'string' || typeof value.name !== 'string') return null;
-  if (typeof value.revision !== 'number' || !Number.isFinite(value.revision)) return null;
-  if (typeof value.hasGeometry !== 'boolean') return null;
-  if (!isRecord(value.stats)) return null;
-  if (typeof value.stats.bones !== 'number' || !Number.isFinite(value.stats.bones)) return null;
-  if (typeof value.stats.cubes !== 'number' || !Number.isFinite(value.stats.cubes)) return null;
-  const hierarchy = Array.isArray(value.hierarchy)
-    ? value.hierarchy
-        .map((entry) => asHierarchyNode(entry))
-        .filter(
-          (
-            entry
-          ): entry is {
-            id: string;
-            name: string;
-            kind: 'bone' | 'cube';
-            children: Array<{
-              id: string;
-              name: string;
-              kind: 'bone' | 'cube';
-              children: never[];
-            }>;
-          } => Boolean(entry)
-        )
-    : [];
-  const animations = Array.isArray(value.animations)
-    ? value.animations
-        .map((entry) => asAnimationEntry(entry))
-        .filter(
-          (
-            entry
-          ): entry is {
-            id: string;
-            name: string;
-            length: number;
-            loop: boolean;
-          } => Boolean(entry)
-        )
-    : [];
-  const activeJob = isRecord(value.activeJob) && typeof value.activeJob.id === 'string' && isNativeJobStatus(value.activeJob.status)
-    ? { id: value.activeJob.id, status: value.activeJob.status }
-    : undefined;
-
-  return {
-    projectId: value.projectId,
-    name: value.name,
-    revision: Math.trunc(value.revision),
-    hasGeometry: value.hasGeometry,
-    ...(asFocusAnchor(value.focusAnchor) ? { focusAnchor: asFocusAnchor(value.focusAnchor) } : {}),
-    hierarchy,
-    animations,
-    stats: {
-      bones: Math.trunc(value.stats.bones),
-      cubes: Math.trunc(value.stats.cubes)
-    },
-    ...(activeJob ? { activeJob } : {})
-  };
-};
-
-const asNativeJob = (value: unknown): NativeJob | null => {
-  if (!isRecord(value)) return null;
-  if (typeof value.id !== 'string' || typeof value.projectId !== 'string' || typeof value.kind !== 'string') return null;
-  if (!isSupportedNativeJobKind(value.kind)) return null;
-  if (!isNativeJobStatus(value.status)) return null;
-  if (typeof value.attemptCount !== 'number' || !Number.isFinite(value.attemptCount)) return null;
-  if (typeof value.maxAttempts !== 'number' || !Number.isFinite(value.maxAttempts)) return null;
-  if (typeof value.leaseMs !== 'number' || !Number.isFinite(value.leaseMs)) return null;
-  if (typeof value.createdAt !== 'string') return null;
-
-  const kind = value.kind;
-  const baseJob = {
-    id: value.id,
-    projectId: value.projectId,
-    status: value.status,
-    attemptCount: Math.trunc(value.attemptCount),
-    maxAttempts: Math.trunc(value.maxAttempts),
-    leaseMs: Math.trunc(value.leaseMs),
-    createdAt: value.createdAt,
-    ...(typeof value.startedAt === 'string' ? { startedAt: value.startedAt } : {}),
-    ...(typeof value.leaseExpiresAt === 'string' ? { leaseExpiresAt: value.leaseExpiresAt } : {}),
-    ...(typeof value.nextRetryAt === 'string' ? { nextRetryAt: value.nextRetryAt } : {}),
-    ...(typeof value.completedAt === 'string' ? { completedAt: value.completedAt } : {}),
-    ...(typeof value.workerId === 'string' ? { workerId: value.workerId } : {}),
-    ...(typeof value.error === 'string' ? { error: value.error } : {}),
-    ...(value.deadLetter === true ? { deadLetter: true } : {})
-  };
-
-  try {
-    if (kind === 'gltf.convert') {
-      const payload = normalizeNativeJobPayload('gltf.convert', value.payload);
-      const result = normalizeNativeJobResult('gltf.convert', value.result);
-      return {
-        ...baseJob,
-        kind: 'gltf.convert',
-        ...(payload ? { payload } : {}),
-        ...(result ? { result } : {})
-      };
-    }
-
-    const payload = normalizeNativeJobPayload('texture.preflight', value.payload);
-    const result = normalizeNativeJobResult('texture.preflight', value.result);
-    return {
-      ...baseJob,
-      kind: 'texture.preflight',
-      ...(payload ? { payload } : {}),
-      ...(result ? { result } : {})
-    };
-  } catch {
-    return null;
-  }
-};
-
-const asProjectEvent = (value: unknown): NativeProjectEvent | null => {
-  if (!isRecord(value)) return null;
-  if (typeof value.seq !== 'number' || !Number.isFinite(value.seq)) return null;
-  if (value.event !== 'project_snapshot') return null;
-  const data = asProjectSnapshot(value.data);
-  if (!data) return null;
-  return {
-    seq: Math.trunc(value.seq),
-    event: 'project_snapshot',
-    data
-  };
-};
-
 export const serializeState = (state: NativePipelineState): PersistedPipelineState => ({
   version: PERSISTED_STATE_VERSION,
   nextJobId: state.nextJobId,
+  nextEntityNonce: state.nextEntityNonce,
   nextSeq: state.nextSeq,
   projects: Array.from(state.projects.values()).map((project) => cloneProject(project)),
+  folders: Array.from(state.folders.values()).map((folder) => cloneFolder(folder)),
+  rootChildren: state.rootChildren.map((entry) => cloneTreeChildRef(entry)),
   jobs: Array.from(state.jobs.values()).map((job) => cloneJob(job)),
   queuedJobIds: [...state.queuedJobIds],
+  projectLocks: Array.from(state.projectLocks.entries()).map(([projectId, lock]) => ({
+    projectId,
+    lock: lock
+      ? {
+          ownerAgentId: lock.ownerAgentId,
+          ownerSessionId: lock.ownerSessionId,
+          token: lock.token,
+          acquiredAt: lock.acquiredAt,
+          heartbeatAt: lock.heartbeatAt,
+          expiresAt: lock.expiresAt,
+          mode: lock.mode
+        }
+      : undefined
+  })),
   projectEvents: Array.from(state.projectEvents.entries()).map(([projectId, events]) => ({
     projectId,
     events: events.map((event) => cloneEvent(event))
@@ -284,19 +94,151 @@ const parseJobCounter = (jobId: string): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const repairLegacySeedHierarchy = (state: NativePipelineState): void => {
+  const seedState = getDefaultSeedState();
+  const seedByProjectId = new Map(seedState.projects.map((project) => [project.projectId, project]));
+
+  for (const project of state.projects.values()) {
+    const seed = seedByProjectId.get(project.projectId);
+    if (!seed) {
+      continue;
+    }
+    if (project.name !== seed.name || project.parentFolderId !== seed.parentFolderId) {
+      continue;
+    }
+
+    const current = deriveHierarchyStats(project.hierarchy);
+    const expected = deriveHierarchyStats(seed.hierarchy);
+    const looksLegacySparse = current.cubes === 0 && current.bones <= 2;
+    const hasSeedGeometry = expected.bones > 0 || expected.cubes > 0;
+    if (!looksLegacySparse || !hasSeedGeometry) {
+      continue;
+    }
+
+    project.hierarchy = cloneHierarchy(seed.hierarchy);
+    synchronizeProjectSnapshot(project);
+  }
+};
+
+const rebuildProjectEventsFromSnapshots = (state: NativePipelineState): void => {
+  state.projectEvents.clear();
+  const projects = Array.from(state.projects.values()).sort((left, right) => left.projectId.localeCompare(right.projectId));
+  for (const project of projects) {
+    const seq = state.nextSeq;
+    state.nextSeq += 1;
+    state.projectEvents.set(project.projectId, [
+      {
+        seq,
+        event: 'project_snapshot',
+        data: cloneProject(project)
+      }
+    ]);
+  }
+};
+
 export const deserializeState = (value: unknown): NativePipelineState | null => {
   if (!isRecord(value)) return null;
   if (value.version !== PERSISTED_STATE_VERSION) return null;
-  if (!Array.isArray(value.projects) || !Array.isArray(value.jobs) || !Array.isArray(value.queuedJobIds) || !Array.isArray(value.projectEvents)) {
+  if (
+    !Array.isArray(value.projects) ||
+    !Array.isArray(value.folders) ||
+    !Array.isArray(value.rootChildren) ||
+    !Array.isArray(value.jobs) ||
+    !Array.isArray(value.queuedJobIds) ||
+    !Array.isArray(value.projectEvents)
+  ) {
     return null;
   }
 
   const state = createNativePipelineState();
+  for (const rawFolder of value.folders) {
+    const folder = asFolder(rawFolder);
+    if (!folder) continue;
+    state.folders.set(folder.folderId, folder);
+  }
+
+  for (const rawRootChild of value.rootChildren) {
+    const rootChild = asTreeChildRef(rawRootChild);
+    if (!rootChild) continue;
+    if (rootChild.kind === 'folder' && !state.folders.has(rootChild.id)) continue;
+    state.rootChildren.push(rootChild);
+  }
+
   for (const rawProject of value.projects) {
     const project = asProjectSnapshot(rawProject);
     if (!project) continue;
+    if (project.parentFolderId && !state.folders.has(project.parentFolderId)) {
+      project.parentFolderId = null;
+    }
     state.projects.set(project.projectId, project);
   }
+
+  for (const folder of state.folders.values()) {
+    folder.children = folder.children.filter((entry) => {
+      if (entry.kind === 'folder') {
+        return state.folders.has(entry.id);
+      }
+      return state.projects.has(entry.id);
+    });
+  }
+
+  state.rootChildren.splice(
+    0,
+    state.rootChildren.length,
+    ...state.rootChildren.filter((entry) => {
+      if (entry.kind === 'folder') {
+        return state.folders.has(entry.id);
+      }
+      return state.projects.has(entry.id);
+    })
+  );
+
+  const referencedFolderIds = new Set<string>();
+  const referencedProjectIds = new Set<string>();
+  for (const rootChild of state.rootChildren) {
+    if (rootChild.kind === 'folder') {
+      referencedFolderIds.add(rootChild.id);
+    } else {
+      referencedProjectIds.add(rootChild.id);
+    }
+  }
+  for (const folder of state.folders.values()) {
+    for (const child of folder.children) {
+      if (child.kind === 'folder') {
+        referencedFolderIds.add(child.id);
+      } else {
+        referencedProjectIds.add(child.id);
+      }
+    }
+  }
+
+  for (const folder of state.folders.values()) {
+    if (referencedFolderIds.has(folder.folderId)) {
+      continue;
+    }
+    if (folder.parentFolderId && state.folders.has(folder.parentFolderId)) {
+      const parent = state.folders.get(folder.parentFolderId);
+      parent?.children.push({ kind: 'folder', id: folder.folderId });
+      continue;
+    }
+    folder.parentFolderId = null;
+    state.rootChildren.push({ kind: 'folder', id: folder.folderId });
+  }
+
+  for (const project of state.projects.values()) {
+    if (referencedProjectIds.has(project.projectId)) {
+      continue;
+    }
+    if (project.parentFolderId && state.folders.has(project.parentFolderId)) {
+      const parent = state.folders.get(project.parentFolderId);
+      parent?.children.push({ kind: 'project', id: project.projectId });
+      continue;
+    }
+    project.parentFolderId = null;
+    state.rootChildren.push({ kind: 'project', id: project.projectId });
+  }
+
+  repairLegacySeedHierarchy(state);
 
   let maxJobCounter = 0;
   for (const rawJob of value.jobs) {
@@ -313,6 +255,35 @@ export const deserializeState = (value: unknown): NativePipelineState | null => 
     state.queuedJobIds.push(rawJobId);
   }
 
+  const rawProjectLocks = Array.isArray(value.projectLocks) ? value.projectLocks : [];
+  for (const rawLockEntry of rawProjectLocks) {
+    if (!isRecord(rawLockEntry) || typeof rawLockEntry.projectId !== 'string') {
+      continue;
+    }
+    const lock = asProjectLock(rawLockEntry.lock);
+    if (!lock) {
+      continue;
+    }
+    state.projectLocks.set(rawLockEntry.projectId, lock);
+  }
+
+  for (const project of state.projects.values()) {
+    const lock = state.projectLocks.get(project.projectId);
+    if (lock) {
+      project.projectLock = {
+        ownerAgentId: lock.ownerAgentId,
+        ownerSessionId: lock.ownerSessionId,
+        token: lock.token,
+        acquiredAt: lock.acquiredAt,
+        heartbeatAt: lock.heartbeatAt,
+        expiresAt: lock.expiresAt,
+        mode: lock.mode
+      };
+      continue;
+    }
+    delete project.projectLock;
+  }
+
   let maxSeq = 0;
   for (const rawBucket of value.projectEvents) {
     if (!isRecord(rawBucket) || typeof rawBucket.projectId !== 'string' || !Array.isArray(rawBucket.events)) continue;
@@ -327,18 +298,14 @@ export const deserializeState = (value: unknown): NativePipelineState | null => 
   }
 
   state.nextJobId = Math.max(normalizeCounter(value.nextJobId, 1), maxJobCounter + 1);
+  state.nextEntityNonce = normalizeCounter(value.nextEntityNonce, 1);
   state.nextSeq = Math.max(normalizeCounter(value.nextSeq, 1), maxSeq + 1);
+  rebuildProjectEventsFromSnapshots(state);
   return state;
 };
 
 export const parseLockState = (value: unknown): LockState | null => {
-  if (!isRecord(value)) return null;
-  if (typeof value.owner !== 'string') return null;
-  if (typeof value.expiresAt !== 'string') return null;
-  return {
-    owner: value.owner,
-    expiresAt: value.expiresAt
-  };
+  return asLockState(value);
 };
 
 export const isLockActive = (lock: LockState): boolean => {

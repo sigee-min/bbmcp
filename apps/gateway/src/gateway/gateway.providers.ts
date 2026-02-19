@@ -70,11 +70,20 @@ export const gatewayInfrastructureProviders: Provider[] = [
   },
   {
     provide: GATEWAY_DISPATCHER,
-    inject: [GATEWAY_BACKEND_REGISTRY, GatewayConfigService],
-    useFactory: (registry: BackendRegistry, config: GatewayConfigService): Dispatcher =>
+    inject: [GATEWAY_BACKEND_REGISTRY, GatewayConfigService, GATEWAY_DASHBOARD_STORE, GATEWAY_METRICS_REGISTRY, GATEWAY_LOGGER],
+    useFactory: (
+      registry: BackendRegistry,
+      config: GatewayConfigService,
+      dashboardStore: PersistentNativePipelineStore,
+      metrics: InMemoryMetricsRegistry,
+      logger: ConsoleLogger
+    ): Dispatcher =>
       new GatewayDispatcher({
         registry,
-        defaultBackend: config.runtime.backend
+        defaultBackend: config.runtime.backend,
+        lockStore: dashboardStore,
+        metrics,
+        logger
       })
   },
   {

@@ -1,5 +1,6 @@
 import {
   Dispatcher,
+  DispatcherExecutionContext,
   ProjectStateDetail,
   ToolName,
   ToolPayloadMap,
@@ -99,9 +100,14 @@ export class ToolDispatcherImpl implements Dispatcher {
 
   async handle<TName extends ToolName>(
     name: TName,
-    payload: ToolPayloadMap[TName]
+    payload: ToolPayloadMap[TName],
+    _context?: DispatcherExecutionContext
   ): Promise<ToolResponse<ToolResultMap[TName]>>;
-  async handle(name: ToolName, payload: HandlerPayload): Promise<ToolResponse<HandlerResult>> {
+  async handle(
+    name: ToolName,
+    payload: HandlerPayload,
+    _context?: DispatcherExecutionContext
+  ): Promise<ToolResponse<HandlerResult>> {
     try {
       const handler = this.resolveHandler(name);
       if (!handler) {
@@ -235,7 +241,6 @@ export class ToolDispatcherImpl implements Dispatcher {
   }
 
 }
-
 
 
 

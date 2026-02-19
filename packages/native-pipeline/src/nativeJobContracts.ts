@@ -96,6 +96,13 @@ interface NativeJobResultBase<TKind extends SupportedNativeJobKind> {
   output?: Record<string, unknown>;
 }
 
+interface NativeHierarchyResultNode {
+  id: string;
+  name: string;
+  kind: 'bone' | 'cube';
+  children: NativeHierarchyResultNode[];
+}
+
 interface GltfConvertJobResult extends NativeJobResultBase<'gltf.convert'> {
   status?: 'converted' | 'noop' | 'failed';
   hasGeometry?: boolean;
@@ -103,6 +110,7 @@ interface GltfConvertJobResult extends NativeJobResultBase<'gltf.convert'> {
     bones?: number;
     cubes?: number;
   };
+  hierarchy?: NativeHierarchyResultNode[];
 }
 
 interface TexturePreflightJobResult extends NativeJobResultBase<'texture.preflight'> {
@@ -240,6 +248,36 @@ const normalizeGltfConvertResult = (result: Record<string, unknown>): GltfConver
       delta.cubes = result.geometryDelta.cubes;
     }
     normalized.geometryDelta = delta;
+  }
+
+  if (result.hierarchy !== undefined) {
+    if (!Array.isArray(result.hierarchy)) {
+      throw new NativeJobContractError('result.hierarchy must be an array');
+    }
+    const parseHierarchyNode = (value: unknown): NativeHierarchyResultNode => {
+      if (!isRecord(value)) {
+        throw new NativeJobContractError('result.hierarchy node must be an object');
+      }
+      if (typeof value.id !== 'string' || value.id.trim().length === 0) {
+        throw new NativeJobContractError('result.hierarchy node.id must be a non-empty string');
+      }
+      if (typeof value.name !== 'string' || value.name.trim().length === 0) {
+        throw new NativeJobContractError('result.hierarchy node.name must be a non-empty string');
+      }
+      if (value.kind !== 'bone' && value.kind !== 'cube') {
+        throw new NativeJobContractError("result.hierarchy node.kind must be 'bone' or 'cube'");
+      }
+      if (!Array.isArray(value.children)) {
+        throw new NativeJobContractError('result.hierarchy node.children must be an array');
+      }
+      return {
+        id: value.id,
+        name: value.name,
+        kind: value.kind,
+        children: value.children.map((child) => parseHierarchyNode(child))
+      };
+    };
+    normalized.hierarchy = result.hierarchy.map((entry) => parseHierarchyNode(entry));
   }
 
   const diagnostics = normalizeDiagnostics(result.diagnostics);

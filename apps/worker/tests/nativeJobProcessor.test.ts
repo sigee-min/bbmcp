@@ -104,6 +104,35 @@ module.exports = async () => {
           }
         } as ToolResponse<ToolResultMap[typeof name]>;
       }
+      if (name === 'get_project_state') {
+        return {
+          ok: true,
+          data: {
+            project: {
+              id: 'project-a',
+              active: true,
+              name: 'project-a',
+              revision: 'rev-1',
+              counts: {
+                bones: 1,
+                cubes: 1,
+                textures: 0,
+                animations: 0
+              },
+              bones: [{ id: 'bone-root', name: 'root', pivot: [0, 0, 0] }],
+              cubes: [
+                {
+                  id: 'cube-body',
+                  name: 'body',
+                  bone: 'root',
+                  from: [0, 0, 0],
+                  to: [1, 1, 1]
+                }
+              ]
+            }
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
       return {
         ok: false,
         error: {
@@ -123,6 +152,10 @@ module.exports = async () => {
         assert.equal(result?.status, 'converted');
         assert.equal(result?.attemptCount, 1);
         assert.equal(result?.processedBy, 'worker-1');
+        assert.equal(result?.hasGeometry, true);
+        assert.equal(Array.isArray(result?.hierarchy), true);
+        assert.equal(result?.hierarchy?.[0]?.name, 'root');
+        assert.equal(result?.hierarchy?.[0]?.children.length, 1);
         assert.equal(result?.output?.selectedTarget, 'gltf');
         assert.equal(result?.output?.requestedCodecId, 'gltf');
         assert.equal(result?.output?.selectedFormat, 'gltf');
@@ -142,7 +175,7 @@ module.exports = async () => {
     });
 
     assert.equal(completeCalled, true);
-    assert.deepEqual(backendCalls, ['ensure_project', 'export']);
+    assert.deepEqual(backendCalls, ['ensure_project', 'export', 'get_project_state']);
   }
 
   {
@@ -183,6 +216,42 @@ module.exports = async () => {
           }
         } as ToolResponse<ToolResultMap[typeof name]>;
       }
+      if (name === 'get_project_state') {
+        return {
+          ok: true,
+          data: {
+            project: {
+              id: 'project-native',
+              active: true,
+              name: 'project-native',
+              revision: 'rev-native-1',
+              counts: {
+                bones: 1,
+                cubes: 2,
+                textures: 0,
+                animations: 0
+              },
+              bones: [{ id: 'bone-root', name: 'root', pivot: [0, 0, 0] }],
+              cubes: [
+                {
+                  id: 'cube-a',
+                  name: 'cube-a',
+                  bone: 'root',
+                  from: [0, 0, 0],
+                  to: [1, 1, 1]
+                },
+                {
+                  id: 'cube-b',
+                  name: 'cube-b',
+                  bone: 'root',
+                  from: [1, 0, 0],
+                  to: [2, 1, 1]
+                }
+              ]
+            }
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
       return {
         ok: false,
         error: {
@@ -214,6 +283,8 @@ module.exports = async () => {
 
     assert.equal(resultSnapshot?.kind, 'gltf.convert');
     assert.equal(resultSnapshot?.status, 'converted');
+    assert.equal(resultSnapshot?.hasGeometry, true);
+    assert.equal(resultSnapshot?.hierarchy?.[0]?.children.length, 2);
     assert.equal(resultSnapshot?.output?.selectedTarget, 'unknown-codec');
     assert.equal(resultSnapshot?.output?.requestedCodecId, 'unknown-codec');
     assert.equal(resultSnapshot?.output?.selectedFormat, 'native_codec');

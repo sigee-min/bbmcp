@@ -1,4 +1,5 @@
 import { cloneJob } from './clone';
+import { cloneHierarchy, synchronizeProjectSnapshot } from './projectSnapshotSync';
 import { allocateNativeJobId, type NativePipelineState } from './state';
 import {
   normalizeNativeJobPayload,
@@ -40,35 +41,15 @@ const computeRetryBackoffMs = (attemptCount: number): number => {
   return Math.min(MAX_RETRY_BACKOFF_MS, backoff);
 };
 
-const toIntegerOrNull = (value: unknown): number | null => {
-  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value)) return null;
-  return value;
-};
-
-const clampNonNegative = (value: number): number => Math.max(0, Math.trunc(value));
-
 const applyCompletedJobProjection = (project: NativeProjectSnapshot, job: NativeJob): void => {
   if (job.kind !== 'gltf.convert') {
     return;
   }
 
-  const bonesDelta = toIntegerOrNull(job.result?.geometryDelta?.bones);
-  const cubesDelta = toIntegerOrNull(job.result?.geometryDelta?.cubes);
-  if (bonesDelta !== null) {
-    project.stats.bones = clampNonNegative(project.stats.bones + bonesDelta);
+  if (Array.isArray(job.result?.hierarchy)) {
+    project.hierarchy = cloneHierarchy(job.result.hierarchy);
   }
-  if (cubesDelta !== null) {
-    project.stats.cubes = clampNonNegative(project.stats.cubes + cubesDelta);
-  }
-
-  if (typeof job.result?.hasGeometry === 'boolean') {
-    project.hasGeometry = job.result.hasGeometry;
-    return;
-  }
-
-  if ((bonesDelta ?? 0) > 0 || (cubesDelta ?? 0) > 0) {
-    project.hasGeometry = true;
-  }
+  synchronizeProjectSnapshot(project);
 };
 
 const recoverExpiredRunningJobs = (state: NativePipelineState): void => {

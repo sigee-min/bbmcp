@@ -4,6 +4,7 @@ export type MetricsSnapshot = {
   readonly mcpRequestsTotal: ReadonlyMap<string, ReadonlyMap<string, number>>;
   readonly toolCallsTotal: ReadonlyMap<string, ReadonlyMap<string, number>>;
   readonly toolDurationSeconds: ReadonlyMap<string, HistogramSnapshot>;
+  readonly projectLockEventsTotal: ReadonlyMap<string, ReadonlyMap<string, number>>;
   readonly persistenceReady: ReadonlyMap<string, number>;
 };
 
@@ -17,6 +18,7 @@ export type HistogramSnapshot = {
 export interface MetricsRegistry {
   recordMcpRequest(method: string, status: number): void;
   recordToolCall(tool: string, ok: boolean, durationSeconds: number): void;
+  recordProjectLockEvent(event: string, outcome: string): void;
   setPersistenceReady(component: string, ready: boolean): void;
   toPrometheusText(): string;
   snapshot(): MetricsSnapshot;
@@ -90,6 +92,7 @@ export class InMemoryMetricsRegistry implements MetricsRegistry {
   private readonly mcpRequestsTotal = new Map<string, Map<string, number>>();
   private readonly toolCallsTotal = new Map<string, Map<string, number>>();
   private readonly toolDurations = new Map<string, Histogram>();
+  private readonly projectLockEventsTotal = new Map<string, Map<string, number>>();
   private readonly persistenceReady = new Map<string, number>();
 
   recordMcpRequest(method: string, status: number): void {
@@ -112,6 +115,14 @@ export class InMemoryMetricsRegistry implements MetricsRegistry {
     this.toolDurations.set(normalizedTool, histogram);
   }
 
+  recordProjectLockEvent(event: string, outcome: string): void {
+    const normalizedEvent = String(event || 'unknown');
+    const normalizedOutcome = String(outcome || 'unknown');
+    const byOutcome = this.projectLockEventsTotal.get(normalizedEvent) ?? new Map<string, number>();
+    byOutcome.set(normalizedOutcome, (byOutcome.get(normalizedOutcome) ?? 0) + 1);
+    this.projectLockEventsTotal.set(normalizedEvent, byOutcome);
+  }
+
   setPersistenceReady(component: string, ready: boolean): void {
     const label = String(component || 'unknown');
     this.persistenceReady.set(label, ready ? 1 : 0);
@@ -129,6 +140,19 @@ export class InMemoryMetricsRegistry implements MetricsRegistry {
         const value = byStatus.get(status);
         if (!value) continue;
         lines.push(`ashfox_mcp_requests_total${formatLabels({ status, method })} ${value}`);
+      }
+    }
+    lines.push('');
+
+    lines.push('# HELP ashfox_project_lock_events_total Total project lock lifecycle events.');
+    lines.push('# TYPE ashfox_project_lock_events_total counter');
+    for (const event of [...this.projectLockEventsTotal.keys()].sort((a, b) => a.localeCompare(b))) {
+      const byOutcome = this.projectLockEventsTotal.get(event);
+      if (!byOutcome) continue;
+      for (const outcome of [...byOutcome.keys()].sort((a, b) => a.localeCompare(b))) {
+        const value = byOutcome.get(outcome);
+        if (!value) continue;
+        lines.push(`ashfox_project_lock_events_total${formatLabels({ event, outcome })} ${value}`);
       }
     }
     lines.push('');
@@ -196,6 +220,7 @@ export class InMemoryMetricsRegistry implements MetricsRegistry {
       mcpRequestsTotal: cloneNested(this.mcpRequestsTotal),
       toolCallsTotal: cloneNested(this.toolCallsTotal),
       toolDurationSeconds: cloneHistogram(this.toolDurations),
+      projectLockEventsTotal: cloneNested(this.projectLockEventsTotal),
       persistenceReady: new Map(this.persistenceReady)
     };
   }

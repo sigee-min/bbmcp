@@ -3,7 +3,7 @@
   "version": "0.0.2",
   "private": true,
   "scripts": {
-    "dev": "tsx watch --clear-screen=false --tsconfig tsconfig.json src/index.ts",
+    "dev": "TS_NODE_PROJECT=tsconfig.json TS_NODE_COMPILER_OPTIONS='{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\"}' node --watch -r ts-node/register -r tsconfig-paths/register src/index.ts",
     "start": "ts-node -r tsconfig-paths/register --project tsconfig.json --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\"}' src/index.ts",
     "test": "node run.js"
   },

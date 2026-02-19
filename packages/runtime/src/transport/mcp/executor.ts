@@ -1,9 +1,9 @@
-import { Dispatcher, ToolName, ToolPayloadMap, ToolResponse } from '@ashfox/contracts/types/internal';
+import { Dispatcher, DispatcherExecutionContext, ToolName, ToolPayloadMap, ToolResponse } from '@ashfox/contracts/types/internal';
 import { normalizeToolResponse } from '../../shared/tooling/toolResponseGuard';
 import { decorateToolResponse } from './responseDecorators';
 
 export interface ToolExecutor {
-  callTool: (name: string, args: unknown) => Promise<ToolResponse<unknown>>;
+  callTool: (name: string, args: unknown, context?: DispatcherExecutionContext) => Promise<ToolResponse<unknown>>;
 }
 
 export class LocalToolExecutor implements ToolExecutor {
@@ -13,9 +13,9 @@ export class LocalToolExecutor implements ToolExecutor {
     this.dispatcher = dispatcher;
   }
 
-  async callTool(name: string, args: unknown): Promise<ToolResponse<unknown>> {
+  async callTool(name: string, args: unknown, context?: DispatcherExecutionContext): Promise<ToolResponse<unknown>> {
     const toolName = name as ToolName;
-    const response = await this.dispatcher.handle(toolName, args as ToolPayloadMap[ToolName]);
+    const response = await this.dispatcher.handle(toolName, args as ToolPayloadMap[ToolName], context);
     const decorated = decorateToolResponse(name, args, response);
     return normalizeToolResponse(decorated, {
       source: 'mcp_executor',
@@ -23,7 +23,6 @@ export class LocalToolExecutor implements ToolExecutor {
     });
   }
 }
-
 
 
 

@@ -237,7 +237,7 @@ Core scripts:
 | `npm run build` | Build plugin + headless bundles into `dist/` |
 | `npm run build:plugin-desktop` | Build only the Blockbench plugin bundle |
 | `npm run build:ashfox` | Build only the headless MCP bundle |
-| `npm run dev` | Start `web + gateway + worker` with a shared local sqlite file (`.ashfox/local/shared-dev.sqlite`) |
+| `npm run dev` | Start `web + gateway + worker` with a local sqlite file (`.ashfox/local/ashfox.sqlite`) |
 | `npm run dev:gateway` | Start gateway (local) |
 | `npm run dev:worker` | Start worker (local) |
 | `npm run typecheck` | Run strict TypeScript checks |

@@ -1,6 +1,21 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { PersistencePorts } from '@ashfox/backend-core';
-import type { NativeJob, NativeJobSubmitInput, NativeProjectEvent, NativeProjectSnapshot } from '@ashfox/native-pipeline/types';
+import type {
+  NativeAcquireProjectLockInput,
+  NativeCreateFolderInput,
+  NativeCreateProjectInput,
+  NativeJob,
+  NativeJobSubmitInput,
+  NativeMoveFolderInput,
+  NativeMoveProjectInput,
+  NativeProjectLock,
+  NativeProjectEvent,
+  NativeProjectFolder,
+  NativeProjectSnapshot,
+  NativeReleaseProjectLockInput,
+  NativeRenewProjectLockInput,
+  NativeProjectTreeSnapshot
+} from '@ashfox/native-pipeline/types';
 import { ConsoleLogger, errorMessage, type Logger } from '@ashfox/runtime/logging';
 import { InMemoryMetricsRegistry } from '@ashfox/runtime/observability';
 import { McpRouter } from '@ashfox/runtime/transport/mcp/router';
@@ -17,7 +32,21 @@ import type { GatewayRuntimeConfig } from './types';
 
 export interface DashboardStorePort {
   listProjects(query?: string): Promise<NativeProjectSnapshot[]>;
+  getProjectTree(query?: string): Promise<NativeProjectTreeSnapshot>;
   getProject(projectId: string): Promise<NativeProjectSnapshot | null>;
+  createFolder(input: NativeCreateFolderInput): Promise<NativeProjectFolder>;
+  renameFolder(folderId: string, nextName: string): Promise<NativeProjectFolder | null>;
+  moveFolder(input: NativeMoveFolderInput): Promise<NativeProjectFolder | null>;
+  deleteFolder(folderId: string): Promise<boolean>;
+  createProject(input: NativeCreateProjectInput): Promise<NativeProjectSnapshot>;
+  renameProject(projectId: string, nextName: string): Promise<NativeProjectSnapshot | null>;
+  moveProject(input: NativeMoveProjectInput): Promise<NativeProjectSnapshot | null>;
+  deleteProject(projectId: string): Promise<boolean>;
+  getProjectLock(projectId: string): Promise<NativeProjectLock | null>;
+  acquireProjectLock(input: NativeAcquireProjectLockInput): Promise<NativeProjectLock>;
+  renewProjectLock(input: NativeRenewProjectLockInput): Promise<NativeProjectLock | null>;
+  releaseProjectLock(input: NativeReleaseProjectLockInput): Promise<boolean>;
+  releaseProjectLocksByOwner(ownerAgentId: string, ownerSessionId?: string | null): Promise<number>;
   listProjectJobs(projectId: string): Promise<NativeJob[]>;
   submitJob(input: NativeJobSubmitInput): Promise<NativeJob>;
   getProjectEventsSince(projectId: string, lastSeq: number): Promise<NativeProjectEvent[]>;

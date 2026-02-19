@@ -5,14 +5,17 @@ import { useEffect, type Dispatch, type SetStateAction } from 'react';
 import {
   applyDashboardError,
   createLoadedState,
+  replaceProjectTree,
   type DashboardState,
-  type ProjectSnapshot
+  type ProjectSnapshot,
+  type ProjectTreeSnapshot
 } from '../../lib/dashboardModel';
 import { buildGatewayApiUrl } from '../../lib/gatewayApi';
 
 interface ProjectsResponse {
   ok: boolean;
   projects: readonly ProjectSnapshot[];
+  tree: ProjectTreeSnapshot;
 }
 
 interface UseProjectListOptions {
@@ -37,7 +40,7 @@ export const useProjectList = ({ setState, reloadVersion = 0 }: UseProjectListOp
 
     const loadProjects = async () => {
       try {
-        const response = await fetch(buildGatewayApiUrl('/projects'), { cache: 'no-store' });
+        const response = await fetch(buildGatewayApiUrl('/projects/tree'), { cache: 'no-store' });
         if (!response.ok) {
           throw new Error(`project list failed: ${response.status}`);
         }
@@ -48,7 +51,12 @@ export const useProjectList = ({ setState, reloadVersion = 0 }: UseProjectListOp
         if (cancelled) {
           return;
         }
-        setState(createLoadedState(payload.projects));
+        setState((prev) => {
+          if (prev.projects.length === 0) {
+            return createLoadedState(payload.projects, payload.tree, prev.selectedProjectId);
+          }
+          return replaceProjectTree(prev, payload.projects, payload.tree);
+        });
       } catch {
         if (cancelled) {
           return;

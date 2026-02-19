@@ -1,29 +1,48 @@
-import type { NativeJob, NativeProjectEvent, NativeProjectSnapshot } from './types';
+import type {
+  NativeJob,
+  NativeProjectEvent,
+  NativeProjectFolder,
+  NativeProjectLock,
+  NativeProjectSnapshot,
+  NativeTreeChildRef
+} from './types';
 
 export interface NativePipelineState {
   readonly projects: Map<string, NativeProjectSnapshot>;
+  readonly folders: Map<string, NativeProjectFolder>;
+  readonly rootChildren: NativeTreeChildRef[];
   readonly jobs: Map<string, NativeJob>;
   readonly queuedJobIds: string[];
+  readonly projectLocks: Map<string, NativeProjectLock>;
   readonly projectEvents: Map<string, NativeProjectEvent[]>;
   nextJobId: number;
+  nextEntityNonce: number;
   nextSeq: number;
 }
 
 export const createNativePipelineState = (): NativePipelineState => ({
   projects: new Map<string, NativeProjectSnapshot>(),
+  folders: new Map<string, NativeProjectFolder>(),
+  rootChildren: [],
   jobs: new Map<string, NativeJob>(),
   queuedJobIds: [],
+  projectLocks: new Map<string, NativeProjectLock>(),
   projectEvents: new Map<string, NativeProjectEvent[]>(),
   nextJobId: 1,
+  nextEntityNonce: 1,
   nextSeq: 1
 });
 
 export const resetNativePipelineState = (state: NativePipelineState): void => {
   state.projects.clear();
+  state.folders.clear();
+  state.rootChildren.splice(0, state.rootChildren.length);
   state.jobs.clear();
   state.queuedJobIds.splice(0, state.queuedJobIds.length);
+  state.projectLocks.clear();
   state.projectEvents.clear();
   state.nextJobId = 1;
+  state.nextEntityNonce = 1;
   state.nextSeq = 1;
 };
 

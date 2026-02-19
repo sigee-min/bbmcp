@@ -1,120 +1,14 @@
 const assert = require('node:assert/strict');
 
-const React = require('react');
-const { act } = React;
-const { createRoot } = require('react-dom/client');
-const { JSDOM } = require('jsdom');
-
-const HomePage = require('../src/app/page').default;
-const { createProjectsFixture } = require('./fixtures/projects');
-
-class MockEventSource {
-  static instances = [];
-
-  constructor(url) {
-    this.url = String(url);
-    this.onmessage = null;
-    this.onopen = null;
-    this.onerror = null;
-    this.closed = false;
-    this.listeners = new Map();
-    MockEventSource.instances.push(this);
-  }
-
-  static reset() {
-    MockEventSource.instances.length = 0;
-  }
-
-  addEventListener(eventName, listener) {
-    const bucket = this.listeners.get(eventName) ?? new Set();
-    bucket.add(listener);
-    this.listeners.set(eventName, bucket);
-  }
-
-  close() {
-    this.closed = true;
-  }
-}
-
-const flushMicrotasks = async (turns = 6) => {
-  for (let index = 0; index < turns; index += 1) {
-    await Promise.resolve();
-  }
-};
-
-const flushUpdates = async () => {
-  await act(async () => {
-    await flushMicrotasks();
-  });
-};
-
-const mountPage = async ({ fetchImpl, EventSourceImpl }) => {
-  const originalFetch = globalThis.fetch;
-  const originalEventSource = globalThis.EventSource;
-
-  globalThis.fetch = fetchImpl;
-  globalThis.EventSource = EventSourceImpl;
-
-  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
-    url: 'http://localhost/'
-  });
-
-  const previousWindow = globalThis.window;
-  const previousDocument = globalThis.document;
-  const previousNavigator = globalThis.navigator;
-  const previousHTMLElement = globalThis.HTMLElement;
-  const previousMouseEvent = globalThis.MouseEvent;
-  const previousKeyboardEvent = globalThis.KeyboardEvent;
-  const previousEvent = globalThis.Event;
-  const previousActFlag = globalThis.IS_REACT_ACT_ENVIRONMENT;
-
-  globalThis.window = dom.window;
-  globalThis.document = dom.window.document;
-  globalThis.navigator = dom.window.navigator;
-  globalThis.HTMLElement = dom.window.HTMLElement;
-  globalThis.MouseEvent = dom.window.MouseEvent;
-  globalThis.KeyboardEvent = dom.window.KeyboardEvent;
-  globalThis.Event = dom.window.Event;
-  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-
-  const container = dom.window.document.getElementById('root');
-  assert.ok(container);
-  const root = createRoot(container);
-
-  const cleanup = async () => {
-    await act(async () => {
-      root.unmount();
-    });
-    globalThis.fetch = originalFetch;
-    globalThis.EventSource = originalEventSource;
-    globalThis.window = previousWindow;
-    globalThis.document = previousDocument;
-    globalThis.navigator = previousNavigator;
-    globalThis.HTMLElement = previousHTMLElement;
-    globalThis.MouseEvent = previousMouseEvent;
-    globalThis.KeyboardEvent = previousKeyboardEvent;
-    globalThis.Event = previousEvent;
-    globalThis.IS_REACT_ACT_ENVIRONMENT = previousActFlag;
-    dom.window.close();
-  };
-
-  await act(async () => {
-    root.render(React.createElement(HomePage));
-  });
-
-  return {
-    container,
-    dom,
-    cleanup
-  };
-};
+const { createProjectsFixture, createProjectTreeFixture } = require('./fixtures/projects');
+const { MockEventSource, flushUpdates, mountHomePage } = require('./helpers/pageHarness');
 
 module.exports = async () => {
   {
-    const projectsPayload = { ok: true, projects: createProjectsFixture() };
-    const mounted = await mountPage({
+    const projectsPayload = { ok: true, projects: createProjectsFixture(), tree: createProjectTreeFixture() };
+    const mounted = await mountHomePage({
       fetchImpl: async (requestUrl) => {
-        assert.equal(String(requestUrl), '/api/projects');
+        assert.equal(String(requestUrl), '/api/projects/tree');
         return new Response(JSON.stringify(projectsPayload), {
           status: 200,
           headers: { 'content-type': 'application/json; charset=utf-8' }
@@ -141,16 +35,18 @@ module.exports = async () => {
       const frame = viewport.firstElementChild;
       assert.ok(frame);
       const initialTransform = frame.style.transform;
-      assert.ok(initialTransform.includes('rotateY(0deg)'));
+      assert.equal(initialTransform, '');
+      const yawReadout = container.querySelector('.font-mono');
+      assert.ok(yawReadout);
+      const initialYawText = yawReadout.textContent;
+      assert.match(initialYawText, /yaw 0 \/ pitch 0/);
 
-      await act(async () => {
-        viewport.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-      });
+      viewport.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
       await flushUpdates();
 
-      const nextTransform = frame.style.transform;
-      assert.notEqual(nextTransform, initialTransform);
-      assert.match(nextTransform, /rotateY/);
+      const nextYawText = yawReadout.textContent;
+      assert.notEqual(nextYawText, initialYawText);
+      assert.match(nextYawText, /yaw 4 \/ pitch 0/);
     } finally {
       await mounted.cleanup();
       MockEventSource.reset();
@@ -158,7 +54,7 @@ module.exports = async () => {
   }
 
   {
-    const projectsPayload = { ok: true, projects: createProjectsFixture() };
+    const projectsPayload = { ok: true, projects: createProjectsFixture(), tree: createProjectTreeFixture() };
     let fetchCount = 0;
     let streamCreated = false;
     class PassiveEventSource {
@@ -174,11 +70,11 @@ module.exports = async () => {
       close() {}
     }
 
-    const mounted = await mountPage({
+    const mounted = await mountHomePage({
       fetchImpl: async () => {
         fetchCount += 1;
         if (fetchCount === 1) {
-          return new Response(JSON.stringify({ ok: true, projects: [] }), {
+          return new Response(JSON.stringify({ ok: true, projects: [], tree: { maxFolderDepth: 3, roots: [] } }), {
             status: 200,
             headers: { 'content-type': 'application/json; charset=utf-8' }
           });
@@ -187,8 +83,7 @@ module.exports = async () => {
           status: 200,
           headers: { 'content-type': 'application/json; charset=utf-8' }
         });
-      }
-      ,
+      },
       EventSourceImpl: PassiveEventSource
     });
 
@@ -202,9 +97,7 @@ module.exports = async () => {
       assert.ok(reloadButton, 'empty state should expose reload CTA');
       assert.equal(streamCreated, false);
 
-      await act(async () => {
-        reloadButton.dispatchEvent(new mounted.dom.window.MouseEvent('click', { bubbles: true }));
-      });
+      reloadButton.dispatchEvent(new mounted.dom.window.MouseEvent('click', { bubbles: true }));
       await flushUpdates();
 
       const reloadedText = mounted.container.textContent ?? '';
@@ -217,7 +110,7 @@ module.exports = async () => {
   }
 
   {
-    const projectsPayload = { ok: true, projects: createProjectsFixture() };
+    const projectsPayload = { ok: true, projects: createProjectsFixture(), tree: createProjectTreeFixture() };
     let fetchCount = 0;
     let streamCreated = false;
     class PassiveEventSource {
@@ -233,7 +126,7 @@ module.exports = async () => {
       close() {}
     }
 
-    const mounted = await mountPage({
+    const mounted = await mountHomePage({
       fetchImpl: async () => {
         fetchCount += 1;
         if (fetchCount === 1) {
@@ -256,9 +149,7 @@ module.exports = async () => {
       );
       assert.ok(retryButton, 'error state should expose retry CTA');
 
-      await act(async () => {
-        retryButton.dispatchEvent(new mounted.dom.window.MouseEvent('click', { bubbles: true }));
-      });
+      retryButton.dispatchEvent(new mounted.dom.window.MouseEvent('click', { bubbles: true }));
       await flushUpdates();
 
       const retriedText = mounted.container.textContent ?? '';

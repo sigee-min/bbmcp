@@ -3,155 +3,40 @@ import {
   NativeJobContractError,
   normalizeNativeJobPayload,
   normalizeSupportedNativeJobKind,
-  type NativeJob,
-  type NativeProjectSnapshot,
   type SupportedNativeJobKind
 } from '@ashfox/native-pipeline/types';
 import type { ResponsePlan } from '@ashfox/runtime/transport/mcp/types';
 import type { FastifyRequest } from 'fastify';
 import { API_CORS_HEADERS } from './constants';
+import type { CreateFolderDto } from './dto/create-folder.dto';
+import type { CreateProjectDto } from './dto/create-project.dto';
 import type { ListProjectsQueryDto } from './dto/list-projects-query.dto';
+import type { MoveEntityDto } from './dto/move-entity.dto';
+import type { RenameEntityDto } from './dto/rename-entity.dto';
 import type { StreamQueryDto } from './dto/stream-query.dto';
 import type { SubmitJobDto } from './dto/submit-job.dto';
+import {
+  EXPORT_BUCKET,
+  STREAM_HEADERS,
+  buildExportKey,
+  decodePreviewGltf,
+  formatSseMessage,
+  hasPendingGltfJob,
+  invalidPayloadPlan,
+  jsonPlan,
+  latestCompletedGltfJob,
+  normalizeLastEventId,
+  normalizeOptionalFolderId,
+  notFoundPlan,
+  parseLastEventId,
+  parseOptionalPositiveInt,
+  previewJsonPlan,
+  readExportPath
+} from './gatewayDashboardHelpers';
 import { GatewayRuntimeService } from './gateway-runtime.service';
-
-const DEFAULT_TENANT_ID = 'default-tenant';
-const EXPORT_BUCKET = 'exports';
+import { buildSnapshotPayload } from './mappers/dashboardSnapshotMapper';
 const EVENT_POLL_MS = 1200;
 const KEEPALIVE_MS = 15000;
-
-type PreviewStatus = 'ready' | 'processing' | 'empty' | 'error';
-
-type ParsedPositiveInt =
-  | {
-      ok: true;
-      value?: number;
-    }
-  | {
-      ok: false;
-    };
-
-const STREAM_HEADERS = {
-  'content-type': 'text/event-stream; charset=utf-8',
-  'cache-control': 'no-cache, no-transform',
-  connection: 'keep-alive',
-  'x-accel-buffering': 'no'
-} as const;
-
-const jsonPlan = (status: number, payload: unknown, headers: Record<string, string> = {}): ResponsePlan => ({
-  kind: 'json',
-  status,
-  headers: {
-    ...API_CORS_HEADERS,
-    'content-type': 'application/json; charset=utf-8',
-    ...headers
-  },
-  body: JSON.stringify(payload)
-});
-
-const parseOptionalPositiveInt = (value: unknown): ParsedPositiveInt => {
-  if (value === undefined) return { ok: true };
-  if (typeof value !== 'number' || !Number.isFinite(value)) return { ok: false };
-  if (!Number.isInteger(value) || value <= 0) return { ok: false };
-  return { ok: true, value };
-};
-
-const parseLastEventId = (value: unknown): number | null => {
-  if (typeof value === 'string') {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  if (Array.isArray(value) && value.length > 0) {
-    return parseLastEventId(value[0]);
-  }
-  return null;
-};
-
-const normalizeLastEventId = (value: number | null): number => {
-  if (value === null || Number.isNaN(value)) {
-    return -1;
-  }
-  return value < -1 ? -1 : value;
-};
-
-const formatSseMessage = (eventName: string, eventId: number, data: unknown): string =>
-  `id: ${eventId}\nevent: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
-
-const sanitizeBlobPath = (value: string): string =>
-  value
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '')
-    .split('/')
-    .filter((segment) => segment !== '' && segment !== '.' && segment !== '..')
-    .join('/');
-
-const buildExportKey = (projectId: string, exportPath: string): string =>
-  `${DEFAULT_TENANT_ID}/${projectId}/${sanitizeBlobPath(exportPath) || 'export.json'}`;
-
-const readExportPath = (job: NativeJob): string | null => {
-  if (job.kind !== 'gltf.convert' || job.status !== 'completed') {
-    return null;
-  }
-  const output = job.result?.output;
-  if (!output || typeof output !== 'object') {
-    return null;
-  }
-  const exportPath = (output as Record<string, unknown>).exportPath;
-  if (typeof exportPath !== 'string' || exportPath.trim().length === 0) {
-    return null;
-  }
-  return exportPath;
-};
-
-const latestCompletedGltfJob = (jobs: readonly NativeJob[]): NativeJob | null => {
-  for (let index = jobs.length - 1; index >= 0; index -= 1) {
-    const job = jobs[index];
-    if (job.kind !== 'gltf.convert') continue;
-    if (job.status === 'completed' && readExportPath(job)) return job;
-  }
-  return null;
-};
-
-const hasPendingGltfJob = (jobs: readonly NativeJob[]): boolean =>
-  jobs.some((job) => job.kind === 'gltf.convert' && (job.status === 'queued' || job.status === 'running'));
-
-const previewJsonPlan = (status: PreviewStatus, extras: Record<string, unknown> = {}, statusCode = 200): ResponsePlan =>
-  jsonPlan(statusCode, {
-    ok: status !== 'error',
-    status,
-    ...extras
-  });
-
-const buildSnapshotPayload = (project: NativeProjectSnapshot, revision: number) => ({
-  projectId: project.projectId,
-  name: project.name,
-  revision,
-  hasGeometry: project.hasGeometry,
-  ...(project.focusAnchor
-    ? { focusAnchor: [project.focusAnchor[0], project.focusAnchor[1], project.focusAnchor[2]] }
-    : {}),
-  hierarchy: project.hierarchy.map((node) => ({
-    id: node.id,
-    name: node.name,
-    kind: node.kind,
-    children: node.children.map((child) => ({
-      id: child.id,
-      name: child.name,
-      kind: child.kind,
-      children: []
-    }))
-  })),
-  animations: project.animations.map((animation) => ({
-    id: animation.id,
-    name: animation.name,
-    length: animation.length,
-    loop: animation.loop
-  })),
-  stats: {
-    bones: project.stats.bones,
-    cubes: project.stats.cubes
-  }
-});
 
 @Injectable()
 export class GatewayDashboardService {
@@ -166,10 +51,128 @@ export class GatewayDashboardService {
 
   async listProjects(query: ListProjectsQueryDto): Promise<ResponsePlan> {
     const q = query.q && query.q.trim() ? query.q.trim() : undefined;
+    const projects = await this.runtime.dashboardStore.listProjects(q);
     return jsonPlan(200, {
       ok: true,
-      projects: await this.runtime.dashboardStore.listProjects(q)
+      projects: projects.map((project) => buildSnapshotPayload(project, project.revision))
     });
+  }
+
+  async listProjectTree(query: ListProjectsQueryDto): Promise<ResponsePlan> {
+    const q = query.q && query.q.trim() ? query.q.trim() : undefined;
+    const [projects, tree] = await Promise.all([
+      this.runtime.dashboardStore.listProjects(q),
+      this.runtime.dashboardStore.getProjectTree(q)
+    ]);
+    return jsonPlan(200, {
+      ok: true,
+      projects: projects.map((project) => buildSnapshotPayload(project, project.revision)),
+      tree
+    });
+  }
+
+  async createFolder(body: CreateFolderDto): Promise<ResponsePlan> {
+    try {
+      const folder = await this.runtime.dashboardStore.createFolder({
+        name: body.name,
+        parentFolderId: normalizeOptionalFolderId(body.parentFolderId),
+        index: body.index
+      });
+      return jsonPlan(201, { ok: true, folder });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create folder.';
+      return invalidPayloadPlan(message);
+    }
+  }
+
+  async renameFolder(folderId: string, body: RenameEntityDto): Promise<ResponsePlan> {
+    try {
+      const folder = await this.runtime.dashboardStore.renameFolder(folderId, body.name);
+      if (!folder) {
+        return notFoundPlan('Folder', folderId);
+      }
+      return jsonPlan(200, { ok: true, folder });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to rename folder.';
+      return invalidPayloadPlan(message);
+    }
+  }
+
+  async moveFolder(folderId: string, body: MoveEntityDto): Promise<ResponsePlan> {
+    try {
+      const folder = await this.runtime.dashboardStore.moveFolder({
+        folderId,
+        parentFolderId: normalizeOptionalFolderId(body.parentFolderId),
+        index: body.index
+      });
+      if (!folder) {
+        return notFoundPlan('Folder', folderId);
+      }
+      return jsonPlan(200, { ok: true, folder });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to move folder.';
+      return invalidPayloadPlan(message);
+    }
+  }
+
+  async deleteFolder(folderId: string): Promise<ResponsePlan> {
+    const deleted = await this.runtime.dashboardStore.deleteFolder(folderId);
+    if (!deleted) {
+      return notFoundPlan('Folder', folderId);
+    }
+    return jsonPlan(200, { ok: true });
+  }
+
+  async createProject(body: CreateProjectDto): Promise<ResponsePlan> {
+    try {
+      const project = await this.runtime.dashboardStore.createProject({
+        name: body.name,
+        parentFolderId: normalizeOptionalFolderId(body.parentFolderId),
+        index: body.index
+      });
+      return jsonPlan(201, { ok: true, project });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create project.';
+      return invalidPayloadPlan(message);
+    }
+  }
+
+  async renameProject(projectId: string, body: RenameEntityDto): Promise<ResponsePlan> {
+    try {
+      const project = await this.runtime.dashboardStore.renameProject(projectId, body.name);
+      if (!project) {
+        return notFoundPlan('Project', projectId);
+      }
+      return jsonPlan(200, { ok: true, project });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to rename project.';
+      return invalidPayloadPlan(message);
+    }
+  }
+
+  async moveProject(projectId: string, body: MoveEntityDto): Promise<ResponsePlan> {
+    try {
+      const project = await this.runtime.dashboardStore.moveProject({
+        projectId,
+        parentFolderId: normalizeOptionalFolderId(body.parentFolderId),
+        index: body.index
+      });
+      if (!project) {
+        return notFoundPlan('Project', projectId);
+      }
+      return jsonPlan(200, { ok: true, project });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to move project.';
+      return invalidPayloadPlan(message);
+    }
+  }
+
+  async deleteProject(projectId: string): Promise<ResponsePlan> {
+    const deleted = await this.runtime.dashboardStore.deleteProject(projectId);
+    if (!deleted) {
+      return notFoundPlan('Project', projectId);
+    }
+    return jsonPlan(200, { ok: true });
   }
 
   async listJobs(projectId: string): Promise<ResponsePlan> {
@@ -298,12 +301,21 @@ export class GatewayDashboardService {
         });
 
         if (blob && blob.bytes.byteLength > 0) {
-          return previewJsonPlan('ready', {
-            projectId,
-            revision: project.revision,
-            jobId: completed.id,
-            gltf: Buffer.from(blob.bytes).toString('utf8')
-          });
+          const gltfText = decodePreviewGltf(blob.bytes);
+          if (!gltfText) {
+            this.runtime.logger.warn('ashfox gateway preview blob is not valid glTF JSON', {
+              projectId,
+              jobId: completed.id,
+              exportPath
+            });
+          } else {
+            return previewJsonPlan('ready', {
+              projectId,
+              revision: project.revision,
+              jobId: completed.id,
+              gltf: gltfText
+            });
+          }
         }
       }
     }
@@ -348,8 +360,17 @@ export class GatewayDashboardService {
 
     const events: string[] = [];
     if (pending.length > 0) {
-      events.push(...pending.map((event) => formatSseMessage(event.event, event.seq, event.data)));
-      cursor = pending[pending.length - 1]?.seq ?? initialCursor;
+      const latestPending = pending[pending.length - 1];
+      if (latestPending) {
+        events.push(
+          formatSseMessage(
+            latestPending.event,
+            latestPending.seq,
+            buildSnapshotPayload(latestPending.data, latestPending.data.revision)
+          )
+        );
+      }
+      cursor = latestPending?.seq ?? initialCursor;
       sentInitialSnapshot = true;
     } else {
       const nextEventId = initialCursor + 1;
@@ -404,9 +425,10 @@ export class GatewayDashboardService {
               return;
             }
 
-            for (const event of next) {
-              localCursor = event.seq;
-              connection.send(formatSseMessage(event.event, event.seq, event.data));
+            const latest = next[next.length - 1];
+            if (latest) {
+              localCursor = latest.seq;
+              connection.send(formatSseMessage(latest.event, latest.seq, buildSnapshotPayload(latest.data, latest.data.revision)));
             }
             localSentInitialSnapshot = true;
           } catch {

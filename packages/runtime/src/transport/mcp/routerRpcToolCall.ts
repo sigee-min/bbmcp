@@ -103,7 +103,7 @@ export const handleToolCall = async (
 
   ctx.sessions.touch(session);
   try {
-    const response = await ctx.executor.callTool(name, args);
+    const response = await ctx.executor.callTool(name, args, { mcpSessionId: session.id });
     const durationMs = Math.max(0, Date.now() - startedAt);
     if (response.ok) {
       ctx.log.info('tool call completed', { tool: name, ok: true, durationMs });

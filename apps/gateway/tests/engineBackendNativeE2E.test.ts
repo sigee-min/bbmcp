@@ -15,6 +15,7 @@ import {
   type ProjectRepositoryScope
 } from '@ashfox/backend-core';
 import type { NativeJobResult } from '@ashfox/native-pipeline/types';
+import { NativePipelineStore } from '@ashfox/native-pipeline/testing';
 import type { ToolName, ToolPayloadMap, ToolResponse, ToolResultMap } from '@ashfox/contracts/types/internal';
 import type { Logger } from '@ashfox/runtime/logging';
 import { processOneNativeJob } from '../../worker/src/nativeJobProcessor';
@@ -133,7 +134,7 @@ const createInMemoryPersistence = (): PersistencePorts & {
   };
 };
 
-const buildDispatcher = (persistence: PersistencePorts): GatewayDispatcher => {
+const buildDispatcher = (persistence: PersistencePorts, lockStore: NativePipelineStore = new NativePipelineStore()): GatewayDispatcher => {
   const registry = new BackendRegistry();
   registry.register(
     createEngineBackend({
@@ -144,7 +145,8 @@ const buildDispatcher = (persistence: PersistencePorts): GatewayDispatcher => {
   );
   return new GatewayDispatcher({
     registry,
-    defaultBackend: 'engine'
+    defaultBackend: 'engine',
+    lockStore
   });
 };
 
@@ -240,6 +242,33 @@ registerAsync(
     const persistence = createInMemoryPersistence();
     const dispatcher = buildDispatcher(persistence);
     const engine = createEngineBackend({ persistence, version: 'test-native' });
+
+    const lockStore = new NativePipelineStore();
+    const lockAwareDispatcher = buildDispatcher(persistence, lockStore);
+    await lockStore.acquireProjectLock({
+      projectId: 'prj_lock_conflict',
+      ownerAgentId: 'mcp:session-holder',
+      ownerSessionId: 'session-holder'
+    });
+    const lockConflict = await lockAwareDispatcher.handle(
+      'ensure_project',
+      {
+        projectId: 'prj_lock_conflict',
+        name: 'conflict-project',
+        onMissing: 'create'
+      } as ToolPayloadMap['ensure_project'],
+      { mcpSessionId: 'session-other' }
+    );
+    assert.equal(lockConflict.ok, false);
+    if (!lockConflict.ok) {
+      assert.equal(lockConflict.error.code, 'invalid_state');
+      assert.equal(lockConflict.error.details?.reason, 'project_locked');
+    }
+    await lockStore.releaseProjectLock({
+      projectId: 'prj_lock_conflict',
+      ownerAgentId: 'mcp:session-holder',
+      ownerSessionId: 'session-holder'
+    });
 
     // TKT-20260214-001: native backend routing skeleton -> tool execution + persistence
     const health = await engine.getHealth();

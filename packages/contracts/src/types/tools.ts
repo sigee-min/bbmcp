@@ -147,9 +147,14 @@ export interface ToolPayloadMap {
   validate: ValidatePayload;
 }
 
+export interface DispatcherExecutionContext {
+  mcpSessionId?: string;
+}
+
 export interface Dispatcher {
   handle<TName extends ToolName>(
     name: TName,
-    payload: ToolPayloadMap[TName]
+    payload: ToolPayloadMap[TName],
+    context?: DispatcherExecutionContext
   ): Promise<ToolResponse<ToolResultMap[TName]>>;
 }

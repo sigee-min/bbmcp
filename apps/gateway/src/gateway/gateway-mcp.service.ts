@@ -23,7 +23,27 @@ export class GatewayMcpService {
     const requestLog = this.runtime.withTraceLog(traceId);
 
     try {
-      return await this.runtime.router.handle(payload, { log: requestLog });
+      const plan = await this.runtime.router.handle(payload, { log: requestLog });
+      if (method === 'DELETE') {
+        const sessionId = payload.headers['mcp-session-id'];
+        if (typeof sessionId === 'string' && sessionId.trim().length > 0) {
+          const normalizedSessionId = sessionId.trim();
+          try {
+            const released = await this.runtime.dashboardStore.releaseProjectLocksByOwner(
+              `mcp:${normalizedSessionId}`,
+              normalizedSessionId
+            );
+            this.runtime.metrics.recordProjectLockEvent('release_by_session', released > 0 ? 'success' : 'skipped');
+          } catch (error) {
+            this.runtime.metrics.recordProjectLockEvent('release_by_session', 'error');
+            requestLog.warn('failed to release session project locks', {
+              sessionId: normalizedSessionId,
+              message: errorMessage(error)
+            });
+          }
+        }
+      }
+      return plan;
     } catch (error) {
       requestLog.error('MCP HTTP request failed', { message: errorMessage(error) });
       return {

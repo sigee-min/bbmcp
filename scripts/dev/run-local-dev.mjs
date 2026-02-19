@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(scriptDir, '..', '..');
-const defaultSqlitePath = path.join(rootDir, '.ashfox', 'local', 'shared-dev.sqlite');
+const defaultSqlitePath = path.join(rootDir, '.ashfox', 'local', 'ashfox.sqlite');
 
 const resolvedSqlitePath = process.env.ASHFOX_DB_SQLITE_PATH || defaultSqlitePath;
 const resolvedStorageSqlitePath = process.env.ASHFOX_STORAGE_DB_SQLITE_PATH || resolvedSqlitePath;
@@ -45,7 +45,7 @@ const processes = [
   }
 ];
 
-console.log(`[dev] shared sqlite path: ${resolvedSqlitePath}`);
+console.log(`[dev] sqlite path: ${resolvedSqlitePath}`);
 console.log(`[dev] web gateway api base: ${gatewayApiBaseUrl}`);
 console.log('[dev] starting: gateway, worker, web');
 

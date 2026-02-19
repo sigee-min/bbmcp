@@ -19,10 +19,141 @@ registerAsync(
     };
     const forestFoxProjectId = findProjectIdByName('Forest Fox');
     const emptyTemplateProjectId = findProjectIdByName('Empty Template');
+    type HierarchyEntry = { kind: 'bone' | 'cube'; children: HierarchyEntry[] };
+    const countHierarchy = (nodes: readonly HierarchyEntry[]): { bones: number; cubes: number } => {
+      let bones = 0;
+      let cubes = 0;
+      const stack: HierarchyEntry[] = [...nodes];
+      while (stack.length > 0) {
+        const next = stack.pop();
+        if (!next) {
+          continue;
+        }
+        if (next.kind === 'bone') {
+          bones += 1;
+        } else {
+          cubes += 1;
+        }
+        if (next.children.length > 0) {
+          stack.push(...next.children);
+        }
+      }
+      return { bones, cubes };
+    };
+
+    const forestSeed = await store.getProject(forestFoxProjectId);
+    assert.ok(forestSeed);
+    const forestSeedCounts = countHierarchy(forestSeed.hierarchy);
+    assert.equal(forestSeed?.stats.bones, forestSeedCounts.bones);
+    assert.equal(forestSeed?.stats.cubes, forestSeedCounts.cubes);
 
     const filtered = await store.listProjects('lynx');
     assert.equal(filtered.length, 1);
     assert.equal(filtered[0]?.name, 'Desert Lynx');
+
+    const initialTree = await store.getProjectTree();
+    assert.equal(initialTree.maxFolderDepth, 3);
+    assert.equal(initialTree.roots.length >= 1, true);
+
+    const workFolder = await store.createFolder({ name: 'Work' });
+    const sprintFolder = await store.createFolder({ name: 'Sprint', parentFolderId: workFolder.folderId });
+    const alphaProject = await store.createProject({
+      name: 'Alpha',
+      parentFolderId: sprintFolder.folderId
+    });
+    assert.equal(alphaProject.parentFolderId, sprintFolder.folderId);
+
+    const renamedAlpha = await store.renameProject(alphaProject.projectId, 'Alpha v2');
+    assert.equal(renamedAlpha?.name, 'Alpha v2');
+
+    const movedAlpha = await store.moveProject({
+      projectId: alphaProject.projectId,
+      parentFolderId: null,
+      index: 0
+    });
+    assert.equal(movedAlpha?.parentFolderId, null);
+
+    const stableFolder = await store.createFolder({ name: 'Stable Folder' });
+    const stableProject = await store.createProject({
+      name: 'Stable Project',
+      parentFolderId: stableFolder.folderId
+    });
+    const movedStableProject = await store.moveProject({
+      projectId: stableProject.projectId,
+      parentFolderId: null,
+      index: 0
+    });
+    assert.equal(movedStableProject?.parentFolderId, null);
+    await store.moveFolder({
+      folderId: stableFolder.folderId,
+      parentFolderId: null,
+      index: 0
+    });
+    const stableTree = await store.getProjectTree();
+    const stableFolderNode = stableTree.roots.find(
+      (node) => node.kind === 'folder' && node.folderId === stableFolder.folderId
+    );
+    assert.ok(stableFolderNode && stableFolderNode.kind === 'folder');
+    if (stableFolderNode && stableFolderNode.kind === 'folder') {
+      assert.equal(
+        stableFolderNode.children.some(
+          (node) => node.kind === 'project' && node.projectId === stableProject.projectId
+        ),
+        false
+      );
+    }
+    assert.equal((await store.getProject(stableProject.projectId))?.parentFolderId, null);
+
+    const reorderFolder = await store.createFolder({ name: 'Reorder Bucket' });
+    const reorderA = await store.createProject({ name: 'Reorder-A', parentFolderId: reorderFolder.folderId });
+    const reorderB = await store.createProject({ name: 'Reorder-B', parentFolderId: reorderFolder.folderId });
+    const reorderC = await store.createProject({ name: 'Reorder-C', parentFolderId: reorderFolder.folderId });
+    await store.moveProject({
+      projectId: reorderA.projectId,
+      parentFolderId: reorderFolder.folderId,
+      index: 2
+    });
+    const reorderTree = await store.getProjectTree();
+    const reorderFolderNode = reorderTree.roots.find(
+      (node) => node.kind === 'folder' && node.folderId === reorderFolder.folderId
+    );
+    assert.ok(reorderFolderNode && reorderFolderNode.kind === 'folder');
+    if (reorderFolderNode && reorderFolderNode.kind === 'folder') {
+      const childProjectOrder = reorderFolderNode.children.flatMap((node) =>
+        node.kind === 'project' ? [node.projectId] : []
+      );
+      assert.deepEqual(childProjectOrder, [reorderB.projectId, reorderA.projectId, reorderC.projectId]);
+    }
+
+    const renamedSprint = await store.renameFolder(sprintFolder.folderId, 'Sprint A');
+    assert.equal(renamedSprint?.name, 'Sprint A');
+
+    const betaProject = await store.createProject({
+      name: 'Beta',
+      parentFolderId: sprintFolder.folderId
+    });
+    const deletedWork = await store.deleteFolder(workFolder.folderId);
+    assert.equal(deletedWork, true);
+    assert.equal(await store.getProject(betaProject.projectId), null);
+    assert.equal((await store.getProject(alphaProject.projectId))?.projectId, alphaProject.projectId);
+
+    const depth1 = await store.createFolder({ name: 'Depth-1' });
+    const depth2 = await store.createFolder({ name: 'Depth-2', parentFolderId: depth1.folderId });
+    const depth3 = await store.createFolder({ name: 'Depth-3', parentFolderId: depth2.folderId });
+    await assert.rejects(
+      () => store.createFolder({ name: 'Depth-4', parentFolderId: depth3.folderId }),
+      /depth limit/i
+    );
+    await assert.rejects(
+      () =>
+        store.moveFolder({
+          folderId: depth1.folderId,
+          parentFolderId: depth3.folderId
+        }),
+      /descendant/i
+    );
+    await store.deleteFolder(depth1.folderId);
+
     const projectABefore = await store.getProject(forestFoxProjectId);
     assert.ok(projectABefore);
 
@@ -59,6 +190,65 @@ registerAsync(
 
     const projectCBefore = await store.getProject(emptyTemplateProjectId);
     assert.ok(projectCBefore);
+    assert.equal(projectCBefore?.hasGeometry, false);
+
+    const firstLock = await store.acquireProjectLock({
+      projectId: forestFoxProjectId,
+      ownerAgentId: 'agent-alpha',
+      ownerSessionId: 'session-alpha'
+    });
+    assert.equal(firstLock.ownerAgentId, 'agent-alpha');
+    const renewedLock = await store.acquireProjectLock({
+      projectId: forestFoxProjectId,
+      ownerAgentId: 'agent-alpha',
+      ownerSessionId: 'session-alpha'
+    });
+    assert.equal(renewedLock.token, firstLock.token);
+    await assert.rejects(
+      () =>
+        store.acquireProjectLock({
+          projectId: forestFoxProjectId,
+          ownerAgentId: 'agent-beta',
+          ownerSessionId: 'session-beta'
+        }),
+      /Project lock conflict/
+    );
+    const heldLock = await store.getProjectLock(forestFoxProjectId);
+    assert.equal(heldLock?.ownerAgentId, 'agent-alpha');
+    assert.equal(
+      await store.releaseProjectLock({
+        projectId: forestFoxProjectId,
+        ownerAgentId: 'agent-beta',
+        ownerSessionId: 'session-beta'
+      }),
+      false
+    );
+    assert.equal(
+      await store.releaseProjectLock({
+        projectId: forestFoxProjectId,
+        ownerAgentId: 'agent-alpha',
+        ownerSessionId: 'session-alpha'
+      }),
+      true
+    );
+    assert.equal(await store.getProjectLock(forestFoxProjectId), null);
+
+    const expiringLock = await store.acquireProjectLock({
+      projectId: emptyTemplateProjectId,
+      ownerAgentId: 'agent-expire',
+      ownerSessionId: 'session-expire',
+      ttlMs: 5000
+    });
+    const originalNowForLock = Date.now;
+    try {
+      const expiresAt = Date.parse(expiringLock.expiresAt);
+      Date.now = () => expiresAt + 1;
+      assert.equal(await store.getProjectLock(emptyTemplateProjectId), null);
+    } finally {
+      Date.now = originalNowForLock;
+    }
+    assert.equal(await store.releaseProjectLocksByOwner('agent-expire'), 0);
+
     const projected = await store.submitJob({
       projectId: emptyTemplateProjectId,
       kind: 'gltf.convert'
@@ -69,6 +259,17 @@ registerAsync(
       kind: 'gltf.convert',
       status: 'converted',
       hasGeometry: true,
+      hierarchy: [
+        {
+          id: 'bone-root',
+          name: 'root',
+          kind: 'bone',
+          children: [
+            { id: 'cube-body', name: 'body', kind: 'cube', children: [] },
+            { id: 'cube-head', name: 'head', kind: 'cube', children: [] }
+          ]
+        }
+      ],
       geometryDelta: {
         bones: 1,
         cubes: 2
@@ -77,8 +278,8 @@ registerAsync(
     assert.equal(projectedCompleted?.status, 'completed');
     const projectCAfterProjection = await store.getProject(emptyTemplateProjectId);
     assert.ok(projectCAfterProjection);
-    assert.equal(projectCAfterProjection?.stats.bones, (projectCBefore?.stats.bones ?? 0) + 1);
-    assert.equal(projectCAfterProjection?.stats.cubes, (projectCBefore?.stats.cubes ?? 0) + 2);
+    assert.equal(projectCAfterProjection?.stats.bones, 1);
+    assert.equal(projectCAfterProjection?.stats.cubes, 2);
     assert.equal(projectCAfterProjection?.hasGeometry, true);
 
     const events = await store.getProjectEventsSince(forestFoxProjectId, 0);

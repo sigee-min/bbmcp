@@ -223,7 +223,7 @@ Generation time and final quality vary by prompt, model, and runtime environment
 
 | Brand Artwork | Texture Atlas |
 | --- | --- |
-| ![Ashfox Brand Artwork](images/logo_fullbackground.png) | ![Ashfox Texture](images/ashfox-texture.png) |
+| ![Ashfox Brand Artwork](images/ashfox.png) | ![Ashfox Texture](images/ashfox-texture.png) |
 
 ## Brand Assets
 Brand icon/image source of truth is the repository root `images/` directory.

@@ -35,7 +35,6 @@ const forbiddenLegacyBrandAssets = [
   'images/apple-touch-icon.png',
   'images/android-chrome-192x192.png',
   'images/android-chrome-512x512.png',
-  'images/ashfox.png',
   'images/assets/images/ashfox.png'
 ];
 

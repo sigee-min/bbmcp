@@ -29,10 +29,10 @@ export function StateScreen({
           <CardTitle className="flex items-center gap-3 text-2xl">
             <img
               alt="Ashfox"
-              src="/favicon-32x32.png"
-              width={32}
-              height={32}
-              className="h-8 w-8 rounded-sm border border-border/70 bg-background/80 object-contain"
+              src="/logo_fullbackground.png"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-sm border border-border/70 bg-background/80 object-contain"
             />
             <span>{title}</span>
             {loading ? <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" aria-label="Loading" /> : null}

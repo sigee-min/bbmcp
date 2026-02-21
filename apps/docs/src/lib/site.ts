@@ -59,4 +59,4 @@ export function localizedAlternates(suffix = ''): Record<string, string> {
   };
 }
 
-export const defaultOpenGraphImage = withBasePath('/ashfox.png');
+export const defaultOpenGraphImage = withBasePath('/logo-512.png');

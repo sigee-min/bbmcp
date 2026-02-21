@@ -84,19 +84,19 @@ const landingDetailsByLocale: Record<
     showcaseActionLabel: 'Open',
     showcaseItems: [
       {
-        src: '/assets/images/ashfox-animation.gif',
+        src: '/ashfox-animation.gif',
         type: 'gif',
         alt: 'Animated preview output generated with Ashfox',
         caption: 'Animated preview (GIF)',
       },
       {
-        src: '/assets/images/ashfox.png',
+        src: '/logo_fullbackground.png',
         type: 'image',
         alt: 'Rendered model output generated with Ashfox',
         caption: 'Rendered model output',
       },
       {
-        src: '/assets/images/ashfox-texture.png',
+        src: '/ashfox-texture.png',
         type: 'image',
         alt: 'Texture sheet output generated with Ashfox',
         caption: 'Texture sheet output',
@@ -121,19 +121,19 @@ const landingDetailsByLocale: Record<
     showcaseActionLabel: '열기',
     showcaseItems: [
       {
-        src: '/assets/images/ashfox-animation.gif',
+        src: '/ashfox-animation.gif',
         type: 'gif',
         alt: 'Ashfox로 생성한 애니메이션 프리뷰 결과',
         caption: '애니메이션 프리뷰 (GIF)',
       },
       {
-        src: '/assets/images/ashfox.png',
+        src: '/logo_fullbackground.png',
         type: 'image',
         alt: 'Ashfox로 생성한 모델 렌더 결과',
         caption: '모델 렌더 결과',
       },
       {
-        src: '/assets/images/ashfox-texture.png',
+        src: '/ashfox-texture.png',
         type: 'image',
         alt: 'Ashfox로 생성한 텍스처 시트 결과',
         caption: '텍스처 시트 결과',

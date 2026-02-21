@@ -1,8 +1,12 @@
-# <img src="apps/docs/public/favicon-32x32.png" alt="Ashfox icon badge" width="32" height="32" /> Ashfox
+# <img src="images/logo-32.png" alt="Ashfox icon badge" width="32" height="32" /> Ashfox
 
 Blockbench MCP bridge plugin. Ashfox exposes a low-level, deterministic tool surface for modeling, texturing, and animation over MCP.
 
 Docs: [ashfox.sigee.xyz](https://ashfox.sigee.xyz)
+
+<p align="center">
+  <img src="images/logo_readme.png" alt="Ashfox Readme Hero" width="960" />
+</p>
 
 ## Contents
 - Installation
@@ -215,11 +219,39 @@ If toolRegistry.hash changes, re-run list_capabilities (or tools/list) to refres
 Sample output generated with Ashfox tool calls (modeling/texturing/animation).  
 Generation time and final quality vary by prompt, model, and runtime environment.
 
-![Ashfox Animation](apps/docs/public/assets/images/ashfox-animation.gif)
+![Ashfox Animation](images/ashfox-animation.gif)
 
-| Final Model (Hero) | Texture Atlas |
+| Brand Artwork | Texture Atlas |
 | --- | --- |
-| ![Ashfox Model](apps/docs/public/assets/images/ashfox.png) | ![Ashfox Texture](apps/docs/public/assets/images/ashfox-texture.png) |
+| ![Ashfox Brand Artwork](images/logo_fullbackground.png) | ![Ashfox Texture](images/ashfox-texture.png) |
+
+## Brand Assets
+Brand icon/image source of truth is the repository root `images/` directory.
+
+- `images/logo.png`
+- `images/logo_fullbackground.png`
+- `images/logo_readme.png`
+- `images/logo-32.png`
+- `images/logo-180.png`
+- `images/logo-192.png`
+- `images/logo-256.png`
+- `images/logo-512.png`
+- `images/favicon.ico`
+- `apps/web/public` -> `../../images` (symlink)
+- `apps/docs/public` -> `../../images` (symlink)
+
+After replacing source files, sync generated assets:
+
+```bash
+npm run assets:sync:brand
+```
+
+Before commit, verify brand asset consistency:
+
+```bash
+npm run assets:check:brand
+npm run verify:repo-hygiene
+```
 
 ## Development
 Install dependencies:

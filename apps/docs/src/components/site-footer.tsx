@@ -42,7 +42,7 @@ export function SiteFooter({ locale }: SiteFooterProps) {
           <div className="space-y-3">
             <Link href={`/${locale}`} className="inline-flex items-center gap-2.5 text-base font-semibold">
               <span className="inline-flex size-[42px] items-center justify-center rounded-lg border border-fd-border bg-fd-card">
-                <Image src="/favicon-32x32.png" alt="" width={29} height={29} className="rounded-[7px]" />
+                <Image src="/logo_fullbackground.png" alt="" width={29} height={29} className="rounded-[7px]" />
               </span>
               <span>Ashfox</span>
             </Link>

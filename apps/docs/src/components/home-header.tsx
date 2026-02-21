@@ -57,7 +57,7 @@ export function HomeHeader({ locale }: { locale: Locale }) {
     >
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4 sm:px-6">
         <Link href={`/${locale}`} className="inline-flex items-center gap-2 text-base font-semibold">
-          <Image src="/favicon-32x32.png" alt="" width={32} height={32} className="rounded-[5px]" />
+          <Image src="/logo_fullbackground.png" alt="" width={32} height={32} className="rounded-[5px]" />
           <span>Ashfox</span>
         </Link>
         <div className="flex items-center gap-1.5">
@@ -81,4 +81,3 @@ export function HomeHeader({ locale }: { locale: Locale }) {
     </header>
   );
 }
-

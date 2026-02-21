@@ -25,7 +25,7 @@ export function AuthScreen({ githubEnabled, busy, errorMessage, onLogin, onGitHu
     <main className={styles.authShell}>
       <section className={styles.authCard} aria-label="로그인">
         <div className={styles.authTitleRow}>
-          <img src="/favicon-32x32.png" alt="Ashfox" className={styles.authLogo} />
+          <img src="/logo_fullbackground.png" alt="Ashfox" className={styles.authLogo} />
           <div className={styles.authTitleBlock}>
             <h1 className={styles.authTitle}>Ashfox</h1>
             <p className={styles.authSubtitle}>Sign in to continue</p>

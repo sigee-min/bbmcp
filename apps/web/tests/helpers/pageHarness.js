@@ -129,7 +129,7 @@ const installImmediateTimers = () => {
   };
 };
 
-const mountHomePage = async ({ fetchImpl, EventSourceImpl }) => {
+const mountHomePage = async ({ fetchImpl, EventSourceImpl, beforeRender }) => {
   const originalFetch = globalThis.fetch;
   const originalEventSource = globalThis.EventSource;
 
@@ -160,6 +160,10 @@ const mountHomePage = async ({ fetchImpl, EventSourceImpl }) => {
   globalThis.KeyboardEvent = dom.window.KeyboardEvent;
   globalThis.Event = dom.window.Event;
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+  if (typeof beforeRender === 'function') {
+    beforeRender(dom.window);
+  }
 
   const container = dom.window.document.getElementById('root');
   assert.ok(container);

@@ -1980,9 +1980,7 @@
   overflow: hidden;
   border-radius: 0.54rem;
   border: 1px solid hsl(var(--border) / 0.7);
-  background:
-    radial-gradient(560px 260px at 50% -14%, hsl(var(--accent) / 0.1), transparent 72%),
-    hsl(var(--muted) / 0.35);
+  background: hsl(var(--muted) / 0.3);
 }
 
 .viewportCanvas {
@@ -2036,6 +2034,106 @@
   display: inline-flex;
   align-items: center;
   gap: 0.24rem;
+}
+
+.viewportEnvironmentWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.viewportEnvironmentTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-height: 1.38rem;
+  max-width: min(14rem, 42vw);
+  border-radius: 0.34rem;
+  border: 1px solid hsl(var(--border) / 0.9);
+  background: hsl(var(--background) / 0.84);
+  padding: 0.14rem 0.36rem;
+  color: hsl(var(--muted-foreground));
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.viewportEnvironmentTrigger:hover {
+  border-color: hsl(var(--primary) / 0.52);
+  color: hsl(var(--foreground));
+}
+
+.viewportEnvironmentTriggerLabel {
+  max-width: 6.4rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+.viewportEnvironmentTriggerChevron {
+  color: hsl(var(--muted-foreground));
+  transition: transform 120ms ease;
+}
+
+.viewportEnvironmentTriggerChevronOpen {
+  transform: rotate(180deg);
+}
+
+.viewportEnvironmentMenu {
+  position: fixed;
+  z-index: 58;
+  width: min(17.8rem, calc(100vw - 1rem));
+  display: grid;
+  gap: 0.1rem;
+  border-radius: 0.34rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  box-shadow: 0 12px 24px rgb(15 23 42 / 22%);
+  padding: 0.24rem;
+}
+
+.viewportEnvironmentMenuItem {
+  position: relative;
+  display: grid;
+  width: 100%;
+  align-items: center;
+  gap: 0.06rem;
+  border-radius: 0.26rem;
+  padding: 0.3rem 1.3rem 0.3rem 0.42rem;
+  color: hsl(var(--foreground));
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.viewportEnvironmentMenuItem:hover {
+  background: hsl(var(--muted));
+}
+
+.viewportEnvironmentMenuItemActive {
+  background: hsl(var(--primary) / 0.14);
+  color: hsl(var(--primary));
+}
+
+.viewportEnvironmentMenuItemLabel {
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.viewportEnvironmentMenuItemDescription {
+  font-size: 0.58rem;
+  line-height: 1.3;
+  color: hsl(var(--muted-foreground));
+  text-align: left;
+}
+
+.viewportEnvironmentMenuItemCheck {
+  position: absolute;
+  right: 0.38rem;
+  top: 50%;
+  height: 0.8rem;
+  width: 0.8rem;
+  transform: translateY(-50%);
 }
 
 .viewportHud {

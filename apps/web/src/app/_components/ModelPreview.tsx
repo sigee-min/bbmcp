@@ -29,6 +29,10 @@ import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 import { cn } from '../../lib/utils';
 import { buildGatewayApiUrl } from '../../lib/gatewayApi';
+import {
+  applyViewportEnvironmentTemplate,
+  clearViewportEnvironmentRoot
+} from '../features/viewport/viewportEnvironmentScene';
 import type { ViewportEnvironmentTemplateId } from '../features/viewport/viewportEnvironmentTemplates';
 
 interface ModelPreviewProps {
@@ -494,6 +498,7 @@ export const ModelPreview = ({
   const pitchRef = useRef<number>(pitchDeg);
   const smoothYawRef = useRef<number>(yawDeg);
   const smoothPitchRef = useRef<number>(pitchDeg);
+  const environmentRootRef = useRef<Group | null>(null);
   const modelRootRef = useRef<Group | null>(null);
   const rafRef = useRef<number | null>(null);
   const renderDirtyRef = useRef(false);
@@ -718,10 +723,13 @@ export const ModelPreview = ({
     scene.add(ambientLight, keyLight, fillLight, rimLight);
 
     const modelRoot = new Group();
-    scene.add(modelRoot);
+    const environmentRoot = new Group();
+    scene.add(environmentRoot, modelRoot);
 
     cameraRef.current = camera;
+    environmentRootRef.current = environmentRoot;
     modelRootRef.current = modelRoot;
+    applyViewportEnvironmentTemplate(environmentRoot, environmentTemplateId);
     host.appendChild(renderer.domElement);
 
     const renderFrame = () => {
@@ -816,17 +824,28 @@ export const ModelPreview = ({
       resetAnimationPlayback();
       animationMixerRef.current = null;
       animationClipsRef.current = [];
+      clearViewportEnvironmentRoot(environmentRoot);
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
       disposeGroupChildren(modelRoot);
       renderer.dispose();
       cameraRef.current = null;
+      environmentRootRef.current = null;
       modelRootRef.current = null;
       if (renderer.domElement.parentElement === host) {
         host.removeChild(renderer.domElement);
       }
     };
   }, [hasGeometry]);
+
+  useEffect(() => {
+    const environmentRoot = environmentRootRef.current;
+    if (!environmentRoot) {
+      return;
+    }
+    applyViewportEnvironmentTemplate(environmentRoot, environmentTemplateId);
+    requestRenderRef.current?.();
+  }, [environmentTemplateId]);
 
   useEffect(() => {
     yawRef.current = yawDeg;

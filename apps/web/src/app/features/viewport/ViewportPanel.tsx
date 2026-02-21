@@ -1,5 +1,5 @@
-import { Bone, Clapperboard, Cuboid, MousePointer2 } from 'lucide-react';
-import { memo, useRef } from 'react';
+import { Bone, Check, ChevronDown, Clapperboard, Cuboid, LandPlot, MousePointer2 } from 'lucide-react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 
 import type {
   DashboardErrorCode,
@@ -9,8 +9,14 @@ import type {
   ViewerState
 } from '../../../lib/dashboardModel';
 import { cn } from '../../../lib/utils';
+import { AdaptiveMenu } from '../../_components/AdaptiveMenu';
+import { useDismissibleMenu } from '../../_hooks/useDismissibleMenu';
 import { ModelPreview } from '../../_components/ModelPreview';
-import type { ViewportEnvironmentTemplateId } from './viewportEnvironmentTemplates';
+import {
+  findViewportEnvironmentTemplate,
+  VIEWPORT_ENVIRONMENT_TEMPLATES,
+  type ViewportEnvironmentTemplateId
+} from './viewportEnvironmentTemplates';
 import styles from '../../page.module.css';
 import { errorCopy, streamLabel } from '../shared/dashboardCopy';
 import { ErrorNotice } from '../shared/ErrorNotice';
@@ -64,6 +70,31 @@ export const ViewportPanel = memo(function ViewportPanel({
     pointerId: -1,
     x: 0,
     y: 0
+  });
+  const [environmentMenuOpen, setEnvironmentMenuOpen] = useState(false);
+  const environmentMenuRef = useRef<HTMLDivElement | null>(null);
+  const environmentMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  const selectedEnvironment = useMemo(
+    () => findViewportEnvironmentTemplate(environmentTemplateId),
+    [environmentTemplateId]
+  );
+
+  const closeEnvironmentMenu = useCallback(() => {
+    setEnvironmentMenuOpen(false);
+  }, []);
+  const toggleEnvironmentMenu = useCallback(() => {
+    setEnvironmentMenuOpen((prev) => !prev);
+  }, []);
+  const containsEnvironmentMenuTarget = useCallback(
+    (target: EventTarget | null) => target instanceof Node && Boolean(environmentMenuRef.current?.contains(target)),
+    []
+  );
+
+  useDismissibleMenu({
+    open: environmentMenuOpen,
+    containsTarget: containsEnvironmentMenuTarget,
+    onDismiss: closeEnvironmentMenu
   });
 
   return (
@@ -158,6 +189,67 @@ export const ViewportPanel = memo(function ViewportPanel({
             </div>
           </div>
           <div className={styles.viewportTopRight}>
+            <div
+              ref={environmentMenuRef}
+              className={styles.viewportEnvironmentWrap}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              <button
+                ref={environmentMenuTriggerRef}
+                type="button"
+                className={styles.viewportEnvironmentTrigger}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                }}
+                onClick={toggleEnvironmentMenu}
+                aria-label="뷰포트 배경 템플릿 선택"
+                aria-haspopup="menu"
+                aria-expanded={environmentMenuOpen}
+                title="뷰포트 배경 선택"
+              >
+                <LandPlot className="h-3.5 w-3.5" />
+                <span className={styles.viewportEnvironmentTriggerLabel}>{selectedEnvironment.label}</span>
+                <ChevronDown
+                  className={cn(
+                    'h-3.5 w-3.5',
+                    styles.viewportEnvironmentTriggerChevron,
+                    environmentMenuOpen && styles.viewportEnvironmentTriggerChevronOpen
+                  )}
+                />
+              </button>
+              <AdaptiveMenu
+                open={environmentMenuOpen}
+                anchorRef={environmentMenuTriggerRef}
+                ariaLabel="뷰포트 배경 템플릿 목록"
+                className={styles.viewportEnvironmentMenu}
+              >
+                {VIEWPORT_ENVIRONMENT_TEMPLATES.map((template) => {
+                  const isActive = template.id === environmentTemplateId;
+                  return (
+                    <button
+                      key={template.id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={isActive}
+                      className={cn(styles.viewportEnvironmentMenuItem, isActive && styles.viewportEnvironmentMenuItemActive)}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                      }}
+                      onClick={() => {
+                        onSelectEnvironmentTemplate(template.id);
+                        closeEnvironmentMenu();
+                      }}
+                    >
+                      <span className={styles.viewportEnvironmentMenuItemLabel}>{template.label}</span>
+                      <span className={styles.viewportEnvironmentMenuItemDescription}>{template.description}</span>
+                      {isActive ? <Check className={styles.viewportEnvironmentMenuItemCheck} /> : null}
+                    </button>
+                  );
+                })}
+              </AdaptiveMenu>
+            </div>
             <div className={cn('font-mono', styles.viewportHud)}>
               yaw {Math.round(viewer.yawDeg)} / pitch {Math.round(viewer.pitchDeg)}
             </div>

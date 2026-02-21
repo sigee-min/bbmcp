@@ -194,6 +194,7 @@ export interface WorkspaceRepository {
   upsertWorkspaceFolderAcl(record: WorkspaceFolderAclRecord): Promise<void>;
   removeWorkspaceFolderAcl(workspaceId: string, folderId: string | null, roleId: string): Promise<void>;
   listWorkspaceApiKeys(workspaceId: string): Promise<WorkspaceApiKeyRecord[]>;
+  findWorkspaceApiKeyByHash(keyHash: string): Promise<WorkspaceApiKeyRecord | null>;
   createWorkspaceApiKey(record: WorkspaceApiKeyRecord): Promise<void>;
   revokeWorkspaceApiKey(workspaceId: string, keyId: string, revokedAt: string): Promise<void>;
   updateWorkspaceApiKeyLastUsed(workspaceId: string, keyId: string, lastUsedAt: string): Promise<void>;

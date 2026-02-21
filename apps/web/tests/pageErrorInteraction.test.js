@@ -1,12 +1,158 @@
 const assert = require('node:assert/strict');
 
-const {
-  DEFAULT_WORKSPACE_ID,
-  createAuthSessionFixture,
-  createProjectsFixture,
-  createProjectTreeFixture,
-  createWorkspacesFixture
-} = require('./fixtures/projects');
+const DEFAULT_WORKSPACE_ID = 'ws_auto_admin-en845w';
+
+const clone = (value) => JSON.parse(JSON.stringify(value));
+
+const createProjectsFixture = () =>
+  clone([
+    {
+      projectId: 'prj_0990edef709a',
+      name: 'Forest Fox',
+      parentFolderId: 'fld_samples',
+      revision: 10,
+      hasGeometry: true,
+      hierarchy: [
+        {
+          id: 'bone-root',
+          name: 'root',
+          kind: 'bone',
+          children: [
+            {
+              id: 'bone-body',
+              name: 'body',
+              kind: 'bone',
+              children: []
+            }
+          ]
+        }
+      ],
+      animations: [],
+      stats: {
+        bones: 8,
+        cubes: 21
+      },
+      textures: []
+    },
+    {
+      projectId: 'prj_95cb32d1c4f6',
+      name: 'Desert Lynx',
+      parentFolderId: 'fld_samples',
+      revision: 21,
+      hasGeometry: true,
+      hierarchy: [],
+      animations: [],
+      stats: {
+        bones: 5,
+        cubes: 13
+      },
+      textures: []
+    },
+    {
+      projectId: 'prj_2ca5f18b3df5',
+      name: 'Empty Template',
+      parentFolderId: 'fld_templates',
+      revision: 3,
+      hasGeometry: false,
+      hierarchy: [],
+      animations: [],
+      stats: {
+        bones: 0,
+        cubes: 0
+      },
+      textures: []
+    }
+  ]);
+
+const createProjectTreeFixture = () =>
+  clone({
+    maxFolderDepth: 3,
+    roots: [
+      {
+        kind: 'folder',
+        folderId: 'fld_samples',
+        name: 'Samples',
+        parentFolderId: null,
+        depth: 1,
+        children: [
+          {
+            kind: 'project',
+            projectId: 'prj_0990edef709a',
+            name: 'Forest Fox',
+            parentFolderId: 'fld_samples',
+            depth: 2,
+            activeJobStatus: null
+          },
+          {
+            kind: 'project',
+            projectId: 'prj_95cb32d1c4f6',
+            name: 'Desert Lynx',
+            parentFolderId: 'fld_samples',
+            depth: 2,
+            activeJobStatus: null
+          },
+          {
+            kind: 'folder',
+            folderId: 'fld_templates',
+            name: 'Templates',
+            parentFolderId: 'fld_samples',
+            depth: 2,
+            children: [
+              {
+                kind: 'project',
+                projectId: 'prj_2ca5f18b3df5',
+                name: 'Empty Template',
+                parentFolderId: 'fld_templates',
+                depth: 3,
+                activeJobStatus: null
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  });
+
+const createWorkspacesFixture = () =>
+  clone([
+    {
+      workspaceId: DEFAULT_WORKSPACE_ID,
+      name: 'Administrator Workspace',
+      defaultMemberRoleId: 'role_user',
+      capabilities: {
+        canManageWorkspaceSettings: true
+      }
+    }
+  ]);
+
+const createServiceWorkspacesFixture = () =>
+  clone(
+    createWorkspacesFixture().map((workspace) => ({
+      workspaceId: workspace.workspaceId,
+      name: workspace.name,
+      defaultMemberRoleId: workspace.defaultMemberRoleId,
+      createdBy: 'system',
+      createdAt: '2026-02-21T00:00:00.000Z',
+      updatedAt: '2026-02-21T00:00:00.000Z'
+    }))
+  );
+
+const createAuthSessionFixture = () =>
+  clone({
+    ok: true,
+    githubEnabled: true,
+    user: {
+      accountId: 'admin',
+      displayName: 'Administrator',
+      email: 'admin@ashfox.local',
+      systemRoles: ['system_admin'],
+      localLoginId: 'admin',
+      githubLogin: null,
+      hasPassword: true,
+      canSetPassword: false
+    }
+  });
+
 const { MockEventSource, dispatchInAct, emitErrorInAct, flushUpdates, mountHomePage } = require('./helpers/pageHarness');
 
 const findProjectButtonByName = (root, projectName) => {

@@ -555,6 +555,15 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
       .map((apiKey) => ({ ...apiKey }));
   }
 
+  async findWorkspaceApiKeyByHash(keyHash: string): Promise<WorkspaceApiKeyRecord | null> {
+    const normalizedKeyHash = keyHash.trim();
+    if (!normalizedKeyHash) {
+      return null;
+    }
+    const found = Array.from(this.apiKeys.values()).find((apiKey) => apiKey.keyHash === normalizedKeyHash);
+    return found ? { ...found } : null;
+  }
+
   async createWorkspaceApiKey(record: WorkspaceApiKeyRecord): Promise<void> {
     this.apiKeys.set(this.toApiKeyKey(record.workspaceId, record.keyId), { ...record });
   }
@@ -1439,6 +1448,45 @@ registerAsync(
       }
     );
     assert.equal(memberCreateAfterRevokePlan.status, 201);
+
+    const missingMcpAccountContext = await dispatcher.handle(
+      'ensure_project',
+      {
+        projectId: 'prj_missing_mcp_account',
+        name: 'missing-account-context',
+        onMissing: 'create'
+      } as ToolPayloadMap['ensure_project'],
+      {
+        mcpSessionId: 'session-missing-account',
+        mcpWorkspaceId: DEFAULT_WORKSPACE_ID
+      }
+    );
+    assert.equal(missingMcpAccountContext.ok, false);
+    if (!missingMcpAccountContext.ok) {
+      assert.equal(missingMcpAccountContext.error.code, 'invalid_state');
+      assert.equal(missingMcpAccountContext.error.details?.reason, 'missing_mcp_account_context');
+    }
+
+    const mismatchedMcpWorkspaceContext = await dispatcher.handle(
+      'ensure_project',
+      {
+        projectId: 'prj_workspace_mismatch',
+        name: 'workspace-mismatch',
+        onMissing: 'create',
+        workspaceId: 'ws_mismatch'
+      } as ToolPayloadMap['ensure_project'] & { workspaceId: string },
+      {
+        mcpSessionId: 'session-mismatch',
+        mcpAccountId: 'admin',
+        mcpWorkspaceId: DEFAULT_WORKSPACE_ID,
+        mcpApiKeyId: 'key_mismatch'
+      }
+    );
+    assert.equal(mismatchedMcpWorkspaceContext.ok, false);
+    if (!mismatchedMcpWorkspaceContext.ok) {
+      assert.equal(mismatchedMcpWorkspaceContext.error.code, 'invalid_payload');
+      assert.equal(mismatchedMcpWorkspaceContext.error.details?.reason, 'mcp_workspace_context_mismatch');
+    }
 
     const lockStore = new NativePipelineStore();
     const lockAwareDispatcher = buildDispatcher(persistence, lockStore);

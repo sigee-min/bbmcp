@@ -11,8 +11,7 @@ export const toPort = (raw: string | undefined): number => {
 };
 
 export const resolveBackendKind = (raw: string | undefined): BackendKind => {
-  if (raw === 'blockbench' || raw === 'engine') return raw;
-  return DEFAULT_BACKEND;
+  return raw === 'engine' ? 'engine' : DEFAULT_BACKEND;
 };
 
 export const resolveBooleanFlag = (raw: string | undefined, fallback: boolean): boolean => {

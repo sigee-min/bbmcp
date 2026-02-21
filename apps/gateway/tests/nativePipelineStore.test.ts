@@ -125,11 +125,77 @@ registerAsync(
       queued.id,
       {
         kind: 'gltf.convert',
+        hierarchy: [
+          {
+            id: 'bone-root',
+            name: 'root',
+            kind: 'bone',
+            children: []
+          }
+        ],
+        animations: [
+          {
+            id: 'clip-idle',
+            name: 'Idle',
+            length: 1.5,
+            loop: true
+          }
+        ],
+        textureSources: [
+          {
+            faceId: 'face-root-north',
+            cubeId: 'cube-root',
+            cubeName: 'root-cube',
+            direction: 'north',
+            colorHex: '#ffffff',
+            rotationQuarter: 0
+          }
+        ],
+        textures: [
+          {
+            textureId: 'tex-main',
+            name: 'Main Atlas',
+            width: 16,
+            height: 16,
+            faceCount: 1,
+            imageDataUrl: 'data:image/png;base64,AAAA',
+            faces: [
+              {
+                faceId: 'face-root-north',
+                cubeId: 'cube-root',
+                cubeName: 'root-cube',
+                direction: 'north',
+                rotationQuarter: 0,
+                uMin: 0,
+                vMin: 0,
+                uMax: 4,
+                vMax: 4
+              }
+            ],
+            uvEdges: [
+              {
+                x1: 0,
+                y1: 0,
+                x2: 4,
+                y2: 0
+              }
+            ]
+          }
+        ],
         output: { ok: true }
       },
       wsAlpha
     );
     assert.equal(completed?.status, 'completed');
+
+    const projectedAlphaProject = await store.getProject(alphaProject.projectId, wsAlpha);
+    assert.equal(projectedAlphaProject?.animations.length, 1);
+    assert.equal(projectedAlphaProject?.animations[0]?.id, 'clip-idle');
+    assert.equal(projectedAlphaProject?.animations[0]?.name, 'Idle');
+    assert.equal(projectedAlphaProject?.textures.length, 1);
+    assert.equal(projectedAlphaProject?.textures[0]?.textureId, 'tex-main');
+    assert.equal(projectedAlphaProject?.textureSources.length, 1);
+    assert.equal(projectedAlphaProject?.textureSources[0]?.faceId, 'face-root-north');
 
     const alphaJobs = await store.listProjectJobs(alphaProject.projectId, wsAlpha);
     assert.equal(alphaJobs.some((job) => job.id === queued.id), true);

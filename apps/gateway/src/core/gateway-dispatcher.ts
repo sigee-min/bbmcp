@@ -83,7 +83,7 @@ const readBackendKindFromPayload = (payload: unknown): BackendKind | null => {
   if (!data) return null;
   const raw = asNonEmptyString(data.backend);
   if (!raw) return null;
-  if (raw === 'engine' || raw === 'blockbench') return raw;
+  if (raw === 'engine') return raw;
   return null;
 };
 
@@ -94,23 +94,26 @@ const toGatewaySystemRoles = (roles: readonly string[] | undefined): GatewaySyst
 type GatewayActorIdentity = {
   actorId: string;
   sessionId: string | null;
-  accountId: string;
+  accountId: string | null;
   systemRoles: GatewaySystemRole[];
   workspaceId?: string;
+  apiKeyId?: string;
 };
 
 const resolveActorIdentity = (context?: DispatcherExecutionContext): GatewayActorIdentity => {
   const sessionId = asNonEmptyString(context?.mcpSessionId);
-  const accountId = asNonEmptyString(context?.mcpAccountId) ?? DEFAULT_ACCOUNT_ID;
+  const accountId = asNonEmptyString(context?.mcpAccountId);
   const workspaceId = asNonEmptyString(context?.mcpWorkspaceId) ?? undefined;
+  const apiKeyId = asNonEmptyString(context?.mcpApiKeyId) ?? undefined;
   const systemRoles = toGatewaySystemRoles(context?.mcpSystemRoles);
   if (!sessionId) {
     return {
       actorId: DEFAULT_ACTOR_ID,
       sessionId: null,
-      accountId,
+      accountId: accountId ?? DEFAULT_ACCOUNT_ID,
       systemRoles,
-      workspaceId
+      workspaceId,
+      apiKeyId
     };
   }
   return {
@@ -118,7 +121,8 @@ const resolveActorIdentity = (context?: DispatcherExecutionContext): GatewayActo
     sessionId,
     accountId,
     systemRoles,
-    workspaceId
+    workspaceId,
+    apiKeyId
   };
 };
 
@@ -225,7 +229,41 @@ export class GatewayDispatcher implements Dispatcher {
     }
     const backend = selection.backend;
     const projectId = readProjectIdFromPayload(payload);
-    const workspaceHint = normalizeWorkspaceId(readWorkspaceIdFromPayload(payload) ?? context?.mcpWorkspaceId);
+    const actor = resolveActorIdentity(context);
+    if (actor.sessionId && !actor.accountId) {
+      return backendToolError(
+        'invalid_state',
+        'MCP account context is required for dispatcher execution.',
+        'Authenticate via workspace API key and retry.',
+        {
+          reason: 'missing_mcp_account_context',
+          projectId,
+          apiKeyId: actor.apiKeyId ?? null
+        }
+      ) as ToolResponse<ToolResultMap[TName]>;
+    }
+    const payloadWorkspaceHint = normalizeWorkspaceId(readWorkspaceIdFromPayload(payload));
+    const contextWorkspaceHint = normalizeWorkspaceId(context?.mcpWorkspaceId);
+    if (
+      actor.sessionId &&
+      contextWorkspaceHint &&
+      payloadWorkspaceHint &&
+      contextWorkspaceHint !== payloadWorkspaceHint
+    ) {
+      return backendToolError(
+        'invalid_payload',
+        'workspaceId in payload must match authenticated MCP workspace.',
+        'Remove payload workspaceId override and retry.',
+        {
+          reason: 'mcp_workspace_context_mismatch',
+          projectId,
+          payloadWorkspaceId: payloadWorkspaceHint,
+          contextWorkspaceId: contextWorkspaceHint,
+          apiKeyId: actor.apiKeyId ?? null
+        }
+      ) as ToolResponse<ToolResultMap[TName]>;
+    }
+    const workspaceHint = contextWorkspaceHint ?? payloadWorkspaceHint;
     if (!workspaceHint) {
       return backendToolError(
         'invalid_payload',
@@ -237,8 +275,9 @@ export class GatewayDispatcher implements Dispatcher {
         }
       ) as ToolResponse<ToolResultMap[TName]>;
     }
-    const actor = resolveActorIdentity(context);
-    const projectScope = await this.resolveProjectScope(projectId, workspaceHint, actor);
+    const accountId = actor.accountId ?? DEFAULT_ACCOUNT_ID;
+    const normalizedActor = { ...actor, accountId };
+    const projectScope = await this.resolveProjectScope(projectId, workspaceHint, normalizedActor);
     const session: BackendSessionRef = {
       tenantId: DEFAULT_TENANT_ID,
       actorId: actor.actorId,
@@ -247,14 +286,14 @@ export class GatewayDispatcher implements Dispatcher {
     const toolContext = { session };
     const run = () => backend.handleTool(name, payload, toolContext);
     if (!isMutatingTool(name)) {
-      const authorizationError = await this.authorizeProjectRead(name, actor, projectId, projectScope);
+      const authorizationError = await this.authorizeProjectRead(name, normalizedActor, projectId, projectScope);
       if (authorizationError) {
         return authorizationError as ToolResponse<ToolResultMap[TName]>;
       }
       return run();
     }
 
-    const authorizationError = await this.authorizeProjectWrite(name, actor, projectId, projectScope);
+    const authorizationError = await this.authorizeProjectWrite(name, normalizedActor, projectId, projectScope);
     if (authorizationError) {
       return authorizationError as ToolResponse<ToolResultMap[TName]>;
     }
@@ -320,7 +359,7 @@ export class GatewayDispatcher implements Dispatcher {
   private async resolveProjectScope(
     projectId: string,
     workspaceHint: string,
-    actor: GatewayActorIdentity
+    actor: GatewayActorIdentity & { accountId: string }
   ): Promise<GatewayDispatcherProjectScope> {
     if (!this.lockStore?.getProject) {
       return {
@@ -369,7 +408,7 @@ export class GatewayDispatcher implements Dispatcher {
 
   private async authorizeProjectWrite<TName extends ToolName>(
     name: TName,
-    actor: GatewayActorIdentity,
+    actor: GatewayActorIdentity & { accountId: string },
     projectId: string,
     scope: GatewayDispatcherProjectScope
   ): Promise<ToolResponse<ToolResultMap[TName]> | null> {
@@ -435,7 +474,7 @@ export class GatewayDispatcher implements Dispatcher {
 
   private async authorizeProjectRead<TName extends ToolName>(
     name: TName,
-    actor: GatewayActorIdentity,
+    actor: GatewayActorIdentity & { accountId: string },
     projectId: string,
     scope: GatewayDispatcherProjectScope
   ): Promise<ToolResponse<ToolResultMap[TName]> | null> {

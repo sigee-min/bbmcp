@@ -1,5 +1,4 @@
 import type { Provider } from '@nestjs/common';
-import { createBlockbenchBackend } from '@ashfox/backend-blockbench';
 import { BackendRegistry, type PersistenceHealth, type PersistencePorts } from '@ashfox/backend-core';
 import { createEngineBackend } from '@ashfox/backend-engine';
 import type { Dispatcher } from '@ashfox/contracts/types/internal';
@@ -64,12 +63,6 @@ export const gatewayInfrastructureProviders: Provider[] = [
           version: GATEWAY_VERSION,
           details: { mode: 'standalone' },
           persistence
-        })
-      );
-      registry.register(
-        createBlockbenchBackend({
-          version: GATEWAY_VERSION,
-          details: { mode: 'requires_plugin_bridge' }
         })
       );
       return registry;

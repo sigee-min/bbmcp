@@ -17,6 +17,15 @@ const isPositiveInteger = (value: unknown): value is number =>
 const isInteger = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value);
 
+const TEXTURE_FACE_DIRECTIONS = ['north', 'east', 'south', 'west', 'up', 'down'] as const;
+type NativeTextureFaceDirection = (typeof TEXTURE_FACE_DIRECTIONS)[number];
+
+const isTextureFaceDirection = (value: unknown): value is NativeTextureFaceDirection =>
+  typeof value === 'string' && TEXTURE_FACE_DIRECTIONS.includes(value as NativeTextureFaceDirection);
+
+const isRotationQuarter = (value: unknown): value is 0 | 1 | 2 | 3 =>
+  value === 0 || value === 1 || value === 2 || value === 3;
+
 const assertKnownKeys = (payload: Record<string, unknown>, allowedKeys: readonly string[], kind: SupportedNativeJobKind): void => {
   const unknown = Object.keys(payload).filter((key) => !allowedKeys.includes(key));
   if (unknown.length > 0) {
@@ -103,6 +112,52 @@ interface NativeHierarchyResultNode {
   children: NativeHierarchyResultNode[];
 }
 
+interface NativeAnimationSummary {
+  id: string;
+  name: string;
+  length: number;
+  loop: boolean;
+}
+
+interface NativeTextureFaceSourceSummary {
+  faceId: string;
+  cubeId: string;
+  cubeName: string;
+  direction: NativeTextureFaceDirection;
+  colorHex: string;
+  rotationQuarter: 0 | 1 | 2 | 3;
+}
+
+interface NativeTextureAtlasFaceSummary {
+  faceId: string;
+  cubeId: string;
+  cubeName: string;
+  direction: NativeTextureFaceDirection;
+  rotationQuarter: 0 | 1 | 2 | 3;
+  uMin: number;
+  vMin: number;
+  uMax: number;
+  vMax: number;
+}
+
+interface NativeTextureUvEdgeSummary {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+interface NativeTextureAtlasSummary {
+  textureId: string;
+  name: string;
+  width: number;
+  height: number;
+  faceCount: number;
+  imageDataUrl: string;
+  faces: NativeTextureAtlasFaceSummary[];
+  uvEdges: NativeTextureUvEdgeSummary[];
+}
+
 interface GltfConvertJobResult extends NativeJobResultBase<'gltf.convert'> {
   status?: 'converted' | 'noop' | 'failed';
   hasGeometry?: boolean;
@@ -111,6 +166,9 @@ interface GltfConvertJobResult extends NativeJobResultBase<'gltf.convert'> {
     cubes?: number;
   };
   hierarchy?: NativeHierarchyResultNode[];
+  animations?: NativeAnimationSummary[];
+  textureSources?: NativeTextureFaceSourceSummary[];
+  textures?: NativeTextureAtlasSummary[];
 }
 
 interface TexturePreflightJobResult extends NativeJobResultBase<'texture.preflight'> {
@@ -278,6 +336,190 @@ const normalizeGltfConvertResult = (result: Record<string, unknown>): GltfConver
       };
     };
     normalized.hierarchy = result.hierarchy.map((entry) => parseHierarchyNode(entry));
+  }
+
+  if (result.animations !== undefined) {
+    if (!Array.isArray(result.animations)) {
+      throw new NativeJobContractError('result.animations must be an array');
+    }
+    normalized.animations = result.animations.map((entry, index) => {
+      if (!isRecord(entry)) {
+        throw new NativeJobContractError('result.animations entry must be an object');
+      }
+      if (typeof entry.id !== 'string' || entry.id.trim().length === 0) {
+        throw new NativeJobContractError(`result.animations[${index}].id must be a non-empty string`);
+      }
+      if (typeof entry.name !== 'string' || entry.name.trim().length === 0) {
+        throw new NativeJobContractError(`result.animations[${index}].name must be a non-empty string`);
+      }
+      if (typeof entry.length !== 'number' || !Number.isFinite(entry.length) || entry.length < 0) {
+        throw new NativeJobContractError(`result.animations[${index}].length must be a non-negative number`);
+      }
+      if (typeof entry.loop !== 'boolean') {
+        throw new NativeJobContractError(`result.animations[${index}].loop must be a boolean`);
+      }
+      return {
+        id: entry.id,
+        name: entry.name,
+        length: entry.length,
+        loop: entry.loop
+      };
+    });
+  }
+
+  if (result.textureSources !== undefined) {
+    if (!Array.isArray(result.textureSources)) {
+      throw new NativeJobContractError('result.textureSources must be an array');
+    }
+    normalized.textureSources = result.textureSources.map((entry, index) => {
+      if (!isRecord(entry)) {
+        throw new NativeJobContractError('result.textureSources entry must be an object');
+      }
+      if (typeof entry.faceId !== 'string' || entry.faceId.trim().length === 0) {
+        throw new NativeJobContractError(`result.textureSources[${index}].faceId must be a non-empty string`);
+      }
+      if (typeof entry.cubeId !== 'string' || entry.cubeId.trim().length === 0) {
+        throw new NativeJobContractError(`result.textureSources[${index}].cubeId must be a non-empty string`);
+      }
+      if (typeof entry.cubeName !== 'string' || entry.cubeName.trim().length === 0) {
+        throw new NativeJobContractError(`result.textureSources[${index}].cubeName must be a non-empty string`);
+      }
+      if (!isTextureFaceDirection(entry.direction)) {
+        throw new NativeJobContractError(`result.textureSources[${index}].direction must be a valid cube face direction`);
+      }
+      if (typeof entry.colorHex !== 'string' || entry.colorHex.trim().length === 0) {
+        throw new NativeJobContractError(`result.textureSources[${index}].colorHex must be a non-empty string`);
+      }
+      if (!isRotationQuarter(entry.rotationQuarter)) {
+        throw new NativeJobContractError(`result.textureSources[${index}].rotationQuarter must be one of 0, 1, 2, 3`);
+      }
+      return {
+        faceId: entry.faceId,
+        cubeId: entry.cubeId,
+        cubeName: entry.cubeName,
+        direction: entry.direction,
+        colorHex: entry.colorHex,
+        rotationQuarter: entry.rotationQuarter
+      };
+    });
+  }
+
+  if (result.textures !== undefined) {
+    if (!Array.isArray(result.textures)) {
+      throw new NativeJobContractError('result.textures must be an array');
+    }
+    normalized.textures = result.textures.map((entry, index) => {
+      if (!isRecord(entry)) {
+        throw new NativeJobContractError('result.textures entry must be an object');
+      }
+      if (typeof entry.textureId !== 'string' || entry.textureId.trim().length === 0) {
+        throw new NativeJobContractError(`result.textures[${index}].textureId must be a non-empty string`);
+      }
+      if (typeof entry.name !== 'string' || entry.name.trim().length === 0) {
+        throw new NativeJobContractError(`result.textures[${index}].name must be a non-empty string`);
+      }
+      if (typeof entry.width !== 'number' || !Number.isFinite(entry.width) || entry.width < 0) {
+        throw new NativeJobContractError(`result.textures[${index}].width must be a non-negative number`);
+      }
+      if (typeof entry.height !== 'number' || !Number.isFinite(entry.height) || entry.height < 0) {
+        throw new NativeJobContractError(`result.textures[${index}].height must be a non-negative number`);
+      }
+      if (typeof entry.faceCount !== 'number' || !Number.isFinite(entry.faceCount) || entry.faceCount < 0) {
+        throw new NativeJobContractError(`result.textures[${index}].faceCount must be a non-negative number`);
+      }
+      if (typeof entry.imageDataUrl !== 'string' || entry.imageDataUrl.trim().length === 0) {
+        throw new NativeJobContractError(`result.textures[${index}].imageDataUrl must be a non-empty string`);
+      }
+      if (!Array.isArray(entry.faces)) {
+        throw new NativeJobContractError(`result.textures[${index}].faces must be an array`);
+      }
+      if (!Array.isArray(entry.uvEdges)) {
+        throw new NativeJobContractError(`result.textures[${index}].uvEdges must be an array`);
+      }
+
+      const faces = entry.faces.map((face, faceIndex) => {
+        if (!isRecord(face)) {
+          throw new NativeJobContractError(`result.textures[${index}].faces[${faceIndex}] must be an object`);
+        }
+        if (typeof face.faceId !== 'string' || face.faceId.trim().length === 0) {
+          throw new NativeJobContractError(`result.textures[${index}].faces[${faceIndex}].faceId must be a non-empty string`);
+        }
+        if (typeof face.cubeId !== 'string' || face.cubeId.trim().length === 0) {
+          throw new NativeJobContractError(`result.textures[${index}].faces[${faceIndex}].cubeId must be a non-empty string`);
+        }
+        if (typeof face.cubeName !== 'string' || face.cubeName.trim().length === 0) {
+          throw new NativeJobContractError(`result.textures[${index}].faces[${faceIndex}].cubeName must be a non-empty string`);
+        }
+        if (!isTextureFaceDirection(face.direction)) {
+          throw new NativeJobContractError(
+            `result.textures[${index}].faces[${faceIndex}].direction must be a valid cube face direction`
+          );
+        }
+        if (!isRotationQuarter(face.rotationQuarter)) {
+          throw new NativeJobContractError(
+            `result.textures[${index}].faces[${faceIndex}].rotationQuarter must be one of 0, 1, 2, 3`
+          );
+        }
+        if (typeof face.uMin !== 'number' || !Number.isFinite(face.uMin)) {
+          throw new NativeJobContractError(`result.textures[${index}].faces[${faceIndex}].uMin must be a finite number`);
+        }
+        if (typeof face.vMin !== 'number' || !Number.isFinite(face.vMin)) {
+          throw new NativeJobContractError(`result.textures[${index}].faces[${faceIndex}].vMin must be a finite number`);
+        }
+        if (typeof face.uMax !== 'number' || !Number.isFinite(face.uMax)) {
+          throw new NativeJobContractError(`result.textures[${index}].faces[${faceIndex}].uMax must be a finite number`);
+        }
+        if (typeof face.vMax !== 'number' || !Number.isFinite(face.vMax)) {
+          throw new NativeJobContractError(`result.textures[${index}].faces[${faceIndex}].vMax must be a finite number`);
+        }
+        return {
+          faceId: face.faceId,
+          cubeId: face.cubeId,
+          cubeName: face.cubeName,
+          direction: face.direction,
+          rotationQuarter: face.rotationQuarter,
+          uMin: face.uMin,
+          vMin: face.vMin,
+          uMax: face.uMax,
+          vMax: face.vMax
+        };
+      });
+
+      const uvEdges = entry.uvEdges.map((edge, edgeIndex) => {
+        if (!isRecord(edge)) {
+          throw new NativeJobContractError(`result.textures[${index}].uvEdges[${edgeIndex}] must be an object`);
+        }
+        if (typeof edge.x1 !== 'number' || !Number.isFinite(edge.x1)) {
+          throw new NativeJobContractError(`result.textures[${index}].uvEdges[${edgeIndex}].x1 must be a finite number`);
+        }
+        if (typeof edge.y1 !== 'number' || !Number.isFinite(edge.y1)) {
+          throw new NativeJobContractError(`result.textures[${index}].uvEdges[${edgeIndex}].y1 must be a finite number`);
+        }
+        if (typeof edge.x2 !== 'number' || !Number.isFinite(edge.x2)) {
+          throw new NativeJobContractError(`result.textures[${index}].uvEdges[${edgeIndex}].x2 must be a finite number`);
+        }
+        if (typeof edge.y2 !== 'number' || !Number.isFinite(edge.y2)) {
+          throw new NativeJobContractError(`result.textures[${index}].uvEdges[${edgeIndex}].y2 must be a finite number`);
+        }
+        return {
+          x1: edge.x1,
+          y1: edge.y1,
+          x2: edge.x2,
+          y2: edge.y2
+        };
+      });
+
+      return {
+        textureId: entry.textureId,
+        name: entry.name,
+        width: entry.width,
+        height: entry.height,
+        faceCount: entry.faceCount,
+        imageDataUrl: entry.imageDataUrl,
+        faces,
+        uvEdges
+      };
+    });
   }
 
   const diagnostics = normalizeDiagnostics(result.diagnostics);

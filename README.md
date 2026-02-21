@@ -1,4 +1,4 @@
-# <img src="images/logo-32.png" alt="Ashfox icon badge" width="32" height="32" /> Ashfox
+# <img src="images/favicon-32x32.png" alt="Ashfox icon badge" width="32" height="32" /> Ashfox
 
 Blockbench MCP bridge plugin. Ashfox exposes a low-level, deterministic tool surface for modeling, texturing, and animation over MCP.
 
@@ -231,12 +231,17 @@ Brand icon/image source of truth is the repository root `images/` directory.
 - `images/logo.png`
 - `images/logo_fullbackground.png`
 - `images/logo_readme.png`
-- `images/logo-32.png`
-- `images/logo-180.png`
-- `images/logo-192.png`
-- `images/logo-256.png`
-- `images/logo-512.png`
 - `images/favicon.ico`
+- `images/favicon-16x16.png`
+- `images/favicon-24x24.png`
+- `images/favicon-32x32.png`
+- `images/favicon-48x48.png`
+- `images/favicon-64x64.png`
+- `images/favicon-96x96.png`
+- `images/favicon-128x128.png`
+- `images/favicon-180x180.png`
+- `images/favicon-192x192.png`
+- `images/favicon-512x512.png`
 - `apps/web/public` -> `../../images` (symlink)
 - `apps/docs/public` -> `../../images` (symlink)
 

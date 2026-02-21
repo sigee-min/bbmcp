@@ -17,41 +17,34 @@ import {
   makeTextContent,
   toCallToolResult
 } from './routerUtils';
+import type { McpRequestPrincipal } from './types';
 
 type ToolCallParams = {
   name: string | null;
   args: Record<string, unknown>;
 };
 
-const readHeaderValue = (headers: Record<string, string> | undefined, name: string): string | null => {
-  if (!headers) return null;
-  const raw = headers[name];
-  if (typeof raw !== 'string') return null;
-  const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : null;
-};
-
-const readAccountIdFromHeaders = (headers: Record<string, string> | undefined): string | undefined => {
-  const accountId = readHeaderValue(headers, 'x-ashfox-account-id');
-  return accountId ?? undefined;
-};
-
-const readWorkspaceIdFromHeaders = (headers: Record<string, string> | undefined): string | undefined => {
-  const workspaceId = readHeaderValue(headers, 'x-ashfox-workspace-id');
-  return workspaceId ?? undefined;
-};
-
-const readSystemRolesFromHeaders = (headers: Record<string, string> | undefined): string[] | undefined => {
-  const raw = readHeaderValue(headers, 'x-ashfox-system-roles');
-  if (!raw) {
+const normalizeSystemRoles = (roles: readonly string[] | undefined): string[] | undefined => {
+  if (!Array.isArray(roles) || roles.length === 0) {
     return undefined;
   }
-  const roles = raw
-    .split(',')
-    .map((entry) => entry.trim().toLowerCase())
+  const normalized = roles
+    .map((entry) => String(entry).trim().toLowerCase())
     .filter((entry) => entry.length > 0);
-  return roles.length > 0 ? roles : undefined;
+  return normalized.length > 0 ? Array.from(new Set(normalized)) : undefined;
 };
+
+const readAccountId = (principal: McpRequestPrincipal | undefined): string | undefined =>
+  principal?.accountId;
+
+const readWorkspaceId = (principal: McpRequestPrincipal | undefined): string | undefined =>
+  principal?.workspaceId;
+
+const readSystemRoles = (principal: McpRequestPrincipal | undefined): string[] | undefined =>
+  normalizeSystemRoles(principal?.systemRoles);
+
+const readApiKeyId = (principal: McpRequestPrincipal | undefined): string | undefined =>
+  principal?.apiKeyId;
 
 const readErrorReason = (details: Record<string, unknown> | undefined): string | null => {
   const candidate = details?.reason;
@@ -135,9 +128,10 @@ export const handleToolCall = async (
   try {
     const response = await ctx.executor.callTool(name, args, {
       mcpSessionId: session.id,
-      mcpAccountId: readAccountIdFromHeaders(ctx.requestHeaders),
-      mcpSystemRoles: readSystemRolesFromHeaders(ctx.requestHeaders),
-      mcpWorkspaceId: readWorkspaceIdFromHeaders(ctx.requestHeaders)
+      mcpAccountId: readAccountId(ctx.principal),
+      mcpSystemRoles: readSystemRoles(ctx.principal),
+      mcpWorkspaceId: readWorkspaceId(ctx.principal),
+      mcpApiKeyId: readApiKeyId(ctx.principal)
     });
     const durationMs = Math.max(0, Date.now() - startedAt);
     if (response.ok) {

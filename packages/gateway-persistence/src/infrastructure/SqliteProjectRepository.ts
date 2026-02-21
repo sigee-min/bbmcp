@@ -290,6 +290,12 @@ export class SqliteProjectRepository extends SqlWorkspaceRepositoryBase implemen
           this.applyMigration(db, migration);
           appliedMigrationIds.add(migration.migrationId);
         }
+        db.exec(
+          `
+            CREATE INDEX IF NOT EXISTS idx_workspace_api_keys_key_hash
+              ON ${this.workspaceApiKeysTableSql}(key_hash)
+          `
+        );
         seedSqliteWorkspaceTemplate({
           db,
           workspaceTableSql: this.workspaceTableSql,
@@ -1031,6 +1037,50 @@ export class SqliteProjectRepository extends SqlWorkspaceRepositoryBase implemen
       expiresAt: row.expires_at ? ensureIso(row.expires_at) : null,
       revokedAt: row.revoked_at ? ensureIso(row.revoked_at) : null
     }));
+  }
+
+  async findWorkspaceApiKeyByHash(keyHash: string): Promise<WorkspaceApiKeyRecord | null> {
+    const normalizedKeyHash = keyHash.trim();
+    if (!normalizedKeyHash) {
+      return null;
+    }
+    const db = await this.ensureInitialized();
+    const row = db.prepare(
+      `
+        SELECT
+          workspace_id,
+          key_id,
+          name,
+          key_prefix,
+          key_hash,
+          created_by,
+          created_at,
+          updated_at,
+          last_used_at,
+          expires_at,
+          revoked_at
+        FROM ${this.workspaceApiKeysTableSql}
+        WHERE key_hash = ?
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `
+    ).get(normalizedKeyHash) as SqliteWorkspaceApiKeyRow | undefined;
+    if (!row) {
+      return null;
+    }
+    return {
+      workspaceId: row.workspace_id,
+      keyId: row.key_id,
+      name: row.name,
+      keyPrefix: row.key_prefix,
+      keyHash: row.key_hash,
+      createdBy: row.created_by,
+      createdAt: ensureIso(row.created_at),
+      updatedAt: ensureIso(row.updated_at),
+      lastUsedAt: row.last_used_at ? ensureIso(row.last_used_at) : null,
+      expiresAt: row.expires_at ? ensureIso(row.expires_at) : null,
+      revokedAt: row.revoked_at ? ensureIso(row.revoked_at) : null
+    };
   }
 
   async createWorkspaceApiKey(record: WorkspaceApiKeyRecord): Promise<void> {

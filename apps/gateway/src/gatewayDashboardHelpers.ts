@@ -144,6 +144,21 @@ export const readExportPath = (job: NativeJob): string | null => {
   return exportPath;
 };
 
+const readExportProjectRevision = (job: NativeJob): number | null => {
+  if (job.kind !== 'gltf.convert' || job.status !== 'completed') {
+    return null;
+  }
+  const output = job.result?.output;
+  if (!output || typeof output !== 'object') {
+    return null;
+  }
+  const projectRevision = (output as Record<string, unknown>).projectRevision;
+  if (typeof projectRevision !== 'number' || !Number.isInteger(projectRevision) || projectRevision < 0) {
+    return null;
+  }
+  return projectRevision;
+};
+
 const isPreviewCompatibleGltfJob = (job: NativeJob): boolean => {
   if (job.kind !== 'gltf.convert' || job.status !== 'completed') {
     return false;
@@ -170,11 +185,46 @@ const isPreviewCompatibleGltfJob = (job: NativeJob): boolean => {
 };
 
 export const latestCompletedGltfJob = (jobs: readonly NativeJob[]): NativeJob | null => {
+  return latestCompletedGltfJobForRevision(jobs);
+};
+
+export const latestCompletedGltfJobForRevision = (
+  jobs: readonly NativeJob[],
+  projectRevision?: number
+): NativeJob | null => {
+  const hasRevisionConstraint =
+    typeof projectRevision === 'number' && Number.isInteger(projectRevision) && projectRevision >= 0;
+
+  let hasRevisionMetadata = false;
   for (let index = jobs.length - 1; index >= 0; index -= 1) {
     const job = jobs[index];
     if (!isPreviewCompatibleGltfJob(job)) continue;
-    if (readExportPath(job)) return job;
+    if (!readExportPath(job)) continue;
+
+    if (!hasRevisionConstraint) {
+      return job;
+    }
+
+    const jobRevision = readExportProjectRevision(job);
+    if (jobRevision !== null) {
+      hasRevisionMetadata = true;
+      if (jobRevision >= projectRevision) {
+        return job;
+      }
+    }
   }
+
+  // Backward compatibility:
+  // if no revision metadata exists at all (legacy worker outputs), allow the latest compatible job.
+  if (hasRevisionConstraint && !hasRevisionMetadata) {
+    for (let index = jobs.length - 1; index >= 0; index -= 1) {
+      const job = jobs[index];
+      if (!isPreviewCompatibleGltfJob(job)) continue;
+      if (!readExportPath(job)) continue;
+      return job;
+    }
+  }
+
   return null;
 };
 

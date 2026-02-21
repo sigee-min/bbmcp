@@ -15,18 +15,23 @@ Establish stable MCP connectivity from non-Blockbench clients.
 - MCP endpoint is reachable from your client/network environment.
 
 ## Quick Start
-1. Confirm gateway endpoint path and authentication assumptions.
-2. Execute handshake and capability discovery (`system.list_capabilities`).
-3. Run one read-only project call to verify payload path.
+1. Issue a personal API key from your workspace settings dialog.
+2. Connect your MCP client with `/mcp` plus `Authorization: Bearer <API_KEY>`.
+3. Execute handshake and capability discovery (`system.list_capabilities`).
+4. Run one read-only project call to verify workspace/permission auto-binding.
 
 ## Detailed Steps
-1. Confirm gateway endpoint path and authentication assumptions.
-2. Execute handshake and capability discovery (`system.list_capabilities`).
-3. Run one read-only project call to verify payload path.
-4. Validate error mapping and retry behavior in client logs.
+1. Issue a workspace API key and store the raw secret safely.
+2. Configure only these two client values:
+   - Endpoint: `https://<gateway-host>/mcp`
+   - Header: `Authorization: Bearer <API_KEY>`
+3. Validate the session flow with `initialize`, `tools/list`, and `system.list_capabilities`.
+4. Run a read-only tool call and confirm workspace scope is resolved automatically.
+5. Validate error mapping and retry behavior in client logs.
 
 ## Failure and Recovery
 - Connection failure: verify endpoint path, service status, and firewall/permission settings.
+- Authentication failure (401): verify key revocation/expiry and issue a new API key.
 - Schema error: retry with the minimal request and refresh client schema cache.
 - Validation failure: resolve reported findings, then re-run from Quick Start.
 

@@ -2,6 +2,7 @@ import { Logger } from '../../logging';
 import { ToolExecutor } from './executor';
 import {
   HttpRequest,
+  McpRequestPrincipal,
   McpServerConfig,
   ResponsePlan
 } from './types';
@@ -59,7 +60,10 @@ export class McpRouter {
     this.sessionTtlMs = normalizeSessionTtl(config.sessionTtlMs);
   }
 
-  async handle(req: HttpRequest, context: { log?: Logger } = {}): Promise<ResponsePlan> {
+  async handle(
+    req: HttpRequest,
+    context: { log?: Logger; principal?: McpRequestPrincipal } = {}
+  ): Promise<ResponsePlan> {
     this.pruneSessions();
     const log = context.log ?? this.log;
     const method = (req.method || 'GET').toUpperCase();
@@ -68,8 +72,9 @@ export class McpRouter {
       return this.jsonResponse(404, { error: { code: 'not_found', message: MCP_ROUTE_NOT_FOUND } });
     }
 
-    const authFailure = this.authorize(req);
-    if (authFailure) return authFailure;
+    const authResult = await this.authorize(req, context.principal);
+    if (authResult.failure) return authResult.failure;
+    const principal = authResult.principal;
 
     if (method === 'GET') {
       return handleSseGet(this.getHttpContext(), req);
@@ -78,18 +83,34 @@ export class McpRouter {
       return handleSessionDelete(this.getHttpContext(), req);
     }
     if (method === 'POST') {
-      return this.handlePost(req, log);
+      return this.handlePost(req, log, principal);
     }
     return this.jsonResponse(405, { error: { code: 'method_not_allowed', message: MCP_METHOD_NOT_ALLOWED } });
   }
 
-  private authorize(req: HttpRequest): ResponsePlan | null {
-    if (!this.config.token) return null;
+  private async authorize(
+    req: HttpRequest,
+    contextPrincipal?: McpRequestPrincipal
+  ): Promise<{ failure: ResponsePlan | null; principal?: McpRequestPrincipal }> {
+    let principal = contextPrincipal;
+    if (this.config.authenticateRequest) {
+      const result = await this.config.authenticateRequest(req);
+      if (!result.ok) {
+        return { failure: result.response };
+      }
+      principal = result.principal ?? principal;
+    }
+
+    if (!this.config.token) {
+      return { failure: null, principal };
+    }
     const auth = req.headers.authorization ?? '';
     if (auth !== `Bearer ${this.config.token}`) {
-      return this.jsonResponse(401, { error: { code: 'unauthorized', message: MCP_UNAUTHORIZED } });
+      return {
+        failure: this.jsonResponse(401, { error: { code: 'unauthorized', message: MCP_UNAUTHORIZED } })
+      };
     }
-    return null;
+    return { failure: null, principal };
   }
 
   private validatePostRequest(req: HttpRequest): ResponsePlan | null {
@@ -99,7 +120,11 @@ export class McpRouter {
     return null;
   }
 
-  private createRpcContext(log: Logger, requestHeaders?: Record<string, string>) {
+  private createRpcContext(
+    log: Logger,
+    requestHeaders?: Record<string, string>,
+    principal?: McpRequestPrincipal
+  ) {
     return {
       executor: this.executor,
       log,
@@ -108,6 +133,7 @@ export class McpRouter {
       toolRegistry: this.toolRegistry,
       sessions: this.sessions,
       ...(requestHeaders ? { requestHeaders } : {}),
+      ...(principal ? { principal } : {}),
       supportedProtocols: this.supportedProtocols,
       config: this.config
     };
@@ -148,7 +174,11 @@ export class McpRouter {
     };
   }
 
-  private async handlePost(req: HttpRequest, log: Logger): Promise<ResponsePlan> {
+  private async handlePost(
+    req: HttpRequest,
+    log: Logger,
+    principal?: McpRequestPrincipal
+  ): Promise<ResponsePlan> {
     const validationFailure = this.validatePostRequest(req);
     if (validationFailure) return validationFailure;
 
@@ -166,7 +196,7 @@ export class McpRouter {
     this.sessions.touch(sessionResult.session);
 
     const outcome = await handleMessage(
-      this.createRpcContext(log, req.headers),
+      this.createRpcContext(log, req.headers, principal),
       parsed.message,
       sessionResult.session,
       parsed.id

@@ -1030,6 +1030,16 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
       .map((apiKey) => ({ ...apiKey }));
   }
 
+  async findWorkspaceApiKeyByHash(keyHash: string): Promise<WorkspaceApiKeyRecord | null> {
+    const normalizedKeyHash = keyHash.trim();
+    if (!normalizedKeyHash) {
+      return null;
+    }
+    const { state } = await this.readWorkspaceStateContainer();
+    const found = state.apiKeys.find((apiKey) => apiKey.keyHash === normalizedKeyHash);
+    return found ? { ...found } : null;
+  }
+
   async createWorkspaceApiKey(record: WorkspaceApiKeyRecord): Promise<void> {
     await this.mutateWorkspaceState((state) => {
       const now = new Date().toISOString();

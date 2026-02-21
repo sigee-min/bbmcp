@@ -293,6 +293,12 @@ export class PostgresProjectRepository extends SqlWorkspaceRepositoryBase implem
       await this.applyMigration(pool, migration);
       appliedMigrationIds.add(migration.migrationId);
     }
+    await pool.query(
+      `
+        CREATE INDEX IF NOT EXISTS idx_workspace_api_keys_key_hash
+          ON ${this.workspaceApiKeysTableSql}(key_hash)
+      `
+    );
     await seedPostgresWorkspaceTemplate({
       pool,
       workspaceTableSql: this.workspaceTableSql,
@@ -1096,6 +1102,53 @@ export class PostgresProjectRepository extends SqlWorkspaceRepositoryBase implem
       expiresAt: row.expires_at ? normalizeTimestamp(row.expires_at) : null,
       revokedAt: row.revoked_at ? normalizeTimestamp(row.revoked_at) : null
     }));
+  }
+
+  async findWorkspaceApiKeyByHash(keyHash: string): Promise<WorkspaceApiKeyRecord | null> {
+    await this.ensureInitialized();
+    const normalizedKeyHash = keyHash.trim();
+    if (!normalizedKeyHash) {
+      return null;
+    }
+    const pool = this.getPool();
+    const result = await pool.query<WorkspaceApiKeyRow>(
+      `
+        SELECT
+          workspace_id,
+          key_id,
+          name,
+          key_prefix,
+          key_hash,
+          created_by,
+          created_at,
+          updated_at,
+          last_used_at,
+          expires_at,
+          revoked_at
+        FROM ${this.workspaceApiKeysTableSql}
+        WHERE key_hash = $1
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `,
+      [normalizedKeyHash]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+    return {
+      workspaceId: row.workspace_id,
+      keyId: row.key_id,
+      name: row.name,
+      keyPrefix: row.key_prefix,
+      keyHash: row.key_hash,
+      createdBy: row.created_by,
+      createdAt: normalizeTimestamp(row.created_at),
+      updatedAt: normalizeTimestamp(row.updated_at),
+      lastUsedAt: row.last_used_at ? normalizeTimestamp(row.last_used_at) : null,
+      expiresAt: row.expires_at ? normalizeTimestamp(row.expires_at) : null,
+      revokedAt: row.revoked_at ? normalizeTimestamp(row.revoked_at) : null
+    };
   }
 
   async createWorkspaceApiKey(record: WorkspaceApiKeyRecord): Promise<void> {

@@ -91,6 +91,57 @@ const toNonNegativeInteger = (value: unknown, fallback = 0): number => {
   return normalized >= 0 ? normalized : fallback;
 };
 
+const toPositiveInteger = (value: unknown, fallback = 16, min = 1, max = 4096): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  const normalized = Math.trunc(value);
+  if (normalized < min) return fallback;
+  if (normalized > max) return max;
+  return normalized;
+};
+
+const FALLBACK_TEXTURE_DATA_URI =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7oN3sAAAAASUVORK5CYII=';
+
+const TEXTURE_FACE_DIRECTIONS = new Set(['north', 'east', 'south', 'west', 'up', 'down']);
+
+type RuntimeProjectState = ToolResultMap['get_project_state']['project'];
+
+type NativeAnimationSummary = {
+  id: string;
+  name: string;
+  length: number;
+  loop: boolean;
+};
+
+const summarizeProjectAnimations = (
+  projectState: ToolResultMap['get_project_state']['project']
+): NativeAnimationSummary[] => {
+  const animations = Array.isArray(projectState.animations) ? projectState.animations : [];
+  const summaries: NativeAnimationSummary[] = [];
+  for (let index = 0; index < animations.length; index += 1) {
+    const animation = animations[index];
+    const fallbackName = `Animation ${index + 1}`;
+    const rawName = typeof animation.name === 'string' ? animation.name.trim() : '';
+    const name = rawName.length > 0 ? rawName : fallbackName;
+    const rawId = typeof animation.id === 'string' ? animation.id.trim() : '';
+    const id = rawId.length > 0 ? rawId : `animation:${index + 1}:${name}`;
+    const length = typeof animation.length === 'number' && Number.isFinite(animation.length) ? animation.length : 0;
+    const loop = animation.loop === true;
+    summaries.push({
+      id,
+      name,
+      length: length >= 0 ? length : 0,
+      loop
+    });
+  }
+  return summaries;
+};
+
+type TextureProjection = {
+  textureSources: NativeProjectSnapshot['textureSources'];
+  textures: NativeProjectSnapshot['textures'];
+};
+
 const isPowerOfTwo = (value: number): boolean => value > 0 && (value & (value - 1)) === 0;
 
 type PreflightTextureEntry = {
@@ -152,21 +203,11 @@ const resolveRequestedTextures = (
 const materializeProjectGeometry = async (
   backend: BackendPort,
   toolContext: BackendToolContext,
-  project: NativeProjectSnapshot,
-  job: Extract<NativeJob, { kind: 'gltf.convert' }>
+  project: NativeProjectSnapshot
 ): Promise<{ bonesApplied: number; cubesApplied: number; finalBoneCount: number; finalCubeCount: number }> => {
   if (!project.hasGeometry) {
     return { bonesApplied: 0, cubesApplied: 0, finalBoneCount: 0, finalCubeCount: 0 };
   }
-
-  const previewProjectName = `${project.projectId}::preview::${job.id}`;
-  await callBackendTool(backend, toolContext, 'ensure_project', {
-    name: previewProjectName,
-    match: 'name',
-    onMissing: 'create',
-    onMismatch: 'create',
-    includeState: false
-  });
 
   const fullState = await callBackendTool(backend, toolContext, 'get_project_state', { detail: 'full' });
   let revision = fullState.project.revision;
@@ -230,6 +271,346 @@ const materializeProjectGeometry = async (
   };
 };
 
+const materializeProjectAnimations = async (
+  backend: BackendPort,
+  toolContext: BackendToolContext,
+  project: NativeProjectSnapshot
+): Promise<{ clipsApplied: number; finalAnimationCount: number }> => {
+  if (project.animations.length === 0) {
+    return { clipsApplied: 0, finalAnimationCount: 0 };
+  }
+
+  const fullState = await callBackendTool(backend, toolContext, 'get_project_state', { detail: 'full' });
+  let revision = fullState.project.revision;
+
+  const refreshRevision = async (): Promise<string> => {
+    const state = await callBackendTool(backend, toolContext, 'get_project_state', { detail: 'summary' });
+    return state.project.revision;
+  };
+
+  const existingAnimationNames = new Set((fullState.project.animations ?? []).map((animation) => animation.name));
+  const existingAnimationIds = new Set(
+    (fullState.project.animations ?? [])
+      .map((animation) => (typeof animation.id === 'string' ? animation.id.trim() : ''))
+      .filter((entry) => entry.length > 0)
+  );
+  const targetBoneName = (fullState.project.bones ?? [])
+    .map((bone) => bone.name)
+    .find((name): name is string => typeof name === 'string' && name.trim().length > 0);
+
+  let clipsApplied = 0;
+  for (let index = 0; index < project.animations.length; index += 1) {
+    const animation = project.animations[index];
+    const fallbackName = `Animation ${index + 1}`;
+    const rawName = typeof animation.name === 'string' ? animation.name.trim() : '';
+    const name = rawName.length > 0 ? rawName : fallbackName;
+    const rawId = typeof animation.id === 'string' ? animation.id.trim() : '';
+    if (existingAnimationNames.has(name) || (rawId.length > 0 && existingAnimationIds.has(rawId))) {
+      continue;
+    }
+
+    const createAnimationResult = await callBackendTool(backend, toolContext, 'create_animation_clip', {
+      ...(rawId.length > 0 && !existingAnimationIds.has(rawId) ? { id: rawId } : {}),
+      name,
+      length: typeof animation.length === 'number' && Number.isFinite(animation.length) && animation.length > 0 ? animation.length : 1,
+      loop: animation.loop === true,
+      fps: 20,
+      ifRevision: revision,
+      includeState: true
+    });
+    revision = toRevision(createAnimationResult) ?? (await refreshRevision());
+
+    if (targetBoneName) {
+      const setPoseResult = await callBackendTool(backend, toolContext, 'set_frame_pose', {
+        clip: name,
+        ...(typeof createAnimationResult.id === 'string' && createAnimationResult.id.trim().length > 0
+          ? { clipId: createAnimationResult.id }
+          : {}),
+        frame: 0,
+        bones: [{ name: targetBoneName, rot: [0, 0, 0] }],
+        ifRevision: revision,
+        includeState: true
+      });
+      revision = toRevision(setPoseResult) ?? (await refreshRevision());
+    }
+
+    existingAnimationNames.add(name);
+    if (rawId.length > 0) {
+      existingAnimationIds.add(rawId);
+    }
+    clipsApplied += 1;
+  }
+
+  const finalState = await callBackendTool(backend, toolContext, 'get_project_state', { detail: 'summary' });
+  return {
+    clipsApplied,
+    finalAnimationCount: toNonNegativeInteger(finalState.project.counts.animations)
+  };
+};
+
+const materializeProjectTextures = async (
+  backend: BackendPort,
+  toolContext: BackendToolContext,
+  project: NativeProjectSnapshot
+): Promise<{ texturesApplied: number; finalTextureCount: number }> => {
+  if (project.textures.length === 0) {
+    return { texturesApplied: 0, finalTextureCount: 0 };
+  }
+
+  const fullState = await callBackendTool(backend, toolContext, 'get_project_state', { detail: 'full' });
+  let revision = fullState.project.revision;
+
+  const refreshRevision = async (): Promise<string> => {
+    const state = await callBackendTool(backend, toolContext, 'get_project_state', { detail: 'summary' });
+    return state.project.revision;
+  };
+
+  const targetCubeName = (fullState.project.cubes ?? [])
+    .map((cube) => cube.name)
+    .find((name): name is string => typeof name === 'string' && name.trim().length > 0);
+  if (!targetCubeName) {
+    const finalState = await callBackendTool(backend, toolContext, 'get_project_state', { detail: 'summary' });
+    return {
+      texturesApplied: 0,
+      finalTextureCount: toNonNegativeInteger(finalState.project.counts.textures)
+    };
+  }
+
+  const existingTextureNames = new Set((fullState.project.textures ?? []).map((texture) => texture.name));
+  const existingTextureIds = new Set(
+    (fullState.project.textures ?? [])
+      .map((texture) => (typeof texture.id === 'string' ? texture.id.trim() : ''))
+      .filter((entry) => entry.length > 0)
+  );
+  let texturesApplied = 0;
+
+  for (let index = 0; index < project.textures.length; index += 1) {
+    const texture = project.textures[index];
+    const fallbackName = `Texture ${index + 1}`;
+    const rawName = typeof texture.name === 'string' ? texture.name.trim() : '';
+    const name = rawName.length > 0 ? rawName : fallbackName;
+    const rawId = typeof texture.textureId === 'string' ? texture.textureId.trim() : '';
+    if (existingTextureNames.has(name) || (rawId.length > 0 && existingTextureIds.has(rawId))) {
+      continue;
+    }
+
+    const paintResult = await callBackendTool(backend, toolContext, 'paint_faces', {
+      ...(rawId.length > 0 && !existingTextureIds.has(rawId) ? { textureId: rawId } : {}),
+      textureName: name,
+      target: {
+        cubeName: targetCubeName,
+        face: 'north'
+      },
+      width: toPositiveInteger(texture.width, 16),
+      height: toPositiveInteger(texture.height, 16),
+      op: {
+        op: 'set_pixel',
+        x: 0,
+        y: 0,
+        color: '#ffffff'
+      },
+      ifRevision: revision,
+      includeState: true
+    });
+    revision = toRevision(paintResult) ?? (await refreshRevision());
+
+    existingTextureNames.add(name);
+    if (rawId.length > 0) {
+      existingTextureIds.add(rawId);
+    }
+    texturesApplied += 1;
+  }
+
+  const finalState = await callBackendTool(backend, toolContext, 'get_project_state', { detail: 'summary' });
+  return {
+    texturesApplied,
+    finalTextureCount: toNonNegativeInteger(finalState.project.counts.textures)
+  };
+};
+
+const normalizeTextureUsageLookupKey = (value: string): string => value.trim().toLowerCase();
+
+const createUvEdgesFromFaces = (
+  faces: NativeProjectSnapshot['textures'][number]['faces']
+): NativeProjectSnapshot['textures'][number]['uvEdges'] => {
+  const edgeMap = new Map<string, NativeProjectSnapshot['textures'][number]['uvEdges'][number]>();
+
+  const registerEdge = (x1: number, y1: number, x2: number, y2: number) => {
+    if (![x1, y1, x2, y2].every((entry) => Number.isFinite(entry))) {
+      return;
+    }
+    const normalized = x1 < x2 || (x1 === x2 && y1 <= y2) ? [x1, y1, x2, y2] : [x2, y2, x1, y1];
+    const key = normalized.join(':');
+    if (edgeMap.has(key)) {
+      return;
+    }
+    edgeMap.set(key, {
+      x1: normalized[0],
+      y1: normalized[1],
+      x2: normalized[2],
+      y2: normalized[3]
+    });
+  };
+
+  for (const face of faces) {
+    registerEdge(face.uMin, face.vMin, face.uMax, face.vMin);
+    registerEdge(face.uMax, face.vMin, face.uMax, face.vMax);
+    registerEdge(face.uMax, face.vMax, face.uMin, face.vMax);
+    registerEdge(face.uMin, face.vMax, face.uMin, face.vMin);
+  }
+
+  return Array.from(edgeMap.values());
+};
+
+const collectTextureProjection = async (
+  backend: BackendPort,
+  toolContext: BackendToolContext,
+  projectState: RuntimeProjectState,
+  logger: Logger,
+  meta: { projectId: string; jobId: string }
+): Promise<TextureProjection> => {
+  const runtimeTextureEntries = Array.isArray(projectState.textures) ? projectState.textures : [];
+  const runtimeTextureCount = toNonNegativeInteger(projectState.counts.textures);
+  if (runtimeTextureEntries.length === 0 && runtimeTextureCount === 0) {
+    return { textureSources: [], textures: [] };
+  }
+
+  let preflight: ToolResultMap['preflight_texture'] | null = null;
+  try {
+    preflight = await callBackendTool(backend, toolContext, 'preflight_texture', { includeUsage: true });
+  } catch (error) {
+    logger.warn('ashfox worker texture projection preflight failed', {
+      ...meta,
+      message: error instanceof Error ? error.message : String(error)
+    });
+  }
+
+  const usageById = new Map<string, NonNullable<ToolResultMap['preflight_texture']['textureUsage']>['textures'][number]>();
+  const usageByName = new Map<string, NonNullable<ToolResultMap['preflight_texture']['textureUsage']>['textures'][number]>();
+  const usageEntries = preflight?.textureUsage?.textures ?? [];
+  for (const entry of usageEntries) {
+    if (typeof entry.id === 'string' && entry.id.trim().length > 0) {
+      usageById.set(normalizeTextureUsageLookupKey(entry.id), entry);
+    }
+    if (typeof entry.name === 'string' && entry.name.trim().length > 0) {
+      usageByName.set(normalizeTextureUsageLookupKey(entry.name), entry);
+    }
+  }
+
+  const candidateTextures = runtimeTextureEntries.map((entry) => ({
+    id: typeof entry.id === 'string' && entry.id.trim().length > 0 ? entry.id.trim() : undefined,
+    name: typeof entry.name === 'string' ? entry.name.trim() : '',
+    width: toPositiveInteger(entry.width, toPositiveInteger(preflight?.textureResolution?.width, 16)),
+    height: toPositiveInteger(entry.height, toPositiveInteger(preflight?.textureResolution?.height, 16))
+  }));
+  if (candidateTextures.length === 0) {
+    for (const entry of usageEntries) {
+      candidateTextures.push({
+        id: typeof entry.id === 'string' && entry.id.trim().length > 0 ? entry.id.trim() : undefined,
+        name: entry.name.trim(),
+        width: toPositiveInteger(entry.width, toPositiveInteger(preflight?.textureResolution?.width, 16)),
+        height: toPositiveInteger(entry.height, toPositiveInteger(preflight?.textureResolution?.height, 16))
+      });
+    }
+  }
+
+  const textureSourcesMap = new Map<string, NativeProjectSnapshot['textureSources'][number]>();
+  const textures: NativeProjectSnapshot['textures'] = [];
+
+  for (const candidate of candidateTextures) {
+    if (candidate.name.length === 0) {
+      continue;
+    }
+
+    const usageEntry =
+      (candidate.id ? usageById.get(normalizeTextureUsageLookupKey(candidate.id)) : undefined) ??
+      usageByName.get(normalizeTextureUsageLookupKey(candidate.name));
+    const textureId = candidate.id ?? (typeof usageEntry?.id === 'string' && usageEntry.id.trim().length > 0 ? usageEntry.id : null) ??
+      `texture:${candidate.name}`;
+    const width = candidate.width;
+    const height = candidate.height;
+
+    let imageDataUrl = '';
+    try {
+      const readTexture = await callBackendTool(backend, toolContext, 'read_texture', candidate.id ? { id: candidate.id } : { name: candidate.name });
+      imageDataUrl =
+        typeof readTexture.texture?.dataUri === 'string' && readTexture.texture.dataUri.trim().length > 0
+          ? readTexture.texture.dataUri
+          : '';
+    } catch (error) {
+      logger.warn('ashfox worker texture projection read failed', {
+        ...meta,
+        textureId,
+        textureName: candidate.name,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+    if (!imageDataUrl) {
+      imageDataUrl = FALLBACK_TEXTURE_DATA_URI;
+    }
+
+    const faces: NativeProjectSnapshot['textures'][number]['faces'] = [];
+    for (const cube of usageEntry?.cubes ?? []) {
+      const cubeName = typeof cube.name === 'string' ? cube.name.trim() : '';
+      if (cubeName.length === 0) {
+        continue;
+      }
+      const cubeId = typeof cube.id === 'string' && cube.id.trim().length > 0 ? cube.id.trim() : `cube:${cubeName}`;
+      for (const face of cube.faces ?? []) {
+        if (!TEXTURE_FACE_DIRECTIONS.has(face.face)) {
+          continue;
+        }
+        if (!Array.isArray(face.uv) || face.uv.length !== 4) {
+          continue;
+        }
+        const [u1, v1, u2, v2] = face.uv;
+        if (![u1, v1, u2, v2].every((entry) => typeof entry === 'number' && Number.isFinite(entry))) {
+          continue;
+        }
+        const direction = face.face as NativeProjectSnapshot['textureSources'][number]['direction'];
+        const faceId = `${textureId}:${cubeId}:${direction}`;
+        faces.push({
+          faceId,
+          cubeId,
+          cubeName,
+          direction,
+          rotationQuarter: 0,
+          uMin: Math.min(u1, u2),
+          vMin: Math.min(v1, v2),
+          uMax: Math.max(u1, u2),
+          vMax: Math.max(v1, v2)
+        });
+        if (!textureSourcesMap.has(faceId)) {
+          textureSourcesMap.set(faceId, {
+            faceId,
+            cubeId,
+            cubeName,
+            direction,
+            colorHex: '#ffffff',
+            rotationQuarter: 0
+          });
+        }
+      }
+    }
+
+    textures.push({
+      textureId,
+      name: candidate.name,
+      width,
+      height,
+      faceCount: toNonNegativeInteger(usageEntry?.faceCount, faces.length),
+      imageDataUrl,
+      faces,
+      uvEdges: createUvEdgesFromFaces(faces)
+    });
+  }
+
+  return {
+    textureSources: Array.from(textureSourcesMap.values()),
+    textures
+  };
+};
+
 const handleGltfConvertJob: NativeJobProcessor = async (job, context) => {
   if (job.kind !== 'gltf.convert') {
     throw new Error(`Unsupported native job kind: ${job.kind}`);
@@ -241,36 +622,109 @@ const handleGltfConvertJob: NativeJobProcessor = async (job, context) => {
   const useNativeCodecPath = Boolean(requestedCodecId && requestedCodecId !== 'gltf');
   const exportFormat = useNativeCodecPath ? 'native_codec' : 'gltf';
   const projectSnapshot = context.getProjectSnapshot ? await context.getProjectSnapshot(job.projectId) : null;
+  await callBackendTool(backend, toolContext, 'ensure_project', {
+    name: job.projectId,
+    onMissing: 'create',
+    onMismatch: 'reuse',
+    includeState: false
+  });
+
   if (projectSnapshot?.hasGeometry) {
+    const snapshotHasAnimations = projectSnapshot.animations.length > 0;
+    const snapshotHasTextures = projectSnapshot.textures.length > 0;
+    let shouldMaterializeGeometry = true;
+    let shouldMaterializeAnimations = snapshotHasAnimations;
+    let shouldMaterializeTextures = snapshotHasTextures;
     try {
-      const materialized = await materializeProjectGeometry(backend, toolContext, projectSnapshot, job);
-      context.logger.info('ashfox worker project geometry materialized', {
-        projectId: job.projectId,
-        jobId: job.id,
-        seedBones: projectSnapshot.stats.bones,
-        seedCubes: projectSnapshot.stats.cubes,
-        ...materialized
-      });
+      const initialState = await callBackendTool(backend, toolContext, 'get_project_state', { detail: 'full' });
+      const runtimeHasGeometry =
+        toNonNegativeInteger(initialState.project.counts.bones) > 0 ||
+        toNonNegativeInteger(initialState.project.counts.cubes) > 0;
+      const runtimeAnimationSummaries = summarizeProjectAnimations(initialState.project);
+      const runtimeHasAnimations =
+        runtimeAnimationSummaries.length > 0 || toNonNegativeInteger(initialState.project.counts.animations) > 0;
+      const runtimeHasTextures =
+        (Array.isArray(initialState.project.textures) && initialState.project.textures.length > 0) ||
+        toNonNegativeInteger(initialState.project.counts.textures) > 0;
+
+      shouldMaterializeGeometry = !runtimeHasGeometry;
+      shouldMaterializeAnimations = snapshotHasAnimations && !runtimeHasAnimations;
+      shouldMaterializeTextures = snapshotHasTextures && !runtimeHasTextures;
+
+      if (!shouldMaterializeGeometry && !shouldMaterializeAnimations && !shouldMaterializeTextures) {
+        context.logger.debug('ashfox worker project materialization skipped', {
+          projectId: job.projectId,
+          jobId: job.id,
+          runtimeHasGeometry,
+          runtimeAnimationCount: runtimeAnimationSummaries.length,
+          runtimeHasTextures
+        });
+      }
     } catch (error) {
-      context.logger.warn('ashfox worker project geometry materialization failed', {
+      context.logger.warn('ashfox worker project state inspection before materialization failed', {
         projectId: job.projectId,
         jobId: job.id,
         message: error instanceof Error ? error.message : String(error)
       });
-      await callBackendTool(backend, toolContext, 'ensure_project', {
-        name: job.projectId,
-        onMissing: 'create',
-        onMismatch: 'reuse',
-        includeState: false
-      });
+      shouldMaterializeGeometry = true;
+      shouldMaterializeAnimations = snapshotHasAnimations;
+      shouldMaterializeTextures = snapshotHasTextures;
     }
-  } else {
-    await callBackendTool(backend, toolContext, 'ensure_project', {
-      name: job.projectId,
-      onMissing: 'create',
-      onMismatch: 'reuse',
-      includeState: false
-    });
+
+    if (shouldMaterializeGeometry) {
+      try {
+        const materialized = await materializeProjectGeometry(backend, toolContext, projectSnapshot);
+        context.logger.info('ashfox worker project geometry materialized', {
+          projectId: job.projectId,
+          jobId: job.id,
+          seedBones: projectSnapshot.stats.bones,
+          seedCubes: projectSnapshot.stats.cubes,
+          ...materialized
+        });
+      } catch (error) {
+        context.logger.warn('ashfox worker project geometry materialization failed', {
+          projectId: job.projectId,
+          jobId: job.id,
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    if (shouldMaterializeAnimations) {
+      try {
+        const materialized = await materializeProjectAnimations(backend, toolContext, projectSnapshot);
+        context.logger.info('ashfox worker project animations materialized', {
+          projectId: job.projectId,
+          jobId: job.id,
+          seedAnimations: projectSnapshot.animations.length,
+          ...materialized
+        });
+      } catch (error) {
+        context.logger.warn('ashfox worker project animation materialization failed', {
+          projectId: job.projectId,
+          jobId: job.id,
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    if (shouldMaterializeTextures) {
+      try {
+        const materialized = await materializeProjectTextures(backend, toolContext, projectSnapshot);
+        context.logger.info('ashfox worker project textures materialized', {
+          projectId: job.projectId,
+          jobId: job.id,
+          seedTextures: projectSnapshot.textures.length,
+          ...materialized
+        });
+      } catch (error) {
+        context.logger.warn('ashfox worker project texture materialization failed', {
+          projectId: job.projectId,
+          jobId: job.id,
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
   }
 
   const exportResult = await callBackendTool(backend, toolContext, 'export', {
@@ -288,12 +742,24 @@ const handleGltfConvertJob: NativeJobProcessor = async (job, context) => {
   const hierarchy = buildHierarchyFromProjectState(currentState.project);
   const hasGeometry =
     toNonNegativeInteger(currentState.project.counts.bones) > 0 || toNonNegativeInteger(currentState.project.counts.cubes) > 0;
+  const animations = summarizeProjectAnimations(currentState.project);
+  const textureProjection = await collectTextureProjection(backend, toolContext, currentState.project, context.logger, {
+    projectId: job.projectId,
+    jobId: job.id
+  });
+  const projectRevision =
+    typeof projectSnapshot?.revision === 'number' && Number.isInteger(projectSnapshot.revision)
+      ? projectSnapshot.revision + 1
+      : undefined;
 
   return {
     kind: 'gltf.convert',
     status: 'converted',
     hasGeometry,
     hierarchy,
+    animations,
+    textureSources: textureProjection.textureSources,
+    textures: textureProjection.textures,
     processedBy: context.workerId,
     attemptCount: job.attemptCount,
     finishedAt: nowIso(),
@@ -302,7 +768,10 @@ const handleGltfConvertJob: NativeJobProcessor = async (job, context) => {
       selectedTarget: exportResult.selectedTarget?.id ?? 'gltf',
       warningCount: exportResult.warnings?.length ?? 0,
       requestedCodecId: requestedCodecId ?? 'gltf',
-      selectedFormat: exportFormat
+      selectedFormat: exportFormat,
+      ...(typeof projectRevision === 'number' && Number.isInteger(projectRevision) && projectRevision >= 0
+        ? { projectRevision }
+        : {})
     }
   };
 };

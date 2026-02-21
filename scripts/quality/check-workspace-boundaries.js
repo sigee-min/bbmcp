@@ -148,6 +148,25 @@ const collectViolations = () => {
 
     const entries = resolveModuleSpecifiers(filePath);
     for (const entry of entries) {
+      if (
+        sourceWorkspace === 'apps/gateway' &&
+        (entry.specifier === '@ashfox/backend-blockbench' ||
+          entry.specifier.startsWith('@ashfox/backend-blockbench/'))
+      ) {
+        const relFile = relFromRepo(filePath);
+        const allowKey = `${relFile}::${entry.specifier}`;
+        if (importAllowlist.has(allowKey)) continue;
+        violations.push({
+          file: relFile,
+          line: entry.line,
+          sourceWorkspace,
+          targetWorkspace: 'packages/backend-blockbench',
+          specifier: entry.specifier,
+          reason: 'gateway_blockbench_dependency_forbidden'
+        });
+        continue;
+      }
+
       const aliasWorkspaceTarget = parseAliasWorkspaceTarget(entry.specifier);
       if (aliasWorkspaceTarget && aliasWorkspaceTarget !== sourceWorkspace) {
         const relFile = relFromRepo(filePath);

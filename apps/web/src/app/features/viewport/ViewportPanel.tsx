@@ -1,8 +1,7 @@
-import { Bone, Clapperboard, Cuboid, MousePointer2, Play, Repeat, Square } from 'lucide-react';
+import { Bone, Clapperboard, Cuboid, MousePointer2 } from 'lucide-react';
 import { memo, useRef } from 'react';
 
 import type {
-  AnimationSummary,
   DashboardErrorCode,
   ProjectSnapshot,
   ProjectTextureAtlas,
@@ -11,11 +10,12 @@ import type {
 } from '../../../lib/dashboardModel';
 import { cn } from '../../../lib/utils';
 import { ModelPreview } from '../../_components/ModelPreview';
+import type { ViewportEnvironmentTemplateId } from './viewportEnvironmentTemplates';
 import styles from '../../page.module.css';
 import { errorCopy, streamLabel } from '../shared/dashboardCopy';
+import { ErrorNotice } from '../shared/ErrorNotice';
 
 export type RotateSource = 'pointer' | 'keyboard';
-export type AnimationPlaybackMode = 'stopped' | 'playing';
 
 interface ViewportPanelProps {
   selectedProject: ProjectSnapshot | null;
@@ -23,16 +23,17 @@ interface ViewportPanelProps {
   streamStatus: StreamStatus;
   viewer: ViewerState;
   errorCode: DashboardErrorCode | null;
+  animationErrorMessage: string | null;
   selectedTexture: ProjectTextureAtlas | null;
-  selectedAnimation: AnimationSummary | null;
-  animationPlaybackMode: AnimationPlaybackMode;
-  animationLoopEnabled: boolean;
+  selectedAnimationId: string | null;
+  selectedAnimationName: string | null;
+  animationPlaying: boolean;
   invertPointer: boolean;
+  environmentTemplateId: ViewportEnvironmentTemplateId;
   onToggleInvertPointer: () => void;
+  onSelectEnvironmentTemplate: (templateId: ViewportEnvironmentTemplateId) => void;
   onRotateViewer: (deltaX: number, deltaY: number, source: RotateSource) => void;
-  onPlayAnimation: () => void;
-  onStopAnimation: () => void;
-  onToggleAnimationLoop: () => void;
+  onAnimationPlaybackNoticeChange: (notice: string | null) => void;
 }
 
 export const ViewportPanel = memo(function ViewportPanel({
@@ -41,16 +42,17 @@ export const ViewportPanel = memo(function ViewportPanel({
   streamStatus,
   viewer,
   errorCode,
+  animationErrorMessage,
   selectedTexture,
-  selectedAnimation,
-  animationPlaybackMode,
-  animationLoopEnabled,
+  selectedAnimationId,
+  selectedAnimationName,
+  animationPlaying,
   invertPointer,
+  environmentTemplateId,
   onToggleInvertPointer,
+  onSelectEnvironmentTemplate,
   onRotateViewer,
-  onPlayAnimation,
-  onStopAnimation,
-  onToggleAnimationLoop
+  onAnimationPlaybackNoticeChange
 }: ViewportPanelProps) {
   const dragRef = useRef<{
     active: boolean;
@@ -70,11 +72,13 @@ export const ViewportPanel = memo(function ViewportPanel({
         <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
           스트림 상태: {streamLabel[streamStatus]}
         </p>
-        {errorCode ? (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {errorCopy[errorCode]}
-          </div>
-        ) : null}
+        <ErrorNotice
+          message={errorCode ? errorCopy[errorCode] : null}
+          channel="panel"
+          size="sm"
+          className="mb-2"
+        />
+        <ErrorNotice message={animationErrorMessage} channel="panel" size="sm" className="mb-2" />
 
         <div
           className={cn('relative outline-none', styles.viewportShell)}
@@ -129,10 +133,11 @@ export const ViewportPanel = memo(function ViewportPanel({
             hasGeometry={Boolean(selectedProject?.hasGeometry)}
             yawDeg={viewer.yawDeg}
             pitchDeg={viewer.pitchDeg}
-            selectedAnimationId={selectedAnimation?.id ?? null}
-            selectedAnimationName={selectedAnimation?.name ?? null}
-            animationPlaying={animationPlaybackMode === 'playing'}
-            animationLoopEnabled={animationLoopEnabled}
+            selectedAnimationId={selectedAnimationId}
+            selectedAnimationName={selectedAnimationName}
+            animationPlaying={animationPlaying}
+            environmentTemplateId={environmentTemplateId}
+            onAnimationPlaybackNoticeChange={onAnimationPlaybackNoticeChange}
             className={styles.viewportCanvas}
           />
           <div className={styles.viewportTopLeft}>
@@ -216,59 +221,6 @@ export const ViewportPanel = memo(function ViewportPanel({
                     />
                   ))}
                 </svg>
-              </div>
-            </div>
-          ) : null}
-          {selectedAnimation ? (
-            <div
-              data-overlay="animation"
-              className={styles.viewportAnimationOverlay}
-              onPointerDown={(event) => {
-                event.stopPropagation();
-              }}
-              onPointerMove={(event) => {
-                event.stopPropagation();
-              }}
-              onPointerUp={(event) => {
-                event.stopPropagation();
-              }}
-            >
-              <div className={styles.viewportAnimationInfo}>
-                <Clapperboard className="h-3.5 w-3.5" />
-                <span className={styles.viewportAnimationName}>{selectedAnimation.name}</span>
-              </div>
-              <div className={styles.viewportAnimationControls}>
-                <button
-                  type="button"
-                  className={cn(
-                    styles.viewportAnimationButton,
-                    animationPlaybackMode === 'playing' && styles.viewportAnimationButtonActive
-                  )}
-                  onClick={onPlayAnimation}
-                  aria-label="애니메이션 재생"
-                  title="재생"
-                >
-                  <Play className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className={cn(styles.viewportAnimationButton, animationLoopEnabled && styles.viewportAnimationButtonActive)}
-                  onClick={onToggleAnimationLoop}
-                  aria-pressed={animationLoopEnabled}
-                  aria-label="무한 재생 토글"
-                  title="무한 재생"
-                >
-                  <Repeat className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className={styles.viewportAnimationButton}
-                  onClick={onStopAnimation}
-                  aria-label="애니메이션 정지"
-                  title="정지"
-                >
-                  <Square className="h-3.5 w-3.5" />
-                </button>
               </div>
             </div>
           ) : null}

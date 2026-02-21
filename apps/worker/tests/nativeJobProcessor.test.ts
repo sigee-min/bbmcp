@@ -194,6 +194,7 @@ module.exports = async () => {
         assert.equal(result?.attemptCount, 1);
         assert.equal(result?.processedBy, 'worker-1');
         assert.equal(result?.hasGeometry, true);
+        assert.equal(result?.animations?.length, 0);
         assert.equal(Array.isArray(result?.hierarchy), true);
         assert.equal(result?.hierarchy?.[0]?.name, 'root');
         assert.equal(result?.hierarchy?.[0]?.children.length, 1);
@@ -217,6 +218,471 @@ module.exports = async () => {
 
     assert.equal(completeCalled, true);
     assert.deepEqual(backendCalls, ['ensure_project', 'export', 'get_project_state']);
+  }
+
+  {
+    const claimedJob: MutableJob = {
+      id: 'job-existing-animation',
+      projectId: 'project-animated',
+      kind: 'gltf.convert',
+      payload: { codecId: 'gltf', optimize: true },
+      status: 'running',
+      attemptCount: 1,
+      maxAttempts: 3,
+      leaseMs: 30000,
+      createdAt: new Date().toISOString()
+    };
+
+    const backendCalls: string[] = [];
+    const backend = createBackend(async (name, payload) => {
+      backendCalls.push(name);
+      if (name === 'ensure_project') {
+        return {
+          ok: true,
+          data: {
+            action: 'reused',
+            project: {
+              id: 'project-animated',
+              name: 'project-animated'
+            }
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      if (name === 'get_project_state') {
+        return {
+          ok: true,
+          data: {
+            project: {
+              id: 'project-animated',
+              active: true,
+              name: 'project-animated',
+              revision: 'rev-animated-1',
+              counts: {
+                bones: 2,
+                cubes: 1,
+                textures: 0,
+                animations: 1
+              },
+              bones: [
+                { id: 'bone-root', name: 'root', pivot: [0, 0, 0] },
+                { id: 'bone-body', name: 'body', parent: 'root', pivot: [0, 8, 0] }
+              ],
+              cubes: [
+                {
+                  id: 'cube-body',
+                  name: 'body',
+                  bone: 'body',
+                  from: [-1, -1, -1],
+                  to: [1, 1, 1]
+                }
+              ],
+              animations: [
+                {
+                  id: 'clip-walk',
+                  name: 'Walk',
+                  length: 1.25,
+                  loop: true
+                }
+              ]
+            }
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      if (name === 'export') {
+        assert.equal(payload.format, 'gltf');
+        return {
+          ok: true,
+          data: {
+            path: `native-jobs/project-animated/${claimedJob.id}.gltf`,
+            selectedTarget: { kind: 'gltf', id: 'gltf' },
+            warnings: []
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      return {
+        ok: false,
+        error: {
+          code: 'invalid_state',
+          message: `unexpected tool: ${name}`
+        }
+      } as ToolResponse<ToolResultMap[typeof name]>;
+    });
+
+    let resultSnapshot: NativeJobResult | undefined;
+    const store = {
+      claimNextJob: async () => claimedJob,
+      completeJob: async (_jobId: string, result?: NativeJobResult) => {
+        resultSnapshot = result;
+        return { ...claimedJob, status: 'completed', result };
+      },
+      failJob: async () => {
+        throw new Error('animation path should complete');
+      },
+      getProject: async () => ({
+        projectId: 'project-animated',
+        workspaceId: 'ws-test',
+        name: 'project-animated',
+        parentFolderId: null,
+        revision: 5,
+        hasGeometry: true,
+        hierarchy: [{ id: 'bone-root', name: 'root', kind: 'bone', children: [] }],
+        animations: [{ id: 'clip-walk', name: 'Walk', length: 1.25, loop: true }],
+        stats: { bones: 2, cubes: 1 },
+        textureSources: [],
+        textures: []
+      })
+    } satisfies NativePipelineStorePort;
+
+    await processOneNativeJob({
+      workerId: 'worker-animated',
+      logger,
+      enabled: true,
+      backend,
+      store
+    });
+
+    assert.equal(resultSnapshot?.kind, 'gltf.convert');
+    assert.equal(resultSnapshot?.status, 'converted');
+    assert.equal(resultSnapshot?.animations?.length, 1);
+    assert.equal(resultSnapshot?.animations?.[0]?.id, 'clip-walk');
+    assert.equal(resultSnapshot?.animations?.[0]?.name, 'Walk');
+    assert.equal(resultSnapshot?.animations?.[0]?.loop, true);
+    assert.deepEqual(backendCalls, ['ensure_project', 'get_project_state', 'export', 'get_project_state']);
+  }
+
+  {
+    const claimedJob: MutableJob = {
+      id: 'job-seeded-assets',
+      projectId: 'project-seeded-assets',
+      kind: 'gltf.convert',
+      payload: { codecId: 'gltf', optimize: true },
+      status: 'running',
+      attemptCount: 1,
+      maxAttempts: 3,
+      leaseMs: 30000,
+      createdAt: new Date().toISOString()
+    };
+
+    const runtimeState = {
+      revision: 1,
+      bones: [] as Array<{ id: string; name: string; parent?: string; pivot: [number, number, number] }>,
+      cubes: [] as Array<{ id: string; name: string; bone: string; from: [number, number, number]; to: [number, number, number] }>,
+      animations: [] as Array<{ id: string; name: string; length: number; loop: boolean }>,
+      textures: [] as Array<{ id: string; name: string; width: number; height: number }>
+    };
+
+    const applyRevision = (): string => {
+      runtimeState.revision += 1;
+      return `rev-seeded-${runtimeState.revision}`;
+    };
+
+    const buildState = () => ({
+      id: 'project-seeded-assets',
+      active: true,
+      name: 'project-seeded-assets',
+      revision: `rev-seeded-${runtimeState.revision}`,
+      counts: {
+        bones: runtimeState.bones.length,
+        cubes: runtimeState.cubes.length,
+        textures: runtimeState.textures.length,
+        animations: runtimeState.animations.length
+      },
+      bones: runtimeState.bones.map((bone) => ({
+        id: bone.id,
+        name: bone.name,
+        ...(bone.parent ? { parent: bone.parent } : {}),
+        pivot: bone.pivot
+      })),
+      cubes: runtimeState.cubes.map((cube) => ({
+        id: cube.id,
+        name: cube.name,
+        bone: cube.bone,
+        from: cube.from,
+        to: cube.to
+      })),
+      animations: runtimeState.animations.map((animation) => ({
+        id: animation.id,
+        name: animation.name,
+        length: animation.length,
+        loop: animation.loop
+      })),
+      textures: runtimeState.textures.map((texture) => ({
+        id: texture.id,
+        name: texture.name,
+        width: texture.width,
+        height: texture.height
+      }))
+    });
+
+    const backendCalls: string[] = [];
+    const backend = createBackend(async (name, payload) => {
+      backendCalls.push(name);
+      if (name === 'ensure_project') {
+        return {
+          ok: true,
+          data: {
+            action: 'reused',
+            project: {
+              id: 'project-seeded-assets',
+              name: 'project-seeded-assets'
+            }
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      if (name === 'get_project_state') {
+        return {
+          ok: true,
+          data: {
+            project: buildState()
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      if (name === 'add_bone') {
+        const addPayload = payload as ToolPayloadMap['add_bone'];
+        if (!runtimeState.bones.some((bone) => bone.name === addPayload.name)) {
+          runtimeState.bones.push({
+            id: `bone-${addPayload.name}`,
+            name: addPayload.name,
+            ...(addPayload.parent ? { parent: addPayload.parent } : {}),
+            pivot: addPayload.pivot ?? [0, 0, 0]
+          });
+        }
+        return {
+          ok: true,
+          data: {
+            id: `bone-${addPayload.name}`,
+            name: addPayload.name,
+            revision: applyRevision()
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      if (name === 'add_cube') {
+        const addPayload = payload as ToolPayloadMap['add_cube'];
+        if (!runtimeState.cubes.some((cube) => cube.name === addPayload.name)) {
+          runtimeState.cubes.push({
+            id: `cube-${addPayload.name}`,
+            name: addPayload.name,
+            bone: addPayload.bone ?? 'root',
+            from: addPayload.from,
+            to: addPayload.to
+          });
+        }
+        return {
+          ok: true,
+          data: {
+            id: `cube-${addPayload.name}`,
+            name: addPayload.name,
+            revision: applyRevision()
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      if (name === 'create_animation_clip') {
+        const clipPayload = payload as ToolPayloadMap['create_animation_clip'];
+        const clipId =
+          typeof clipPayload.id === 'string' && clipPayload.id.trim().length > 0
+            ? clipPayload.id
+            : `clip-${clipPayload.name.toLowerCase().replace(/\s+/g, '-')}`;
+        if (!runtimeState.animations.some((animation) => animation.name === clipPayload.name)) {
+          runtimeState.animations.push({
+            id: clipId,
+            name: clipPayload.name,
+            length: clipPayload.length,
+            loop: clipPayload.loop
+          });
+        }
+        return {
+          ok: true,
+          data: {
+            id: clipId,
+            name: clipPayload.name,
+            revision: applyRevision()
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      if (name === 'set_frame_pose') {
+        const posePayload = payload as ToolPayloadMap['set_frame_pose'];
+        return {
+          ok: true,
+          data: {
+            clip: posePayload.clip,
+            clipId: posePayload.clipId,
+            frame: posePayload.frame,
+            time: 0,
+            bones: posePayload.bones.length,
+            channels: posePayload.bones.length,
+            revision: applyRevision()
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      if (name === 'paint_faces') {
+        const paintPayload = payload as ToolPayloadMap['paint_faces'];
+        const textureName = paintPayload.textureName ?? 'texture';
+        const textureId =
+          typeof paintPayload.textureId === 'string' && paintPayload.textureId.trim().length > 0
+            ? paintPayload.textureId
+            : `tex-${textureName.toLowerCase().replace(/\s+/g, '-')}`;
+        if (!runtimeState.textures.some((texture) => texture.name === textureName)) {
+          runtimeState.textures.push({
+            id: textureId,
+            name: textureName,
+            width: typeof paintPayload.width === 'number' ? paintPayload.width : 16,
+            height: typeof paintPayload.height === 'number' ? paintPayload.height : 16
+          });
+        }
+        return {
+          ok: true,
+          data: {
+            textureName,
+            width: typeof paintPayload.width === 'number' ? paintPayload.width : 16,
+            height: typeof paintPayload.height === 'number' ? paintPayload.height : 16,
+            targets: 1,
+            facesApplied: 1,
+            opsApplied: 1,
+            revision: applyRevision()
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      if (name === 'preflight_texture') {
+        const anchorCube = runtimeState.cubes[0];
+        return {
+          ok: true,
+          data: {
+            uvUsageId: 'usage-seeded-assets',
+            usageSummary: {
+              textureCount: runtimeState.textures.length,
+              cubeCount: runtimeState.cubes.length,
+              faceCount: runtimeState.textures.length > 0 && anchorCube ? 1 : 0,
+              unresolvedCount: 0
+            },
+            textureResolution: {
+              width: runtimeState.textures[0]?.width ?? 16,
+              height: runtimeState.textures[0]?.height ?? 16
+            },
+            textureUsage: {
+              textures: runtimeState.textures.map((texture) => ({
+                id: texture.id,
+                name: texture.name,
+                width: texture.width,
+                height: texture.height,
+                cubeCount: anchorCube ? 1 : 0,
+                faceCount: anchorCube ? 1 : 0,
+                cubes: anchorCube
+                  ? [
+                      {
+                        id: anchorCube.id,
+                        name: anchorCube.name,
+                        faces: [{ face: 'north', uv: [0, 0, 4, 4] }]
+                      }
+                    ]
+                  : []
+              })),
+              unresolved: []
+            },
+            warnings: [],
+            warningCodes: []
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      if (name === 'read_texture') {
+        const readPayload = payload as ToolPayloadMap['read_texture'];
+        const texture =
+          runtimeState.textures.find((entry) => entry.id === readPayload.id) ??
+          runtimeState.textures.find((entry) => entry.name === readPayload.name) ??
+          runtimeState.textures[0];
+        return {
+          ok: true,
+          data: {
+            texture: {
+              id: texture?.id,
+              name: texture?.name ?? readPayload.name ?? 'texture',
+              mimeType: 'image/png',
+              dataUri: 'data:image/png;base64,AAAA',
+              width: texture?.width,
+              height: texture?.height
+            }
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      if (name === 'export') {
+        return {
+          ok: true,
+          data: {
+            path: `native-jobs/project-seeded-assets/${claimedJob.id}.gltf`,
+            selectedTarget: { kind: 'gltf', id: 'gltf' },
+            warnings: []
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      return {
+        ok: false,
+        error: {
+          code: 'invalid_state',
+          message: `unexpected tool: ${name}`
+        }
+      } as ToolResponse<ToolResultMap[typeof name]>;
+    });
+
+    let resultSnapshot: NativeJobResult | undefined;
+    const store = {
+      claimNextJob: async () => claimedJob,
+      completeJob: async (_jobId: string, result?: NativeJobResult) => {
+        resultSnapshot = result;
+        return { ...claimedJob, status: 'completed', result };
+      },
+      failJob: async () => {
+        throw new Error('seeded materialization path should complete');
+      },
+      getProject: async () => ({
+        projectId: 'project-seeded-assets',
+        workspaceId: 'ws-test',
+        name: 'Forest Fox',
+        parentFolderId: null,
+        revision: 2,
+        hasGeometry: true,
+        hierarchy: [{ id: 'bone-root', name: 'root', kind: 'bone', children: [] }],
+        animations: [{ id: 'clip-idle', name: 'Idle', length: 1.25, loop: true }],
+        stats: { bones: 2, cubes: 1 },
+        textureSources: [
+          {
+            faceId: 'face-root',
+            cubeId: 'cube-body',
+            cubeName: 'body',
+            direction: 'north',
+            colorHex: '#ffffff',
+            rotationQuarter: 0
+          }
+        ],
+        textures: [
+          {
+            textureId: 'tex-atlas',
+            name: 'atlas',
+            width: 16,
+            height: 16,
+            faceCount: 1,
+            imageDataUrl: 'data:image/png;base64,AAAA',
+            faces: [],
+            uvEdges: []
+          }
+        ]
+      })
+    } satisfies NativePipelineStorePort;
+
+    await processOneNativeJob({
+      workerId: 'worker-seeded',
+      logger,
+      enabled: true,
+      backend,
+      store
+    });
+
+    assert.equal(resultSnapshot?.kind, 'gltf.convert');
+    assert.equal(resultSnapshot?.status, 'converted');
+    assert.equal((resultSnapshot?.animations?.length ?? 0) > 0, true);
+    assert.equal((resultSnapshot?.textures?.length ?? 0) > 0, true);
+    assert.equal((resultSnapshot?.textureSources?.length ?? 0) > 0, true);
+    assert.equal(backendCalls.includes('create_animation_clip'), true);
+    assert.equal(backendCalls.includes('paint_faces'), true);
+    assert.equal(backendCalls.includes('read_texture'), true);
   }
 
   {

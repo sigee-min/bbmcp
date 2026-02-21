@@ -22,6 +22,24 @@ npm run build
 
 Output directory: `out/`
 
+## Brand Assets
+
+Docs icons and brand images are served from the repository root `images/` directory.
+`apps/docs/public` is a symlink to `../../images`.
+
+From repo root:
+
+```bash
+npm run assets:sync:brand
+npm run assets:check:brand
+```
+
+If shared public links or generated brand assets drift, hygiene gate fails:
+
+```bash
+npm run verify:repo-hygiene
+```
+
 ## Environment Variables
 
 Copy `.env.example` and set values when needed:

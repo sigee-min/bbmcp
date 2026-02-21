@@ -1,4 +1,4 @@
-import { Check, Copy, KeyRound, Plus, Trash2, X } from 'lucide-react';
+import { Check, CircleHelp, Copy, KeyRound, Plus, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import type { WorkspaceApiKeyRecord } from '../../../lib/dashboardModel';
@@ -23,6 +23,8 @@ type CreatedSecretState = {
   keyPrefix: string;
   secret: string;
 };
+
+type GuidePlatform = 'codex' | 'claude' | 'gemini';
 
 const toDateLabel = (value: string | null | undefined): string => {
   if (!value) {
@@ -57,6 +59,8 @@ export function WorkspaceApiKeysPanel({
   onRevokeApiKey
 }: WorkspaceApiKeysPanelProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [guideDialogOpen, setGuideDialogOpen] = useState(false);
+  const [guidePlatform, setGuidePlatform] = useState<GuidePlatform>('codex');
   const [draftName, setDraftName] = useState('');
   const [draftExpiresAt, setDraftExpiresAt] = useState('');
   const [createdSecret, setCreatedSecret] = useState<CreatedSecretState | null>(null);
@@ -77,6 +81,43 @@ export function WorkspaceApiKeysPanel({
     () => !disabled && !limitReached && draftName.trim().length > 0 && inlineError === null,
     [disabled, draftName, inlineError, limitReached]
   );
+  const mcpEndpoint = useMemo(() => {
+    if (typeof window === 'undefined' || !window.location?.origin) {
+      return '/mcp';
+    }
+    return `${window.location.origin}/mcp`;
+  }, []);
+  const codexGuideTemplate = useMemo(
+    () => `[mcp_servers.ashfox.env]
+ASHFOX_MCP_ENDPOINT = "${mcpEndpoint}"
+ASHFOX_MCP_API_KEY = "<API_KEY>"`,
+    [mcpEndpoint]
+  );
+  const claudeGuideTemplate = useMemo(
+    () => `"env": {
+  "ASHFOX_MCP_ENDPOINT": "${mcpEndpoint}",
+  "ASHFOX_MCP_API_KEY": "<API_KEY>"
+}`,
+    [mcpEndpoint]
+  );
+  const geminiGuideTemplate = useMemo(
+    () => `ASHFOX_MCP_ENDPOINT=${mcpEndpoint}
+ASHFOX_MCP_API_KEY=<API_KEY>`,
+    [mcpEndpoint]
+  );
+  const guideTitle = guidePlatform === 'codex' ? 'Codex' : guidePlatform === 'claude' ? 'Claude' : 'Gemini';
+  const guideSubtitle =
+    guidePlatform === 'codex'
+      ? '~/.codex/config.toml 의 ashfox MCP 서버 env 블록 예시'
+      : guidePlatform === 'claude'
+        ? 'Claude MCP 서버 설정의 env 블록 예시'
+        : 'Gemini MCP 서버 실행 환경 변수 예시';
+  const guideTemplate =
+    guidePlatform === 'codex'
+      ? codexGuideTemplate
+      : guidePlatform === 'claude'
+        ? claudeGuideTemplate
+        : geminiGuideTemplate;
 
   const closeCreateDialog = (force = false) => {
     if (busy && !force) {
@@ -110,18 +151,32 @@ export function WorkspaceApiKeysPanel({
             meta={listMeta}
             icon={<KeyRound aria-hidden />}
             action={
-              canManageApiKeys ? (
+              <div className={styles.workspaceListShellHeaderActions}>
+                {canManageApiKeys ? (
+                  <button
+                    type="button"
+                    className={cn(styles.workspaceGhostButton, styles.workspaceIconButton)}
+                    aria-label="API 키 발급"
+                    title="API 키 발급"
+                    disabled={busy || limitReached}
+                    onClick={() => setCreateDialogOpen(true)}
+                  >
+                    <Plus className={styles.workspaceIcon} aria-hidden />
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className={cn(styles.workspaceGhostButton, styles.workspaceIconButton)}
-                  aria-label="API 키 발급"
-                  title="API 키 발급"
-                  disabled={busy || limitReached}
-                  onClick={() => setCreateDialogOpen(true)}
+                  aria-label="MCP 연결 가이드 열기"
+                  title="MCP 연결 가이드"
+                  onClick={() => {
+                    setGuidePlatform('codex');
+                    setGuideDialogOpen(true);
+                  }}
                 >
-                  <Plus className={styles.workspaceIcon} aria-hidden />
+                  <CircleHelp className={styles.workspaceIcon} aria-hidden />
                 </button>
-              ) : null
+              </div>
             }
           >
             {apiKeys.length > 0 ? (
@@ -376,6 +431,111 @@ export function WorkspaceApiKeysPanel({
                   setCreatedSecret(null);
                 }}
                 aria-label="API 키 발급 완료 확인"
+              >
+                <Check className={styles.workspaceIcon} aria-hidden />
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+
+      {guideDialogOpen ? (
+        <div
+          className={styles.workspaceAclEditOverlay}
+          role="presentation"
+          onClick={() => {
+            setGuideDialogOpen(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="MCP 연결 가이드"
+            className={styles.workspaceAclEditDialog}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className={styles.workspaceAclEditHeader}>
+              <div className={styles.workspaceAclEditTitleWrap}>
+                <h3 className={styles.workspaceAclEditTitle}>MCP 연결 가이드</h3>
+                <p className={styles.workspaceAclEditSubtitle}>클라이언트 환경별 설정 예시</p>
+              </div>
+              <button
+                type="button"
+                className={styles.workspaceAclEditCloseButton}
+                onClick={() => {
+                  setGuideDialogOpen(false);
+                }}
+                aria-label="MCP 연결 가이드 닫기"
+              >
+                <X className={styles.workspaceIcon} aria-hidden />
+              </button>
+            </header>
+
+            <div className={styles.workspaceAclEditBody}>
+              <div className={styles.workspacePanelCard}>
+                <div className={styles.workspaceGuideTabs} role="tablist" aria-label="MCP 가이드 클라이언트 탭">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={guidePlatform === 'codex'}
+                    className={cn(styles.workspaceGuideTab, guidePlatform === 'codex' ? styles.workspaceGuideTabActive : null)}
+                    onClick={() => {
+                      setGuidePlatform('codex');
+                    }}
+                  >
+                    Codex
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={guidePlatform === 'claude'}
+                    className={cn(styles.workspaceGuideTab, guidePlatform === 'claude' ? styles.workspaceGuideTabActive : null)}
+                    onClick={() => {
+                      setGuidePlatform('claude');
+                    }}
+                  >
+                    Claude
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={guidePlatform === 'gemini'}
+                    className={cn(styles.workspaceGuideTab, guidePlatform === 'gemini' ? styles.workspaceGuideTabActive : null)}
+                    onClick={() => {
+                      setGuidePlatform('gemini');
+                    }}
+                  >
+                    Gemini
+                  </button>
+                </div>
+                <p className={styles.workspacePanelCardTitle}>{guideTitle}</p>
+                <p className={styles.workspacePanelHint}>{guideSubtitle}</p>
+                <pre className={styles.workspaceEnvSnippet}>{guideTemplate}</pre>
+              </div>
+            </div>
+
+            <footer className={styles.workspaceAclEditFooter}>
+              <button
+                type="button"
+                className={cn(styles.workspaceGhostButton, styles.workspaceIconButton)}
+                onClick={() => {
+                  void handleCopy(`mcp-guide-template:${guidePlatform}`, guideTemplate);
+                }}
+                aria-label="환경변수 템플릿 복사"
+              >
+                {copiedToken === `mcp-guide-template:${guidePlatform}` ? (
+                  <Check className={styles.workspaceIcon} aria-hidden />
+                ) : (
+                  <Copy className={styles.workspaceIcon} aria-hidden />
+                )}
+              </button>
+              <button
+                type="button"
+                className={cn(styles.workspacePrimaryButton, styles.workspaceIconButton)}
+                onClick={() => {
+                  setGuideDialogOpen(false);
+                }}
+                aria-label="MCP 연결 가이드 확인"
               >
                 <Check className={styles.workspaceIcon} aria-hidden />
               </button>

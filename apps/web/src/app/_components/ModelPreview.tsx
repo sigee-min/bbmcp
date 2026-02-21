@@ -22,7 +22,6 @@ import {
   SRGBColorSpace,
   Vector3,
   WebGLRenderer,
-  LoopOnce,
   LoopRepeat
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -30,6 +29,7 @@ import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 import { cn } from '../../lib/utils';
 import { buildGatewayApiUrl } from '../../lib/gatewayApi';
+import type { ViewportEnvironmentTemplateId } from '../features/viewport/viewportEnvironmentTemplates';
 
 interface ModelPreviewProps {
   projectId: string | null;
@@ -40,8 +40,16 @@ interface ModelPreviewProps {
   selectedAnimationId: string | null;
   selectedAnimationName: string | null;
   animationPlaying: boolean;
-  animationLoopEnabled: boolean;
+  environmentTemplateId: ViewportEnvironmentTemplateId;
+  onAnimationPlaybackNoticeChange?: (notice: string | null) => void;
   className?: string;
+}
+
+interface AnimationPlaybackNoticeInput {
+  animationPlaying: boolean;
+  selectedAnimationId: string | null;
+  selectedAnimationName: string | null;
+  availableClipNames: readonly string[];
 }
 
 type PreviewResponse = {
@@ -57,6 +65,37 @@ const DEFAULT_CAMERA_FOV_DEG = 42;
 const CAMERA_FRAME_MARGIN = 1.22;
 const ORBIT_DAMPING = 0.22;
 const ORBIT_SNAP_EPSILON = 0.01;
+
+const normalizeNonEmpty = (value: string | null): string | null => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+export const resolveAnimationPlaybackNotice = (input: AnimationPlaybackNoticeInput): string | null => {
+  if (!input.animationPlaying) {
+    return null;
+  }
+
+  const requested = normalizeNonEmpty(input.selectedAnimationName) ?? normalizeNonEmpty(input.selectedAnimationId);
+  const available = input.availableClipNames
+    .map((entry) => normalizeNonEmpty(entry))
+    .filter((entry): entry is string => Boolean(entry));
+
+  if (!requested) {
+    return available.length === 0 ? '재생 가능한 애니메이션 클립이 preview glTF에 없습니다.' : null;
+  }
+
+  if (available.includes(requested)) {
+    return null;
+  }
+
+  if (available.length === 0) {
+    return `선택한 애니메이션 "${requested}" 클립을 preview glTF에서 찾지 못했습니다.`;
+  }
+
+  return `선택한 애니메이션 "${requested}"을 찾지 못해 "${available[0]}" 클립으로 재생합니다.`;
+};
 
 const supportsWebgl = (): boolean => {
   if (typeof window === 'undefined') {
@@ -443,7 +482,8 @@ export const ModelPreview = ({
   selectedAnimationId,
   selectedAnimationName,
   animationPlaying,
-  animationLoopEnabled,
+  environmentTemplateId,
+  onAnimationPlaybackNoticeChange,
   className
 }: ModelPreviewProps) => {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -465,9 +505,11 @@ export const ModelPreview = ({
   const animationClipsRef = useRef<readonly AnimationClip[]>([]);
   const activeClipNameRef = useRef<string | null>(null);
   const activeActionRef = useRef<ReturnType<AnimationMixer['clipAction']> | null>(null);
+  const lastPlaybackNoticeRef = useRef<string | null>(null);
   const [statusLabel, setStatusLabel] = useState<string>('Initializing preview…');
   const [gltfSource, setGltfSource] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [playbackNotice, setPlaybackNotice] = useState<string | null>(null);
 
   const resetAnimationPlayback = (): void => {
     const mixer = animationMixerRef.current;
@@ -545,6 +587,8 @@ export const ModelPreview = ({
       animationMixerRef.current = null;
       animationClipsRef.current = [];
       resetAnimationPlayback();
+      lastPlaybackNoticeRef.current = null;
+      setPlaybackNotice(null);
       requestRenderRef.current?.();
     };
 
@@ -886,7 +930,52 @@ export const ModelPreview = ({
   useEffect(() => {
     const mixer = animationMixerRef.current;
     if (!mixer) {
+      const availableClipNames = animationClipsRef.current.map((entry) => entry.name).filter((entry) => entry.length > 0);
+      const notice = resolveAnimationPlaybackNotice({
+        animationPlaying,
+        selectedAnimationId,
+        selectedAnimationName,
+        availableClipNames
+      });
+      if (notice) {
+        setPlaybackNotice(notice);
+        if (notice !== lastPlaybackNoticeRef.current) {
+          console.warn('ashfox preview animation clip mismatch', {
+            projectId,
+            selectedAnimationId,
+            selectedAnimationName,
+            availableClipNames
+          });
+          lastPlaybackNoticeRef.current = notice;
+        }
+      } else {
+        lastPlaybackNoticeRef.current = null;
+        setPlaybackNotice(null);
+      }
       return;
+    }
+
+    const availableClipNames = animationClipsRef.current.map((entry) => entry.name).filter((entry) => entry.length > 0);
+    const notice = resolveAnimationPlaybackNotice({
+      animationPlaying,
+      selectedAnimationId,
+      selectedAnimationName,
+      availableClipNames
+    });
+    if (notice) {
+      setPlaybackNotice(notice);
+      if (notice !== lastPlaybackNoticeRef.current) {
+        console.warn('ashfox preview animation clip mismatch', {
+          projectId,
+          selectedAnimationId,
+          selectedAnimationName,
+          availableClipNames
+        });
+        lastPlaybackNoticeRef.current = notice;
+      }
+    } else {
+      lastPlaybackNoticeRef.current = null;
+      setPlaybackNotice(null);
     }
 
     const clip = resolvePreviewClip();
@@ -911,14 +1000,25 @@ export const ModelPreview = ({
 
     action.enabled = true;
     action.reset();
-    action.setLoop(animationLoopEnabled ? LoopRepeat : LoopOnce, animationLoopEnabled ? Infinity : 1);
-    action.clampWhenFinished = !animationLoopEnabled;
+    action.setLoop(LoopRepeat, Infinity);
+    action.clampWhenFinished = false;
     action.play();
     if (!animationClockRef.current.running) {
       animationClockRef.current.start();
     }
     requestRenderRef.current?.();
-  }, [animationLoopEnabled, animationPlaying, gltfSource, isReady, selectedAnimationId, selectedAnimationName]);
+  }, [animationPlaying, gltfSource, isReady, projectId, selectedAnimationId, selectedAnimationName]);
+
+  useEffect(() => {
+    onAnimationPlaybackNoticeChange?.(playbackNotice);
+  }, [onAnimationPlaybackNoticeChange, playbackNotice]);
+
+  useEffect(
+    () => () => {
+      onAnimationPlaybackNoticeChange?.(null);
+    },
+    [onAnimationPlaybackNoticeChange]
+  );
 
   return (
     <div className={cn('absolute inset-0 overflow-hidden', className)}>

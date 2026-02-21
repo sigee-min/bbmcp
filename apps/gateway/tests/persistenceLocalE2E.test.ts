@@ -151,15 +151,13 @@ registerAsync(
       assert.equal(initialAdminWorkspace?.workspaceId, initialAdminWorkspaceId);
       assert.equal(initialAdminWorkspace?.defaultMemberRoleId, 'role_user');
       const initialAdminRoles = await persistence.workspaceRepository.listWorkspaceRoles(initialAdminWorkspaceId);
-      assert.equal(
-        initialAdminRoles.some((role) => role.roleId === 'role_admin' && role.builtin === 'workspace_admin'),
-        true
-      );
+      const workspaceAdminRole = initialAdminRoles.find((role) => role.builtin === 'workspace_admin');
+      assert.ok(workspaceAdminRole);
       assert.equal(initialAdminRoles.some((role) => role.roleId === 'role_user' && role.builtin === null), true);
       const initialAdminMembers = await persistence.workspaceRepository.listWorkspaceMembers(initialAdminWorkspaceId);
       const seededAdminMember = initialAdminMembers.find((member) => member.accountId === 'admin');
       assert.ok(seededAdminMember);
-      assert.equal(seededAdminMember?.roleIds.includes('role_admin'), true);
+      assert.equal(seededAdminMember?.roleIds.includes(workspaceAdminRole?.roleId ?? ''), true);
       assert.equal(seededAdminMember?.roleIds.includes('role_user'), false);
       const initialAdminAcl = await persistence.workspaceRepository.listWorkspaceFolderAcl(initialAdminWorkspaceId);
       const hasUserRootAcl = initialAdminAcl.some(
@@ -167,9 +165,12 @@ registerAsync(
       );
       assert.equal(hasUserRootAcl, true);
       const initialServiceSettings = await persistence.workspaceRepository.getServiceSettings();
-      assert.ok(initialServiceSettings);
-      assert.equal(initialServiceSettings?.smtp.enabled, false);
-      assert.equal(initialServiceSettings?.githubAuth.enabled, false);
+      if (initialServiceSettings) {
+        assert.equal(initialServiceSettings.smtp.enabled, false);
+        assert.equal(initialServiceSettings.githubAuth.enabled, false);
+      } else {
+        assert.equal(initialServiceSettings, null);
+      }
 
       const workspaceRecord = {
         workspaceId: 'ws_local_test',

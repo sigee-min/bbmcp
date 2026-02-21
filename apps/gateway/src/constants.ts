@@ -16,8 +16,7 @@ export const MAX_BODY_BYTES = 5_000_000;
 export const API_CORS_HEADERS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET,POST,OPTIONS',
-  'access-control-allow-headers':
-    'content-type,last-event-id,authorization,x-ashfox-account-id,x-ashfox-system-roles,x-ashfox-workspace-id',
+  'access-control-allow-headers': 'content-type,last-event-id,authorization,mcp-protocol-version,mcp-session-id',
   'access-control-allow-private-network': 'true',
   'access-control-max-age': '86400',
   vary: 'origin'
@@ -31,10 +30,7 @@ export const GLOBAL_CORS_OPTIONS = {
     'last-event-id',
     'authorization',
     'mcp-protocol-version',
-    'mcp-session-id',
-    'x-ashfox-account-id',
-    'x-ashfox-system-roles',
-    'x-ashfox-workspace-id'
+    'mcp-session-id'
   ],
   maxAge: 86_400
 };

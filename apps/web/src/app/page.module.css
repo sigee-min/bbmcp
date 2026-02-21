@@ -67,11 +67,11 @@
   flex-direction: column;
   border-bottom: 1px solid hsl(var(--border));
   background: hsl(var(--muted) / 0.2);
-  padding: 0.62rem 0.62rem 0 !important;
+  padding: 0.45rem 0.45rem 0 !important;
 }
 
 .sidebarHeader > :not([hidden]) ~ :not([hidden]) {
-  margin-top: 0.36rem !important;
+  margin-top: 0.25rem !important;
 }
 
 .sidebarTopRow {
@@ -85,19 +85,22 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 0.48rem;
+  gap: 0.34rem;
 }
 
 .logoFrame {
-  height: 1.62rem;
-  width: 1.62rem;
-  border-radius: 0.32rem;
+  height: 1.44rem;
+  width: 1.44rem;
+  border-radius: 0.26rem;
   box-shadow: inset 0 0 0 1px hsl(var(--border));
 }
 
 .sidebarTitle {
-  font-size: 0.84rem;
-  line-height: 1.1;
+  font-family: 'Chakra Petch', 'Pretendard', 'Noto Sans KR', 'Apple SD Gothic Neo', 'Segoe UI', sans-serif;
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: 0.004em;
 }
 
 .sidebarTopActions {
@@ -195,12 +198,12 @@
 }
 
 .sidebarContent {
-  gap: 0.48rem;
-  padding: 0 0.62rem 0.62rem !important;
+  gap: 0.4rem;
+  padding: 0 0.45rem 0.45rem !important;
 }
 
 .sidebarToolbar {
-  margin: 0 -0.62rem 0;
+  margin: 0 -0.45rem 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -208,8 +211,8 @@
   border-top: 1px solid hsl(var(--border));
   border-bottom: 1px solid hsl(var(--border));
   background: hsl(var(--background) / 0.55);
-  min-height: 1.296rem;
-  padding: 0 0.264rem;
+  min-height: 0.94rem;
+  padding: 0 0.2rem;
 }
 
 .sidebarToolButton {
@@ -609,7 +612,7 @@
 .sidebarFooter {
   margin-top: auto;
   border-top: 1px solid hsl(var(--border));
-  padding-top: 0.46rem;
+  padding-top: 0.32rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1452,6 +1455,49 @@
   word-break: break-all;
 }
 
+.workspaceEnvSnippet {
+  margin: 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.3rem;
+  background: hsl(var(--background));
+  padding: 0.34rem 0.4rem;
+  font-size: 0.62rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.workspaceGuideTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.22rem;
+}
+
+.workspaceGuideTab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--border));
+  border-radius: 999px;
+  background: hsl(var(--background));
+  padding: 0.14rem 0.44rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+.workspaceGuideTab:hover {
+  border-color: hsl(var(--primary) / 0.34);
+  background: hsl(var(--muted) / 0.6);
+  color: hsl(var(--foreground));
+}
+
+.workspaceGuideTabActive {
+  border-color: hsl(var(--primary) / 0.44);
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+}
+
 .workspaceAclRolePicker {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9.6rem, 1fr));
@@ -2073,70 +2119,6 @@
   box-shadow: 0 12px 28px rgb(15 23 42 / 20%);
 }
 
-.viewportAnimationOverlay {
-  position: absolute;
-  left: 50%;
-  bottom: 0.56rem;
-  z-index: 8;
-  transform: translateX(-50%);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  border-radius: 0.48rem;
-  border: 1px solid hsl(var(--border) / 0.9);
-  background: hsl(var(--background) / 0.92);
-  padding: 0.22rem 0.3rem;
-  backdrop-filter: blur(4px);
-  box-shadow: 0 12px 26px rgb(15 23 42 / 22%);
-}
-
-.viewportAnimationInfo {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.24rem;
-  color: hsl(var(--foreground));
-  min-width: 0;
-}
-
-.viewportAnimationName {
-  max-width: clamp(7.2rem, 18vw, 12.4rem);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.66rem;
-  font-weight: 700;
-}
-
-.viewportAnimationControls {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.viewportAnimationButton {
-  display: inline-flex;
-  height: 1.34rem;
-  width: 1.34rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.3rem;
-  border: 1px solid hsl(var(--border) / 0.9);
-  background: hsl(var(--background));
-  color: hsl(var(--muted-foreground));
-  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
-}
-
-.viewportAnimationButton:hover {
-  border-color: hsl(var(--primary) / 0.55);
-  color: hsl(var(--foreground));
-}
-
-.viewportAnimationButtonActive {
-  border-color: hsl(var(--primary) / 0.62);
-  background: hsl(var(--primary) / 0.18);
-  color: hsl(var(--primary));
-}
-
 .viewportTextureOverlayBody {
   position: relative;
   height: clamp(7rem, 19vh, 10.2rem);
@@ -2510,15 +2492,6 @@
     width: clamp(7.8rem, 44vw, 11.2rem);
   }
 
-  .viewportAnimationOverlay {
-    max-width: min(calc(100% - 1.1rem), 20rem);
-    width: max-content;
-  }
-
-  .viewportAnimationName {
-    max-width: clamp(5.8rem, 36vw, 9.8rem);
-  }
-
   .texturePanel {
     min-height: 7.4rem;
   }
@@ -2561,7 +2534,6 @@
   .treeMenuItem,
   .viewportInvertButton,
   .viewportInvertTooltip,
-  .viewportAnimationButton,
   .inspectorTab {
     transition: none;
   }

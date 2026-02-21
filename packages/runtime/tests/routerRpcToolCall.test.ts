@@ -4,6 +4,7 @@ import { handleToolCall } from '../src/transport/mcp/routerRpcToolCall';
 import type { RpcContext } from '../src/transport/mcp/routerRpcTypes';
 import type { ToolExecutor } from '../src/transport/mcp/executor';
 import type { ToolRegistry } from '../src/transport/mcp/tools';
+import type { McpRequestPrincipal } from '../src/transport/mcp/types';
 import { SessionStore } from '../src/transport/mcp/session';
 import { noopLog, registerAsync } from './helpers';
 import { MCP_TOOL_NAME_REQUIRED, MCP_UNKNOWN_TOOL } from '../src/shared/messages';
@@ -12,6 +13,7 @@ const createContext = (options?: {
   executor?: ToolExecutor;
   tools?: ToolRegistry;
   requestHeaders?: Record<string, string>;
+  principal?: McpRequestPrincipal;
 }): RpcContext => {
   const toolRegistry: ToolRegistry =
     options?.tools ??
@@ -29,6 +31,7 @@ const createContext = (options?: {
     toolRegistry,
     sessions: new SessionStore(),
     ...(options?.requestHeaders ? { requestHeaders: options.requestHeaders } : {}),
+    ...(options?.principal ? { principal: options.principal } : {}),
     config: { path: '/mcp' }
   };
 };
@@ -74,10 +77,10 @@ registerAsync(
               return { ok: true, data: { ok: true } };
             }
           },
-          requestHeaders: {
-            'x-ashfox-account-id': 'account-rpc',
-            'x-ashfox-system-roles': 'system_admin,cs_admin',
-            'x-ashfox-workspace-id': 'ws-rpc'
+          principal: {
+            accountId: 'account-rpc',
+            systemRoles: ['system_admin', 'cs_admin'],
+            workspaceId: 'ws-rpc'
           }
         }),
         { jsonrpc: '2.0', method: 'tools/call', params: { name: 'demo_tool', arguments: {} } },
@@ -91,6 +94,42 @@ registerAsync(
       assert.equal(capturedContext?.mcpAccountId, 'account-rpc');
       assert.deepEqual(capturedContext?.mcpSystemRoles, ['system_admin', 'cs_admin']);
       assert.equal(capturedContext?.mcpWorkspaceId, 'ws-rpc');
+    }
+
+    {
+      let capturedContext: Record<string, unknown> | undefined;
+      const outcome = await handleToolCall(
+        createContext({
+          executor: {
+            callTool: async (_name, _args, context) => {
+              capturedContext = (context ?? undefined) as Record<string, unknown> | undefined;
+              return { ok: true, data: { ok: true } };
+            }
+          },
+          requestHeaders: {
+            'x-ashfox-account-id': 'header-account',
+            'x-ashfox-system-roles': 'system_admin',
+            'x-ashfox-workspace-id': 'header-workspace',
+            'x-ashfox-api-key-id': 'header-key'
+          },
+          principal: {
+            accountId: 'principal-account',
+            workspaceId: 'principal-workspace',
+            systemRoles: ['cs_admin'],
+            apiKeyId: 'principal-key'
+          }
+        }),
+        { jsonrpc: '2.0', method: 'tools/call', params: { name: 'demo_tool', arguments: {} } },
+        session,
+        6
+      );
+      assert.equal(outcome.type, 'response');
+      if (outcome.type !== 'response') return;
+      assert.equal(outcome.status, 200);
+      assert.equal(capturedContext?.mcpAccountId, 'principal-account');
+      assert.deepEqual(capturedContext?.mcpSystemRoles, ['cs_admin']);
+      assert.equal(capturedContext?.mcpWorkspaceId, 'principal-workspace');
+      assert.equal(capturedContext?.mcpApiKeyId, 'principal-key');
     }
 
     {

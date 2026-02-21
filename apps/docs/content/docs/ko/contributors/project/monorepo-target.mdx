@@ -10,6 +10,7 @@ summary: "플러그인 배포와 서버 배포를 기준으로 한 현재 이중
 
 - 트랙 A: Blockbench 플러그인 런타임 (`apps/plugin-desktop` + `apps/ashfox`)
 - 트랙 B: 서버 배포 (`apps/web` + `apps/gateway` + `apps/worker`)
+  - 트랙 B의 gateway는 네이티브 엔진 MCP만 제공합니다.
 
 ## 실행 경계(Executable Boundaries)
 
@@ -33,7 +34,7 @@ summary: "플러그인 배포와 서버 배포를 기준으로 한 현재 이중
 apps/
   plugin-desktop/      # Blockbench plugin runtime shell
   ashfox/              # UI-less MCP runtime shell
-  gateway/         # Multi-backend MCP gateway shell
+  gateway/             # Native MCP gateway shell (engine only)
   worker/              # Async worker shell
   web/                 # React + Vite 대시보드 UI
   docs/                # User-facing documentation site
@@ -42,7 +43,7 @@ packages/
   contracts/           # MCP schemas + contract types
   conformance/         # Protocol/tool conformance checks
   backend-core/        # Backend contract + registry + lock manager
-  backend-blockbench/  # Dispatcher-backed blockbench adapter
+  backend-blockbench/  # Blockbench plugin track adapter
   backend-engine/      # Clean-room engine adapter scaffold
 deploy/
   docker-compose.yml   # 멀티 서비스 스캐폴드 (gateway/worker/db, UI는 gateway 서빙)
@@ -56,7 +57,7 @@ scripts/
 ## 설계 규칙
 
 1. MCP 계약은 `packages/contracts/src/*`에 런타임 독립적으로 유지합니다.
-2. 백엔드 선택은 `packages/backend-core` 인터페이스를 통해서만 라우팅합니다.
+2. gateway MCP 라우팅은 네이티브(`engine`)로 고정하고, Blockbench 어댑터 경로는 플러그인 트랙으로 분리합니다.
 3. Blockbench 전용 로직은 `packages/backend-blockbench` 뒤로 숨깁니다.
 4. 클린룸 실행은 `packages/backend-engine`에서 점진적으로 확장합니다.
 5. 게이트웨이 경로의 변경 요청은 프로젝트 단위 직렬화로 revision 안정성을 보장합니다.

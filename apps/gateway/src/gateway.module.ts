@@ -9,6 +9,7 @@ import { gatewayInfrastructureProviders } from './gateway.providers';
 import { ProjectIdPipe } from './pipes/project-id.pipe';
 import { AuthService } from './services/auth.service';
 import { GatewayDashboardService } from './services/gateway-dashboard.service';
+import { GatewayMcpAuthService } from './services/gateway-mcp-auth.service';
 import { GatewayMcpService } from './services/gateway-mcp.service';
 import { GatewayMetricsService } from './services/gateway-metrics.service';
 import { GatewayRuntimeService } from './services/gateway-runtime.service';
@@ -28,6 +29,7 @@ import { WorkspaceAdminService } from './services/workspace-admin.service';
     ServiceManagementService,
     ProjectTreeCommandService,
     GatewayDashboardService,
+    GatewayMcpAuthService,
     GatewayMcpService,
     ProjectIdPipe
   ],

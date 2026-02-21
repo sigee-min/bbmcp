@@ -170,6 +170,8 @@ const createSqliteMigrationSqlById = (sql: SqliteWorkspaceBootstrapSql): Record<
             ON ${sql.workspaceApiKeysTableSql}(workspace_id, created_at);
           CREATE INDEX IF NOT EXISTS idx_workspace_api_keys_workspace_revoked
             ON ${sql.workspaceApiKeysTableSql}(workspace_id, revoked_at);
+          CREATE INDEX IF NOT EXISTS idx_workspace_api_keys_key_hash
+            ON ${sql.workspaceApiKeysTableSql}(key_hash);
         `,
   'create-service-settings-table': `
           CREATE TABLE IF NOT EXISTS ${sql.serviceSettingsTableSql} (

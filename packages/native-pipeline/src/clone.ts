@@ -135,6 +135,57 @@ export const cloneJob = (job: NativeJob): NativeJob => ({
                   ? {
                       hierarchy: job.result.hierarchy.map((node) => cloneHierarchyNode(node as NativeHierarchyNode))
                     }
+                  : {}),
+                ...(job.result.animations
+                  ? {
+                      animations: job.result.animations.map((animation) => ({
+                        id: animation.id,
+                        name: animation.name,
+                        length: animation.length,
+                        loop: animation.loop
+                      }))
+                    }
+                  : {}),
+                ...(job.result.textureSources
+                  ? {
+                      textureSources: job.result.textureSources.map((source) => ({
+                        faceId: source.faceId,
+                        cubeId: source.cubeId,
+                        cubeName: source.cubeName,
+                        direction: source.direction,
+                        colorHex: source.colorHex,
+                        rotationQuarter: source.rotationQuarter
+                      }))
+                    }
+                  : {}),
+                ...(job.result.textures
+                  ? {
+                      textures: job.result.textures.map((texture) => ({
+                        textureId: texture.textureId,
+                        name: texture.name,
+                        width: texture.width,
+                        height: texture.height,
+                        faceCount: texture.faceCount,
+                        imageDataUrl: texture.imageDataUrl,
+                        faces: texture.faces.map((face) => ({
+                          faceId: face.faceId,
+                          cubeId: face.cubeId,
+                          cubeName: face.cubeName,
+                          direction: face.direction,
+                          rotationQuarter: face.rotationQuarter,
+                          uMin: face.uMin,
+                          vMin: face.vMin,
+                          uMax: face.uMax,
+                          vMax: face.vMax
+                        })),
+                        uvEdges: texture.uvEdges.map((edge) => ({
+                          x1: edge.x1,
+                          y1: edge.y1,
+                          x2: edge.x2,
+                          y2: edge.y2
+                        }))
+                      }))
+                    }
                   : {})
               }
             }

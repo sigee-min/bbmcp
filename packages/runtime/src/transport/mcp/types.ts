@@ -15,6 +15,13 @@ export type HttpRequest = {
   body?: string;
 };
 
+export type McpRequestPrincipal = {
+  accountId?: string;
+  workspaceId?: string;
+  systemRoles?: string[];
+  apiKeyId?: string;
+};
+
 export type SseConnection = {
   send: (payload: string) => void;
   close: () => void;
@@ -65,11 +72,13 @@ export type JsonRpcResponse = {
 export type McpServerConfig = {
   path: string;
   token?: string;
+  authenticateRequest?: (
+    request: HttpRequest
+  ) => Promise<{ ok: true; principal?: McpRequestPrincipal } | { ok: false; response: ResponsePlan }>;
   serverInfo?: { name: string; version: string };
   instructions?: string;
   supportedProtocols?: string[];
   sessionTtlMs?: number;
 };
-
 
 

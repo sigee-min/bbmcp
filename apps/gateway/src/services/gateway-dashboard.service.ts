@@ -38,7 +38,7 @@ import {
   formatSseMessage,
   hasPendingGltfJob,
   jsonPlan,
-  latestCompletedGltfJob,
+  latestCompletedGltfJobForRevision,
   normalizeLastEventId,
   parseLastEventId,
   parseOptionalPositiveInt,
@@ -427,7 +427,7 @@ export class GatewayDashboardService {
     }
 
     const jobs = await this.runtime.dashboardStore.listProjectJobs(projectId, resolvedWorkspaceId);
-    const completed = latestCompletedGltfJob(jobs);
+    const completed = latestCompletedGltfJobForRevision(jobs, project.revision);
     if (completed) {
       const exportPath = readExportPath(completed);
       if (exportPath) {

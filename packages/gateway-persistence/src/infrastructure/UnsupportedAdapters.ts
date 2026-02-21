@@ -178,6 +178,10 @@ export class UnsupportedWorkspaceRepository implements WorkspaceRepository {
     throw this.error;
   }
 
+  async findWorkspaceApiKeyByHash(_keyHash: string): Promise<WorkspaceApiKeyRecord | null> {
+    throw this.error;
+  }
+
   async createWorkspaceApiKey(_record: WorkspaceApiKeyRecord): Promise<void> {
     throw this.error;
   }

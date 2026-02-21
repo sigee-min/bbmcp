@@ -30,6 +30,8 @@
     "dev:gateway": "npm --workspace @ashfox/gateway run dev",
     "dev:worker": "npm --workspace @ashfox/worker run dev",
     "docs:quality": "node ./scripts/docs/quality/check.js",
+    "assets:sync:brand": "node scripts/assets/sync-brand-assets.mjs",
+    "assets:check:brand": "node scripts/assets/sync-brand-assets.mjs --check",
     "test:unit": "npm --workspace @ashfox/runtime run test",
     "test:conformance": "npm --workspace @ashfox/conformance run test",
     "test:practical": "npm --workspace @ashfox/runtime run test:practical && npm --workspace @ashfox/conformance run test:practical",

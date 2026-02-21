@@ -9,6 +9,7 @@ summary: "Current two-track topology for plugin and server deployments."
 This document describes the current two-track architecture scaffold:
 - Track A: Blockbench plugin runtime (`apps/plugin-desktop` + `apps/ashfox`)
 - Track B: server deployment (`apps/web` + `apps/gateway` + `apps/worker`)
+  - Gateway in Track B serves native engine MCP only.
 
 ## Executable Boundaries
 
@@ -32,7 +33,7 @@ This document describes the current two-track architecture scaffold:
 apps/
   plugin-desktop/      # Blockbench plugin runtime shell
   ashfox/              # UI-less MCP runtime shell
-  gateway/         # Multi-backend MCP gateway shell
+  gateway/             # Native MCP gateway shell (engine only)
   worker/              # Async worker shell
   web/                 # React + Vite dashboard UI
   docs/                # User-facing documentation site
@@ -41,7 +42,7 @@ packages/
   contracts/           # MCP schemas + contract types
   conformance/         # Protocol/tool conformance checks
   backend-core/        # Backend contract + registry + lock manager
-  backend-blockbench/  # Dispatcher-backed blockbench adapter
+  backend-blockbench/  # Blockbench plugin track adapter
   backend-engine/      # Clean-room engine adapter scaffold
 deploy/
   docker-compose.yml   # Multi-service scaffold (gateway/worker/db, UI served by gateway)
@@ -55,7 +56,7 @@ scripts/
 ## Design Rules
 
 1. Keep MCP contracts stable and runtime-agnostic in `packages/contracts/src/*`.
-2. Route backend selection through `packages/backend-core` interfaces only.
+2. Keep gateway MCP routing native (`engine`) and keep Blockbench adapter paths in plugin track only.
 3. Keep Blockbench-specific logic behind `packages/backend-blockbench`.
 4. Keep clean-room execution in `packages/backend-engine` (incremental rollout).
 5. Serialize mutating requests per project in gateway paths to preserve revision safety.

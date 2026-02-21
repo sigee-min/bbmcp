@@ -33,6 +33,11 @@ import { errorCopy } from './features/shared/dashboardCopy';
 import { StateScreen } from './features/shared/StateScreen';
 import { useErrorChannels } from './features/shared/useErrorChannels';
 import { ViewportPanel, type RotateSource } from './features/viewport/ViewportPanel';
+import {
+  DEFAULT_VIEWPORT_ENVIRONMENT_TEMPLATE_ID,
+  resolveViewportEnvironmentTemplateId,
+  type ViewportEnvironmentTemplateId
+} from './features/viewport/viewportEnvironmentTemplates';
 import styles from './page.module.css';
 import { WorkspaceCreateDialog, type WorkspaceCreateInput } from './features/workspace/WorkspaceCreateDialog';
 import { WorkspaceSettingsDialog } from './features/workspace/WorkspaceSettingsDialog';
@@ -40,6 +45,7 @@ import { WorkspaceSettingsDialog } from './features/workspace/WorkspaceSettingsD
 const INVERT_POINTER_STORAGE_KEY = 'ashfox.viewer.invertPointer';
 const LEGACY_INVERT_X_STORAGE_KEY = 'ashfox.viewer.invertX';
 const LEGACY_INVERT_Y_STORAGE_KEY = 'ashfox.viewer.invertY';
+const VIEWPORT_ENVIRONMENT_STORAGE_KEY = 'ashfox.viewer.environmentTemplate';
 const TEXTURE_OVERLAY_ANCHOR_SELECTOR = '[data-overlay-anchor="texture"], [data-overlay="texture"]';
 
 type AuthSessionUser = {
@@ -136,6 +142,9 @@ export default function HomePage() {
   const [serviceManagementOpen, setServiceManagementOpen] = useState(false);
   const [workspaceCreateBusy, setWorkspaceCreateBusy] = useState(false);
   const [invertPointer, setInvertPointer] = useState(false);
+  const [environmentTemplateId, setEnvironmentTemplateId] = useState<ViewportEnvironmentTemplateId>(
+    DEFAULT_VIEWPORT_ENVIRONMENT_TEMPLATE_ID
+  );
   const {
     panelError: authError,
     clearChannelError: clearAuthErrorChannel,
@@ -148,6 +157,11 @@ export default function HomePage() {
     clearChannelError: clearWorkspaceErrorChannel,
     clearAllErrors: clearAllWorkspaceErrors,
     reportError: reportWorkspaceError
+  } = useErrorChannels();
+  const {
+    panelError: animationError,
+    clearAllErrors: clearAllAnimationErrors,
+    setChannelError: setAnimationError
   } = useErrorChannels();
   const requestHeaders = useMemo(() => {
     const normalizedWorkspaceId = selectedWorkspaceId.trim();
@@ -283,7 +297,8 @@ export default function HomePage() {
     setServiceManagementOpen(false);
     clearAllAuthErrors();
     clearAllWorkspaceErrors();
-  }, [clearAllAuthErrors, clearAllWorkspaceErrors]);
+    clearAllAnimationErrors();
+  }, [clearAllAnimationErrors, clearAllAuthErrors, clearAllWorkspaceErrors]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -358,6 +373,14 @@ export default function HomePage() {
     const legacyX = window.localStorage.getItem(LEGACY_INVERT_X_STORAGE_KEY) === '1';
     const legacyY = window.localStorage.getItem(LEGACY_INVERT_Y_STORAGE_KEY) === '1';
     setInvertPointer(legacyX && legacyY);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const persisted = window.localStorage.getItem(VIEWPORT_ENVIRONMENT_STORAGE_KEY);
+    setEnvironmentTemplateId(resolveViewportEnvironmentTemplateId(persisted));
   }, []);
 
   const reloadProjectsSnapshot = useCallback(async () => {
@@ -464,6 +487,14 @@ export default function HomePage() {
     });
   }, []);
 
+  const handleEnvironmentTemplateSelect = useCallback((templateId: ViewportEnvironmentTemplateId) => {
+    const normalized = resolveViewportEnvironmentTemplateId(templateId);
+    setEnvironmentTemplateId(normalized);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(VIEWPORT_ENVIRONMENT_STORAGE_KEY, normalized);
+    }
+  }, []);
+
   const selectedProject = useMemo(() => {
     if (state.selectedProjectId === null) {
       return null;
@@ -544,13 +575,9 @@ export default function HomePage() {
     textureOverlayTexture,
     selectedAnimation,
     selectedAnimationId,
-    animationPlaybackMode,
-    animationLoopEnabled,
+    animationPlaying,
     handleTextureSelect,
-    handleAnimationSelect,
-    handlePlayAnimation,
-    handleStopAnimation,
-    toggleAnimationLoop
+    handleAnimationSelect
   } = useOverlaySelection({
     selectedProjectId: state.selectedProjectId,
     projectTextures,
@@ -563,8 +590,15 @@ export default function HomePage() {
     [selectedProject, state.activeTab]
   );
 
+  const handleAnimationPlaybackNoticeChange = useCallback(
+    (notice: string | null) => {
+      setAnimationError('panel', notice);
+    },
+    [setAnimationError]
+  );
+
   if (!authResolved) {
-    return <StateScreen title="Ashfox Dashboard" description="로그인 세션을 확인하는 중입니다." loading />;
+    return <StateScreen title="Ashfox" description="로그인 세션을 확인하는 중입니다." loading />;
   }
 
   if (!authUser) {
@@ -621,16 +655,17 @@ export default function HomePage() {
           streamStatus={state.streamStatus}
           viewer={state.viewer}
           errorCode={state.errorCode}
+          animationErrorMessage={animationError}
           selectedTexture={textureOverlayTexture}
-          selectedAnimation={selectedAnimation}
-          animationPlaybackMode={animationPlaybackMode}
-          animationLoopEnabled={animationLoopEnabled}
+          selectedAnimationId={selectedAnimation?.id ?? null}
+          selectedAnimationName={selectedAnimation?.name ?? null}
+          animationPlaying={animationPlaying}
           invertPointer={invertPointer}
+          environmentTemplateId={environmentTemplateId}
           onToggleInvertPointer={toggleInvertPointer}
+          onSelectEnvironmentTemplate={handleEnvironmentTemplateSelect}
           onRotateViewer={handleViewerRotate}
-          onPlayAnimation={handlePlayAnimation}
-          onStopAnimation={handleStopAnimation}
-          onToggleAnimationLoop={toggleAnimationLoop}
+          onAnimationPlaybackNoticeChange={handleAnimationPlaybackNoticeChange}
         />
         <InspectorSidebar
           selectedProject={selectedProject}

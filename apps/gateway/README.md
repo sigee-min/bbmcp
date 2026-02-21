@@ -1,12 +1,12 @@
 # Ashfox Gateway App
 
-This app is the gateway multi-backend shell.
+This app is the gateway native MCP shell.
 
 Current scope:
 - Runs on NestJS + Fastify and serves MCP (`/mcp`) plus dashboard APIs (`/api/*`) on one port.
 - Serves built web UI (`apps/web/dist`) as static SPA when enabled.
 - Serves dashboard HTTP API/SSE endpoints on the same port under `/api`.
-- Routes tool calls through a backend registry (`engine` or `blockbench`).
+- Routes tool calls through the native backend registry (`engine`).
 - Serializes mutating calls per project via `ProjectLockManager`.
 
 Gateway structure:
@@ -40,7 +40,7 @@ Environment variables:
 - `ASHFOX_HOST` (default `127.0.0.1`)
 - `ASHFOX_PORT` (default `8787`)
 - `ASHFOX_PATH` (default `/mcp`)
-- `ASHFOX_GATEWAY_BACKEND` (`engine` | `blockbench`, default `engine`)
+- `ASHFOX_GATEWAY_BACKEND` (`engine`, default `engine`)
 - `ASHFOX_GATEWAY_SERVE_WEB_UI` (default `true`; when enabled, gateway serves SPA routes/static assets)
 - `ASHFOX_WEB_DIST_PATH` (optional; custom static web dist path for gateway hosting)
 - `ASHFOX_PERSISTENCE_FAIL_FAST` (default `true`; if `false`, start even when persistence readiness is degraded)
@@ -113,7 +113,7 @@ Use the following quick checks during incidents:
 Common error-code triage:
 
 - `invalid_state`
-  - Typical cause: required capability is unavailable in current backend/profile (for example no-render preview or host-dependent plugin reload) or required state/persistence is unavailable.
+  - Typical cause: required capability is unavailable in current backend/profile (for example no-render preview) or required state/persistence is unavailable.
   - Next action: inspect backend capability/error detail, then check backend mode and persistence health.
 
 - `unsupported_format`

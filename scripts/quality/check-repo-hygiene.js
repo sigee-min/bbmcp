@@ -31,7 +31,11 @@ const requiredPublicSymlinks = [
 ];
 
 const forbiddenLegacyBrandAssets = [
-  'images/favicon-32x32.png',
+  'images/logo-32.png',
+  'images/logo-180.png',
+  'images/logo-192.png',
+  'images/logo-256.png',
+  'images/logo-512.png',
   'images/apple-touch-icon.png',
   'images/android-chrome-192x192.png',
   'images/android-chrome-512x512.png',

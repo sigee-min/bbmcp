@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { AnimationSummary, ProjectTextureAtlas } from '../../lib/dashboardModel';
 
-export type AnimationPlaybackMode = 'stopped' | 'playing';
-
 interface UseOverlaySelectionOptions {
   selectedProjectId: string | null;
   projectTextures: readonly ProjectTextureAtlas[];
@@ -20,13 +18,6 @@ export function useOverlaySelection({
   const [selectedTextureId, setSelectedTextureId] = useState<string | null>(null);
   const [isTextureOverlayOpen, setIsTextureOverlayOpen] = useState(false);
   const [selectedAnimationId, setSelectedAnimationId] = useState<string | null>(null);
-  const [animationPlaybackMode, setAnimationPlaybackMode] = useState<AnimationPlaybackMode>('stopped');
-  const [animationLoopEnabled, setAnimationLoopEnabled] = useState(false);
-
-  const closeAnimationOverlay = useCallback(() => {
-    setSelectedAnimationId(null);
-    setAnimationPlaybackMode('stopped');
-  }, []);
 
   const closeTextureOverlay = useCallback(() => {
     setIsTextureOverlayOpen(false);
@@ -37,37 +28,14 @@ export function useOverlaySelection({
     setIsTextureOverlayOpen(true);
   }, []);
 
-  const handleAnimationSelect = useCallback(
-    (animationId: string, defaultLoop: boolean) => {
-      if (selectedAnimationId === animationId) {
-        closeAnimationOverlay();
-        return;
-      }
-      setSelectedAnimationId(animationId);
-      setAnimationPlaybackMode('stopped');
-      setAnimationLoopEnabled(defaultLoop);
-    },
-    [closeAnimationOverlay, selectedAnimationId]
-  );
-
-  const handlePlayAnimation = useCallback(() => {
-    setAnimationPlaybackMode('playing');
-  }, []);
-
-  const handleStopAnimation = useCallback(() => {
-    setAnimationPlaybackMode('stopped');
-  }, []);
-
-  const toggleAnimationLoop = useCallback(() => {
-    setAnimationLoopEnabled((prev) => !prev);
+  const handleAnimationSelect = useCallback((animationId: string) => {
+    setSelectedAnimationId((prev) => (prev === animationId ? prev : animationId));
   }, []);
 
   useEffect(() => {
     setSelectedTextureId(null);
     setIsTextureOverlayOpen(false);
     setSelectedAnimationId(null);
-    setAnimationPlaybackMode('stopped');
-    setAnimationLoopEnabled(false);
   }, [selectedProjectId]);
 
   useEffect(() => {
@@ -91,9 +59,9 @@ export function useOverlaySelection({
     }
     const stillExists = projectAnimations.some((animation) => animation.id === selectedAnimationId);
     if (!stillExists) {
-      closeAnimationOverlay();
+      setSelectedAnimationId(null);
     }
-  }, [closeAnimationOverlay, projectAnimations, selectedAnimationId]);
+  }, [projectAnimations, selectedAnimationId]);
 
   useEffect(() => {
     const isInsideOverlayAnchor = (target: EventTarget | null, selector: string): boolean =>
@@ -150,6 +118,7 @@ export function useOverlaySelection({
   }, [projectAnimations, selectedAnimationId]);
 
   const textureOverlayTexture = isTextureOverlayOpen ? selectedTexture : null;
+  const animationPlaying = selectedAnimation !== null;
 
   return {
     selectedTexture,
@@ -157,14 +126,9 @@ export function useOverlaySelection({
     textureOverlayTexture,
     selectedAnimation,
     selectedAnimationId,
-    animationPlaybackMode,
-    animationLoopEnabled,
+    animationPlaying,
     handleTextureSelect,
     handleAnimationSelect,
-    handlePlayAnimation,
-    handleStopAnimation,
-    toggleAnimationLoop,
-    closeTextureOverlay,
-    closeAnimationOverlay
+    closeTextureOverlay
   };
 }

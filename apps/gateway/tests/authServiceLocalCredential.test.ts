@@ -352,6 +352,10 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
     return [];
   }
 
+  async findWorkspaceApiKeyByHash(_keyHash: string): Promise<WorkspaceApiKeyRecord | null> {
+    return null;
+  }
+
   async createWorkspaceApiKey(_record: WorkspaceApiKeyRecord): Promise<void> {
     // no-op for auth tests
   }

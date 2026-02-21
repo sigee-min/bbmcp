@@ -1,7 +1,7 @@
 import type { Logger } from '../../logging';
 import type { ResourceStore } from '../../ports/resources';
 import type { MetricsRegistry } from '../../observability';
-import type { McpServerConfig, JsonRpcResponse } from './types';
+import type { McpRequestPrincipal, McpServerConfig, JsonRpcResponse } from './types';
 import type { ToolExecutor } from './executor';
 import type { SessionStore } from './session';
 import type { ToolRegistry } from './tools';
@@ -18,6 +18,7 @@ export type RpcContext = {
   toolRegistry: ToolRegistry;
   sessions: SessionStore;
   requestHeaders?: Record<string, string>;
+  principal?: McpRequestPrincipal;
   supportedProtocols?: string[];
   config: McpServerConfig;
 };

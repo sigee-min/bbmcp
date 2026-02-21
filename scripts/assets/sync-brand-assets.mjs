@@ -2,7 +2,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,19 +13,30 @@ const repoRoot = path.resolve(__dirname, '..', '..');
 const imagesRoot = path.join(repoRoot, 'images');
 
 const sourceAssets = {
-  logoMaster: path.join(imagesRoot, 'logo.png')
+  faviconSource: path.join(imagesRoot, 'logo_fullbackground.png')
 };
 
-const logoSizes = [32, 180, 192, 256, 512];
+const faviconSpecs = [
+  { size: 16, target: 'images/favicon-16x16.png' },
+  { size: 24, target: 'images/favicon-24x24.png' },
+  { size: 32, target: 'images/favicon-32x32.png' },
+  { size: 48, target: 'images/favicon-48x48.png' },
+  { size: 64, target: 'images/favicon-64x64.png' },
+  { size: 96, target: 'images/favicon-96x96.png' },
+  { size: 128, target: 'images/favicon-128x128.png' },
+  { size: 180, target: 'images/favicon-180x180.png' },
+  { size: 192, target: 'images/favicon-192x192.png' },
+  { size: 512, target: 'images/favicon-512x512.png' }
+];
 
 const artifactSpecs = [
-  ...logoSizes.map((size) => ({
+  ...faviconSpecs.map(({ size, target }) => ({
     type: 'png',
-    source: sourceAssets.logoMaster,
+    source: sourceAssets.faviconSource,
     size,
-    target: `images/logo-${size}.png`
+    target
   })),
-  { type: 'ico', source: sourceAssets.logoMaster, size: 256, target: 'images/favicon.ico' }
+  { type: 'ico', source: sourceAssets.faviconSource, size: 256, target: 'images/favicon.ico' }
 ];
 
 const checkMode = process.argv.includes('--check');
@@ -79,11 +90,6 @@ const generateArtifacts = (outputRoot) => {
   try {
     for (const spec of artifactSpecs) {
       const targetPath = path.join(outputRoot, spec.target);
-      if (spec.type === 'copy') {
-        ensureParent(targetPath);
-        copyFileSync(spec.source, targetPath);
-        continue;
-      }
       if (spec.type === 'png') {
         resizePng(spec.source, spec.size, targetPath);
         continue;

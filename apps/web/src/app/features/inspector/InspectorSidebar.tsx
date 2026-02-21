@@ -26,7 +26,7 @@ interface InspectorSidebarProps {
   selectedTextureId: string | null;
   activeTab: InspectorTabId;
   onSelectTab: (tabId: InspectorTabId) => void;
-  onSelectAnimation: (animationId: string, defaultLoop: boolean) => void;
+  onSelectAnimation: (animationId: string) => void;
   onSelectTexture: (textureId: string) => void;
 }
 
@@ -91,7 +91,7 @@ export const InspectorSidebar = memo(function InspectorSidebar({
                     key={animation.id}
                     type="button"
                     className={cn(styles.animationItem, selectedAnimationId === animation.id && styles.animationItemActive)}
-                    onClick={() => onSelectAnimation(animation.id, animation.loop)}
+                    onClick={() => onSelectAnimation(animation.id)}
                   >
                     <div className={styles.animationMain}>
                       <Clapperboard className={styles.animationIcon} />

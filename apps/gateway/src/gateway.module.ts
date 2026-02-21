@@ -13,6 +13,7 @@ import { GatewayMcpService } from './services/gateway-mcp.service';
 import { GatewayMetricsService } from './services/gateway-metrics.service';
 import { GatewayRuntimeService } from './services/gateway-runtime.service';
 import { ProjectTreeCommandService } from './services/project-tree-command.service';
+import { ServiceManagementService } from './services/service-management.service';
 import { WorkspaceAdminService } from './services/workspace-admin.service';
 
 @Module({
@@ -24,6 +25,7 @@ import { WorkspaceAdminService } from './services/workspace-admin.service';
     GatewayMetricsService,
     AuthService,
     WorkspaceAdminService,
+    ServiceManagementService,
     ProjectTreeCommandService,
     GatewayDashboardService,
     GatewayMcpService,

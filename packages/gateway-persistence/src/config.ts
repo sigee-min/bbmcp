@@ -63,6 +63,9 @@ export interface AppwriteCommonConfig {
 export interface AppwriteDatabaseConfig extends AppwriteCommonConfig {
   databaseId: string;
   collectionId: string;
+  workspaceStateCollectionId?: string;
+  workspaceStateEnabled?: boolean;
+  workspaceStateShadowRead?: boolean;
   provider: DatabaseProvider;
 }
 
@@ -86,6 +89,7 @@ const DEFAULT_APPWRITE_URL = 'https://cloud.appwrite.io/v1';
 const DEFAULT_APPWRITE_RESPONSE_FORMAT = '1.8.0';
 const DEFAULT_APPWRITE_DATABASE_ID = 'ashfox';
 const DEFAULT_APPWRITE_PROJECTS_COLLECTION_ID = 'ashfox_projects';
+const DEFAULT_APPWRITE_WORKSPACE_COLLECTION_ID = 'ashfox_workspace_state';
 const DEFAULT_APPWRITE_BLOB_BUCKET_ID = 'ashfox_blobs';
 const DEFAULT_APPWRITE_BLOB_METADATA_COLLECTION_ID = 'ashfox_blob_metadata';
 
@@ -305,6 +309,14 @@ const resolveAppwriteCommonConfig = (env: NodeJS.ProcessEnv, scope: 'db' | 'stor
 
 export const resolveAppwriteDatabaseConfig = (env: NodeJS.ProcessEnv): AppwriteDatabaseConfig => {
   const common = resolveAppwriteCommonConfig(env, 'db');
+  const workspaceStateEnabled = parseBool(
+    firstNonEmpty(
+      env.ASHFOX_DB_APPWRITE_WORKSPACE_STATE_ENABLED,
+      env.ASHFOX_DB_APPWRITE_WORKSPACE_V2_ENABLED,
+      env.ASHFOX_APPWRITE_WORKSPACE_STATE_ENABLED
+    ) ?? undefined,
+    false
+  );
   return {
     ...common,
     databaseId:
@@ -315,6 +327,23 @@ export const resolveAppwriteDatabaseConfig = (env: NodeJS.ProcessEnv): AppwriteD
         env.ASHFOX_DB_APPWRITE_PROJECT_COLLECTION_ID,
         env.ASHFOX_APPWRITE_COLLECTION_ID
       ) ?? DEFAULT_APPWRITE_PROJECTS_COLLECTION_ID,
+    workspaceStateCollectionId:
+      firstNonEmpty(
+        env.ASHFOX_DB_APPWRITE_WORKSPACE_STATE_COLLECTION_ID,
+        env.ASHFOX_APPWRITE_WORKSPACE_STATE_COLLECTION_ID,
+        env.ASHFOX_DB_APPWRITE_WORKSPACE_V2_COLLECTION_ID,
+        env.ASHFOX_DB_APPWRITE_WORKSPACE_COLLECTION_ID,
+        env.ASHFOX_APPWRITE_WORKSPACE_V2_COLLECTION_ID
+      ) ?? DEFAULT_APPWRITE_WORKSPACE_COLLECTION_ID,
+    workspaceStateEnabled,
+    workspaceStateShadowRead: parseBool(
+      firstNonEmpty(
+        env.ASHFOX_DB_APPWRITE_WORKSPACE_STATE_SHADOW_READ,
+        env.ASHFOX_DB_APPWRITE_WORKSPACE_V2_SHADOW_READ,
+        env.ASHFOX_APPWRITE_WORKSPACE_STATE_SHADOW_READ
+      ) ?? undefined,
+      workspaceStateEnabled
+    ),
     provider: 'appwrite'
   };
 };

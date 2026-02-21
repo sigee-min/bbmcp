@@ -1,3 +1,4 @@
+import { normalizeSystemRoles, type SystemRole } from '@ashfox/backend-core';
 import type { NativeJob } from '@ashfox/native-pipeline/types';
 import type { ResponsePlan } from '@ashfox/runtime/transport/mcp/types';
 
@@ -5,7 +6,6 @@ import { API_CORS_HEADERS } from './constants';
 
 export const DEFAULT_TENANT_ID = 'default-tenant';
 export const EXPORT_BUCKET = 'exports';
-export const DEFAULT_WORKSPACE_ID = 'ws_default';
 
 export type PreviewStatus = 'ready' | 'processing' | 'empty' | 'error';
 
@@ -18,7 +18,7 @@ export type ParsedPositiveInt =
       ok: false;
     };
 
-export type GatewaySystemRole = 'system_admin' | 'cs_admin';
+export type GatewaySystemRole = SystemRole;
 
 export type GatewayActorContext = {
   accountId: string;
@@ -66,7 +66,13 @@ export const normalizeOptionalWorkspaceId = (value: unknown): string | undefined
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
-export const resolveWorkspaceId = (value: unknown): string => normalizeOptionalWorkspaceId(value) ?? DEFAULT_WORKSPACE_ID;
+export const requireWorkspaceId = (value: unknown): string => {
+  const workspaceId = normalizeOptionalWorkspaceId(value);
+  if (!workspaceId) {
+    throw new Error('workspaceId is required');
+  }
+  return workspaceId;
+};
 
 const parseHeaderString = (value: unknown): string => {
   if (typeof value === 'string') {
@@ -82,10 +88,9 @@ export const resolveActorContext = (headers: Record<string, unknown>): GatewayAc
   const accountIdRaw = parseHeaderString(headers['x-ashfox-account-id']);
   const accountId = accountIdRaw.trim() || 'anonymous';
   const systemRolesRaw = parseHeaderString(headers['x-ashfox-system-roles']);
-  const systemRoles = systemRolesRaw
-    .split(',')
-    .map((entry) => entry.trim().toLowerCase())
-    .filter((entry): entry is GatewaySystemRole => entry === 'system_admin' || entry === 'cs_admin');
+  const systemRoles = normalizeSystemRoles(
+    systemRolesRaw.split(',').map((entry) => entry.trim().toLowerCase())
+  );
   return {
     accountId,
     systemRoles

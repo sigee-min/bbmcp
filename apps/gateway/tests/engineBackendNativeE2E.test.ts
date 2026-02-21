@@ -14,18 +14,28 @@ import {
   type PersistencePorts,
   type ProjectRepository,
   type ProjectRepositoryScope,
+  type ServiceSettingsRecord,
+  type WorkspaceApiKeyRecord,
   type WorkspaceFolderAclRecord,
   type WorkspaceMemberRecord,
   type WorkspaceRecord,
   type WorkspaceRepository,
-  type WorkspaceRoleStorageRecord
+  type WorkspaceRoleStorageRecord,
+  toAutoProvisionedWorkspaceId,
+  WORKSPACE_ADMIN_ROLE_NAME,
+  WORKSPACE_MEMBER_ROLE_NAME
 } from '@ashfox/backend-core';
 import type { NativeJobResult } from '@ashfox/native-pipeline/types';
 import { NativePipelineStore } from '@ashfox/native-pipeline/testing';
 import type { ToolName, ToolPayloadMap, ToolResponse, ToolResultMap } from '@ashfox/contracts/types/internal';
 import type { Logger } from '@ashfox/runtime/logging';
+import type { FastifyRequest } from 'fastify';
 import { processOneNativeJob } from '../../worker/src/nativeJobProcessor';
 import { GatewayDispatcher } from '../src/core/gateway-dispatcher';
+import { WorkspacePolicyService } from '../src/security/workspace-policy.service';
+import { WorkspaceAdminService } from '../src/services/workspace-admin.service';
+import { ProjectTreeCommandService } from '../src/services/project-tree-command.service';
+import type { GatewayRuntimeService } from '../src/services/gateway-runtime.service';
 import { registerAsync } from './helpers';
 
 type SessionState = {
@@ -34,6 +44,7 @@ type SessionState = {
 
 const EXPORT_BUCKET = 'exports';
 const DEFAULT_TENANT = 'default-tenant';
+const DEFAULT_WORKSPACE_ID = toAutoProvisionedWorkspaceId('admin');
 const PNG_1X1_TRANSPARENT =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5+r5kAAAAASUVORK5CYII=';
 
@@ -48,6 +59,10 @@ const createNoopLogger = (): Logger => ({
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
+const toRequest = (headers: Record<string, string>): FastifyRequest => ({ headers } as unknown as FastifyRequest);
+
+const parseJsonPlanBody = <T>(body: unknown): T => JSON.parse(typeof body === 'string' ? body : '{}') as T;
+
 class InMemoryProjectRepository implements ProjectRepository {
   private readonly records = new Map<string, PersistedProjectRecord>();
 
@@ -60,6 +75,17 @@ class InMemoryProjectRepository implements ProjectRepository {
       ...record,
       scope: { ...record.scope }
     });
+  }
+
+  async listByScopePrefix(scope: ProjectRepositoryScope): Promise<PersistedProjectRecord[]> {
+    const scoped = Array.from(this.records.values()).filter(
+      (record) => record.scope.tenantId === scope.tenantId && record.scope.projectId.startsWith(scope.projectId)
+    );
+    scoped.sort((left, right) => left.scope.projectId.localeCompare(right.scope.projectId));
+    return scoped.map((record) => ({
+      ...record,
+      scope: { ...record.scope }
+    }));
   }
 
   async remove(scope: ProjectRepositoryScope): Promise<void> {
@@ -119,14 +145,16 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
   private readonly roles = new Map<string, WorkspaceRoleStorageRecord>();
   private readonly members = new Map<string, WorkspaceMemberRecord>();
   private readonly folderAcl = new Map<string, WorkspaceFolderAclRecord>();
+  private readonly apiKeys = new Map<string, WorkspaceApiKeyRecord>();
+  private serviceSettings: ServiceSettingsRecord | null = null;
 
   constructor() {
     const now = new Date().toISOString();
     const workspace: WorkspaceRecord = {
-      workspaceId: 'ws_default',
+      workspaceId: DEFAULT_WORKSPACE_ID,
       tenantId: 'default-tenant',
-      name: 'Current Workspace',
-      mode: 'all_open',
+      name: 'Administrator Workspace',
+      defaultMemberRoleId: 'role_user',
       createdBy: 'system',
       createdAt: now,
       updatedAt: now
@@ -148,8 +176,8 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
       workspaceId: workspace.workspaceId,
       roleId: 'role_user',
       name: 'User',
-      builtin: 'user',
-      permissions: ['workspace.read', 'folder.read', 'folder.write', 'project.read', 'project.write'],
+      builtin: null,
+      permissions: ['folder.read', 'folder.write'],
       createdAt: now,
       updatedAt: now
     };
@@ -160,14 +188,11 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
       name: 'Workspace Admin',
       builtin: 'workspace_admin',
       permissions: [
-        'workspace.read',
         'workspace.settings.manage',
         'workspace.members.manage',
         'workspace.roles.manage',
         'folder.read',
-        'folder.write',
-        'project.read',
-        'project.write'
+        'folder.write'
       ],
       createdAt: now,
       updatedAt: now
@@ -179,12 +204,26 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
       roleIds: [adminRole.roleId],
       joinedAt: now
     });
+    this.folderAcl.set(this.toAclKey(workspace.workspaceId, null, userRole.roleId), {
+      workspaceId: workspace.workspaceId,
+      ruleId: 'acl_folder_user_write',
+      scope: 'folder',
+      folderId: null,
+      roleIds: [userRole.roleId],
+      read: 'allow',
+      write: 'allow',
+      updatedAt: now
+    });
   }
 
-  async listWorkspaces(accountId: string): Promise<WorkspaceRecord[]> {
+  async listAllWorkspaces(): Promise<WorkspaceRecord[]> {
+    return Array.from(this.workspaces.values()).map((workspace) => ({ ...workspace }));
+  }
+
+  async listAccountWorkspaces(accountId: string): Promise<WorkspaceRecord[]> {
     const normalizedAccountId = accountId.trim();
     if (!normalizedAccountId) {
-      return Array.from(this.workspaces.values()).map((workspace) => ({ ...workspace }));
+      return [];
     }
     const memberWorkspaceIds = new Set(
       Array.from(this.members.values())
@@ -219,11 +258,194 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
     return found ? { ...found, systemRoles: [...found.systemRoles] } : null;
   }
 
+  async listAccounts(input?: {
+    query?: string;
+    limit?: number;
+    excludeAccountIds?: readonly string[];
+  }): Promise<AccountRecord[]> {
+    const normalizedQuery = typeof input?.query === 'string' ? input.query.trim().toLowerCase() : '';
+    const requestedLimit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.trunc(input.limit) : 25;
+    const limit = Math.min(Math.max(requestedLimit, 1), 100);
+    const excluded = new Set(
+      (input?.excludeAccountIds ?? [])
+        .map((accountId) => String(accountId ?? '').trim())
+        .filter((accountId) => accountId.length > 0)
+    );
+    return Array.from(this.accounts.values())
+      .filter((account) => {
+        if (excluded.has(account.accountId)) {
+          return false;
+        }
+        if (!normalizedQuery) {
+          return true;
+        }
+        const haystack = [
+          account.accountId,
+          account.displayName,
+          account.email,
+          account.localLoginId ?? '',
+          account.githubLogin ?? ''
+        ]
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(normalizedQuery);
+      })
+      .sort((left, right) => left.displayName.localeCompare(right.displayName) || left.accountId.localeCompare(right.accountId))
+      .slice(0, limit)
+      .map((account) => ({
+        ...account,
+        systemRoles: [...account.systemRoles]
+      }));
+  }
+
+  async searchServiceUsers(input?: {
+    q?: string;
+    field?: 'any' | 'accountId' | 'displayName' | 'email' | 'localLoginId' | 'githubLogin';
+    match?: 'exact' | 'prefix' | 'contains';
+    workspaceId?: string;
+    limit?: number;
+    cursor?: string | null;
+  }): Promise<{ users: AccountRecord[]; total: number; nextCursor: string | null }> {
+    const q = typeof input?.q === 'string' ? input.q.trim().toLowerCase() : '';
+    const field = input?.field ?? 'any';
+    const match = input?.match ?? 'contains';
+    const limit = Math.min(Math.max(Number.isFinite(input?.limit) ? Math.trunc(input?.limit as number) : 25, 1), 100);
+    const offset = Math.max(Number.parseInt(String(input?.cursor ?? '0'), 10) || 0, 0);
+    const normalizedWorkspaceId = String(input?.workspaceId ?? '').trim();
+    const workspaceMembers = normalizedWorkspaceId
+      ? new Set(
+          Array.from(this.members.values())
+            .filter((member) => member.workspaceId === normalizedWorkspaceId)
+            .map((member) => member.accountId)
+        )
+      : null;
+    const matches = (candidate: string): boolean => {
+      if (!q) return true;
+      const normalized = candidate.toLowerCase();
+      if (match === 'exact') return normalized === q;
+      if (match === 'prefix') return normalized.startsWith(q);
+      return normalized.includes(q);
+    };
+    const filtered = Array.from(this.accounts.values())
+      .filter((account) => {
+        if (workspaceMembers && !workspaceMembers.has(account.accountId)) {
+          return false;
+        }
+        if (!q) {
+          return true;
+        }
+        const fields = {
+          accountId: account.accountId,
+          displayName: account.displayName,
+          email: account.email,
+          localLoginId: account.localLoginId ?? '',
+          githubLogin: account.githubLogin ?? ''
+        };
+        if (field === 'any') {
+          return Object.values(fields).some((value) => matches(value));
+        }
+        return matches(fields[field]);
+      })
+      .sort((left, right) => left.displayName.localeCompare(right.displayName) || left.accountId.localeCompare(right.accountId));
+    const total = filtered.length;
+    const users = filtered.slice(offset, offset + limit).map((account) => ({ ...account, systemRoles: [...account.systemRoles] }));
+    return {
+      users,
+      total,
+      nextCursor: offset + users.length < total ? String(offset + users.length) : null
+    };
+  }
+
+  async searchServiceWorkspaces(input?: {
+    q?: string;
+    field?: 'any' | 'workspaceId' | 'name' | 'createdBy' | 'memberAccountId';
+    match?: 'exact' | 'prefix' | 'contains';
+    memberAccountId?: string;
+    limit?: number;
+    cursor?: string | null;
+  }): Promise<{ workspaces: WorkspaceRecord[]; total: number; nextCursor: string | null }> {
+    const q = typeof input?.q === 'string' ? input.q.trim().toLowerCase() : '';
+    const field = input?.field ?? 'any';
+    const match = input?.match ?? 'contains';
+    const limit = Math.min(Math.max(Number.isFinite(input?.limit) ? Math.trunc(input?.limit as number) : 25, 1), 100);
+    const offset = Math.max(Number.parseInt(String(input?.cursor ?? '0'), 10) || 0, 0);
+    const normalizedMemberAccountId = String(input?.memberAccountId ?? '').trim();
+    const candidateWorkspaceIds = normalizedMemberAccountId
+      ? new Set(
+          Array.from(this.members.values())
+            .filter((member) => member.accountId === normalizedMemberAccountId)
+            .map((member) => member.workspaceId)
+        )
+      : null;
+    const matches = (candidate: string): boolean => {
+      if (!q) return true;
+      const normalized = candidate.toLowerCase();
+      if (match === 'exact') return normalized === q;
+      if (match === 'prefix') return normalized.startsWith(q);
+      return normalized.includes(q);
+    };
+    const filtered = Array.from(this.workspaces.values())
+      .filter((workspace) => {
+        if (candidateWorkspaceIds && !candidateWorkspaceIds.has(workspace.workspaceId)) {
+          return false;
+        }
+        if (!q) {
+          return true;
+        }
+        const fields = {
+          workspaceId: workspace.workspaceId,
+          name: workspace.name,
+          createdBy: workspace.createdBy,
+          memberAccountId: Array.from(this.members.values())
+            .filter((member) => member.workspaceId === workspace.workspaceId)
+            .map((member) => member.accountId)
+            .join(' ')
+        };
+        if (field === 'any') {
+          return Object.values(fields).some((value) => matches(value));
+        }
+        return matches(fields[field]);
+      })
+      .sort((left, right) => left.name.localeCompare(right.name) || left.workspaceId.localeCompare(right.workspaceId));
+    const total = filtered.length;
+    const workspaces = filtered.slice(offset, offset + limit).map((workspace) => ({ ...workspace }));
+    return {
+      workspaces,
+      total,
+      nextCursor: offset + workspaces.length < total ? String(offset + workspaces.length) : null
+    };
+  }
+
   async upsertAccount(record: AccountRecord): Promise<void> {
     this.accounts.set(record.accountId, {
       ...record,
       systemRoles: [...record.systemRoles]
     });
+  }
+
+  async countAccountsBySystemRole(role: 'system_admin' | 'cs_admin'): Promise<number> {
+    return Array.from(this.accounts.values()).filter((account) => account.systemRoles.includes(role)).length;
+  }
+
+  async updateAccountSystemRoles(
+    accountId: string,
+    systemRoles: Array<'system_admin' | 'cs_admin'>,
+    updatedAt: string
+  ): Promise<AccountRecord | null> {
+    const existing = this.accounts.get(accountId);
+    if (!existing) {
+      return null;
+    }
+    const next: AccountRecord = {
+      ...existing,
+      systemRoles: [...new Set(systemRoles)],
+      updatedAt
+    };
+    this.accounts.set(accountId, next);
+    return {
+      ...next,
+      systemRoles: [...next.systemRoles]
+    };
   }
 
   async getWorkspace(workspaceId: string): Promise<WorkspaceRecord | null> {
@@ -252,18 +474,22 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
         this.folderAcl.delete(key);
       }
     }
+    for (const key of Array.from(this.apiKeys.keys())) {
+      if (key.startsWith(`${workspaceId}:`)) {
+        this.apiKeys.delete(key);
+      }
+    }
   }
 
   async listWorkspaceRoles(workspaceId: string): Promise<WorkspaceRoleStorageRecord[]> {
     return Array.from(this.roles.values())
       .filter((role) => role.workspaceId === workspaceId)
-      .map((role) => ({ ...role, permissions: [...role.permissions] }));
+      .map((role) => ({ ...role }));
   }
 
   async upsertWorkspaceRole(record: WorkspaceRoleStorageRecord): Promise<void> {
     this.roles.set(this.toRoleKey(record.workspaceId, record.roleId), {
-      ...record,
-      permissions: [...record.permissions]
+      ...record
     });
   }
 
@@ -291,15 +517,79 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
   async listWorkspaceFolderAcl(workspaceId: string): Promise<WorkspaceFolderAclRecord[]> {
     return Array.from(this.folderAcl.values())
       .filter((rule) => rule.workspaceId === workspaceId)
-      .map((rule) => ({ ...rule }));
+      .map((rule) => ({ ...rule, roleIds: [...rule.roleIds] }));
   }
 
   async upsertWorkspaceFolderAcl(record: WorkspaceFolderAclRecord): Promise<void> {
-    this.folderAcl.set(this.toAclKey(record.workspaceId, record.folderId, record.roleId), { ...record });
+    const normalizedFolderId = record.folderId;
+    const normalizedRoleIds = Array.from(
+      new Set([
+        ...(Array.isArray(record.roleIds) ? record.roleIds : []).map((roleId) => roleId.trim())
+      ].filter((roleId) => roleId.length > 0))
+    );
+    const ruleId =
+      typeof record.ruleId === 'string' && record.ruleId.trim().length > 0
+        ? record.ruleId.trim()
+        : `acl_${Buffer.from(
+            ['folder', normalizedFolderId ?? '__root__', record.read, record.write, record.locked === true ? '1' : '0'].join('::'),
+            'utf8'
+          ).toString('base64url')}`;
+    for (const roleId of normalizedRoleIds) {
+      this.folderAcl.set(this.toAclKey(record.workspaceId, normalizedFolderId, roleId), {
+        ...record,
+        ruleId,
+        scope: 'folder',
+        folderId: normalizedFolderId,
+        roleIds: [roleId]
+      });
+    }
   }
 
   async removeWorkspaceFolderAcl(workspaceId: string, folderId: string | null, roleId: string): Promise<void> {
     this.folderAcl.delete(this.toAclKey(workspaceId, folderId, roleId));
+  }
+
+  async listWorkspaceApiKeys(workspaceId: string): Promise<WorkspaceApiKeyRecord[]> {
+    return Array.from(this.apiKeys.values())
+      .filter((apiKey) => apiKey.workspaceId === workspaceId)
+      .map((apiKey) => ({ ...apiKey }));
+  }
+
+  async createWorkspaceApiKey(record: WorkspaceApiKeyRecord): Promise<void> {
+    this.apiKeys.set(this.toApiKeyKey(record.workspaceId, record.keyId), { ...record });
+  }
+
+  async revokeWorkspaceApiKey(workspaceId: string, keyId: string, revokedAt: string): Promise<void> {
+    const key = this.toApiKeyKey(workspaceId, keyId);
+    const found = this.apiKeys.get(key);
+    if (!found) return;
+    this.apiKeys.set(key, {
+      ...found,
+      revokedAt,
+      updatedAt: revokedAt
+    });
+  }
+
+  async updateWorkspaceApiKeyLastUsed(workspaceId: string, keyId: string, lastUsedAt: string): Promise<void> {
+    const key = this.toApiKeyKey(workspaceId, keyId);
+    const found = this.apiKeys.get(key);
+    if (!found) return;
+    this.apiKeys.set(key, {
+      ...found,
+      lastUsedAt,
+      updatedAt: lastUsedAt
+    });
+  }
+
+  async getServiceSettings(): Promise<ServiceSettingsRecord | null> {
+    if (!this.serviceSettings) {
+      return null;
+    }
+    return JSON.parse(JSON.stringify(this.serviceSettings)) as ServiceSettingsRecord;
+  }
+
+  async upsertServiceSettings(record: ServiceSettingsRecord): Promise<void> {
+    this.serviceSettings = JSON.parse(JSON.stringify(record)) as ServiceSettingsRecord;
   }
 
   private toRoleKey(workspaceId: string, roleId: string): string {
@@ -310,8 +600,17 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
     return `${workspaceId}:${accountId}`;
   }
 
-  private toAclKey(workspaceId: string, folderId: string | null, roleId: string): string {
-    return `${workspaceId}:${folderId ?? '__root__'}:${roleId}`;
+  private toAclKey(
+    workspaceId: string,
+    folderId: string | null,
+    roleId: string
+  ): string {
+    const scopeKey = folderId ?? '__root__';
+    return `${workspaceId}:folder:${scopeKey}:${roleId}`;
+  }
+
+  private toApiKeyKey(workspaceId: string, keyId: string): string {
+    return `${workspaceId}:${keyId}`;
   }
 }
 
@@ -371,7 +670,12 @@ const callTool = async <TName extends ToolName>(
   dispatcher: GatewayDispatcher,
   name: TName,
   payload: ToolPayloadMap[TName] & { projectId?: string }
-): Promise<ToolResponse<ToolResultMap[TName]>> => dispatcher.handle(name, payload);
+): Promise<ToolResponse<ToolResultMap[TName]>> =>
+  dispatcher.handle(name, payload, {
+    mcpSessionId: 'session-admin-default',
+    mcpAccountId: 'admin',
+    mcpWorkspaceId: DEFAULT_WORKSPACE_ID
+  });
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const oracleFixturesRoot = path.join(repoRoot, 'packages', 'runtime', 'tests', 'oracle', 'fixtures');
@@ -459,10 +763,693 @@ registerAsync(
     const persistence = createInMemoryPersistence();
     const dispatcher = buildDispatcher(persistence);
     const engine = createEngineBackend({ persistence, version: 'test-native' });
+    const workspacePolicy = new WorkspacePolicyService(persistence.workspaceRepository, { cacheTtlMs: 0 });
+    const workspaceAdmin = new WorkspaceAdminService(
+      { persistence } as unknown as GatewayRuntimeService,
+      workspacePolicy
+    );
+
+    const now = new Date().toISOString();
+    await persistence.workspaceRepository.upsertAccount({
+      accountId: 'member-existing',
+      email: 'member-existing@ashfox.local',
+      displayName: 'Existing Member',
+      systemRoles: [],
+      localLoginId: 'member-existing',
+      passwordHash: null,
+      githubUserId: null,
+      githubLogin: null,
+      createdAt: now,
+      updatedAt: now
+    });
+    await persistence.workspaceRepository.upsertAccount({
+      accountId: 'candidate-alpha',
+      email: 'candidate-alpha@ashfox.local',
+      displayName: 'Candidate Alpha',
+      systemRoles: [],
+      localLoginId: 'candidate-alpha',
+      passwordHash: 'should-not-be-exposed',
+      githubUserId: null,
+      githubLogin: null,
+      createdAt: now,
+      updatedAt: now
+    });
+    await persistence.workspaceRepository.upsertAccount({
+      accountId: 'candidate-beta',
+      email: 'candidate-beta@ashfox.local',
+      displayName: 'Candidate Beta',
+      systemRoles: ['cs_admin'],
+      localLoginId: 'candidate-beta',
+      passwordHash: null,
+      githubUserId: 'github-candidate-beta',
+      githubLogin: 'candidate-beta-gh',
+      createdAt: now,
+      updatedAt: now
+    });
+    await persistence.workspaceRepository.upsertWorkspaceMember({
+      workspaceId: DEFAULT_WORKSPACE_ID,
+      accountId: 'member-existing',
+      roleIds: ['role_user'],
+      joinedAt: now
+    });
+
+    const forbiddenCandidatesPlan = await workspaceAdmin.listWorkspaceMemberCandidates(
+      toRequest({
+        'x-ashfox-account-id': 'viewer'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      {}
+    );
+    assert.equal(forbiddenCandidatesPlan.status, 403);
+    const forbiddenCandidatesBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(forbiddenCandidatesPlan.body);
+    assert.equal(forbiddenCandidatesBody.ok, false);
+    assert.equal(forbiddenCandidatesBody.code, 'forbidden_workspace');
+
+    const candidatesPlan = await workspaceAdmin.listWorkspaceMemberCandidates(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      { query: 'candidate', limit: 10 }
+    );
+    assert.equal(candidatesPlan.status, 200);
+    const candidatesBody = parseJsonPlanBody<{
+      ok: boolean;
+      candidates: Array<Record<string, unknown>>;
+    }>(candidatesPlan.body);
+    assert.equal(candidatesBody.ok, true);
+    assert.deepEqual(
+      candidatesBody.candidates.map((candidate) => candidate.accountId),
+      ['candidate-alpha', 'candidate-beta']
+    );
+    assert.equal(candidatesBody.candidates.some((candidate) => 'passwordHash' in candidate), false);
+    assert.equal(candidatesBody.candidates.some((candidate) => candidate.accountId === 'admin'), false);
+    assert.equal(candidatesBody.candidates.some((candidate) => candidate.accountId === 'member-existing'), false);
+    assert.deepEqual(candidatesBody.candidates[1]?.systemRoles, ['cs_admin']);
+
+    const limitedCandidatesPlan = await workspaceAdmin.listWorkspaceMemberCandidates(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      { limit: 1 }
+    );
+    assert.equal(limitedCandidatesPlan.status, 200);
+    const limitedCandidatesBody = parseJsonPlanBody<{
+      ok: boolean;
+      candidates: Array<{ accountId: string }>;
+    }>(limitedCandidatesPlan.body);
+    assert.equal(limitedCandidatesBody.ok, true);
+    assert.equal(limitedCandidatesBody.candidates.length, 1);
+
+    const roleListPlan = await workspaceAdmin.listWorkspaceRoles(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      DEFAULT_WORKSPACE_ID
+    );
+    assert.equal(roleListPlan.status, 200);
+    const roleListBody = parseJsonPlanBody<{
+      ok: boolean;
+      roles: Array<{ roleId: string; name: string }>;
+    }>(roleListPlan.body);
+    assert.equal(roleListBody.ok, true);
+    const roleNameById = new Map(roleListBody.roles.map((role) => [role.roleId, role.name]));
+    assert.equal(roleNameById.get('role_workspace_admin'), WORKSPACE_ADMIN_ROLE_NAME);
+    assert.equal(roleNameById.get('role_user'), WORKSPACE_MEMBER_ROLE_NAME);
+
+    const rolePolicyWorkspacePlan = await workspaceAdmin.createWorkspace(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      { name: 'Role Policy Workspace' }
+    );
+    assert.equal(rolePolicyWorkspacePlan.status, 201);
+    const rolePolicyWorkspaceBody = parseJsonPlanBody<{
+      ok: boolean;
+      workspace: { workspaceId: string; defaultMemberRoleId: string };
+    }>(rolePolicyWorkspacePlan.body);
+    assert.equal(rolePolicyWorkspaceBody.ok, true);
+    const rolePolicyWorkspaceId = rolePolicyWorkspaceBody.workspace.workspaceId;
+    assert.equal(rolePolicyWorkspaceBody.workspace.defaultMemberRoleId, 'role_user');
+    const rolePolicyMembersAfterCreate = await persistence.workspaceRepository.listWorkspaceMembers(rolePolicyWorkspaceId);
+    const rolePolicyAdminMember = rolePolicyMembersAfterCreate.find((member) => member.accountId === 'admin');
+    assert.ok(rolePolicyAdminMember);
+    assert.equal(rolePolicyAdminMember?.roleIds.includes('role_workspace_admin'), true);
+    assert.equal(rolePolicyAdminMember?.roleIds.includes('role_user'), true);
+
+    const rolePolicyDeleteAdminPlan = await workspaceAdmin.deleteWorkspaceRole(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      rolePolicyWorkspaceId,
+      'role_workspace_admin'
+    );
+    assert.equal(rolePolicyDeleteAdminPlan.status, 400);
+    const rolePolicyDeleteAdminBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(rolePolicyDeleteAdminPlan.body);
+    assert.equal(rolePolicyDeleteAdminBody.ok, false);
+    assert.equal(rolePolicyDeleteAdminBody.code, 'workspace_role_admin_immutable');
+
+    const rolePolicyDeleteDefaultPlan = await workspaceAdmin.deleteWorkspaceRole(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      rolePolicyWorkspaceId,
+      'role_user'
+    );
+    assert.equal(rolePolicyDeleteDefaultPlan.status, 400);
+    const rolePolicyDeleteDefaultBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(rolePolicyDeleteDefaultPlan.body);
+    assert.equal(rolePolicyDeleteDefaultBody.ok, false);
+    assert.equal(rolePolicyDeleteDefaultBody.code, 'workspace_role_default_member_guard');
+
+    const rolePolicySetAdminDefaultPlan = await workspaceAdmin.setWorkspaceDefaultMemberRole(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      rolePolicyWorkspaceId,
+      { roleId: 'role_workspace_admin' }
+    );
+    assert.equal(rolePolicySetAdminDefaultPlan.status, 400);
+    const rolePolicySetAdminDefaultBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(rolePolicySetAdminDefaultPlan.body);
+    assert.equal(rolePolicySetAdminDefaultBody.ok, false);
+    assert.equal(rolePolicySetAdminDefaultBody.code, 'workspace_default_member_admin_forbidden');
+
+    const createRolePolicyCustomRolePlan = await workspaceAdmin.upsertWorkspaceRole(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      rolePolicyWorkspaceId,
+      {
+        name: 'Custom Member',
+        permissions: ['folder.read']
+      }
+    );
+    assert.equal(createRolePolicyCustomRolePlan.status, 200);
+    const createRolePolicyCustomRoleBody = parseJsonPlanBody<{
+      ok: boolean;
+      roles: Array<{ roleId: string; name: string }>;
+    }>(createRolePolicyCustomRolePlan.body);
+    assert.equal(createRolePolicyCustomRoleBody.ok, true);
+    const customMemberRole = createRolePolicyCustomRoleBody.roles.find((role) => role.name === 'Custom Member');
+    assert.ok(customMemberRole);
+    const customMemberRoleId = customMemberRole?.roleId ?? '';
+    assert.ok(customMemberRoleId.length > 0);
+
+    const duplicateRoleNamePlan = await workspaceAdmin.upsertWorkspaceRole(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      rolePolicyWorkspaceId,
+      {
+        name: '  custom member  '
+      }
+    );
+    assert.equal(duplicateRoleNamePlan.status, 409);
+    const duplicateRoleNameBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(duplicateRoleNamePlan.body);
+    assert.equal(duplicateRoleNameBody.ok, false);
+    assert.equal(duplicateRoleNameBody.code, 'workspace_role_name_conflict');
+
+    const duplicateLegacyDefaultRoleNamePlan = await workspaceAdmin.upsertWorkspaceRole(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      rolePolicyWorkspaceId,
+      {
+        name: 'User'
+      }
+    );
+    assert.equal(duplicateLegacyDefaultRoleNamePlan.status, 409);
+    const duplicateLegacyDefaultRoleNameBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(
+      duplicateLegacyDefaultRoleNamePlan.body
+    );
+    assert.equal(duplicateLegacyDefaultRoleNameBody.ok, false);
+    assert.equal(duplicateLegacyDefaultRoleNameBody.code, 'workspace_role_name_conflict');
+
+    const rolePolicySetDefaultPlan = await workspaceAdmin.setWorkspaceDefaultMemberRole(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      rolePolicyWorkspaceId,
+      { roleId: customMemberRoleId }
+    );
+    assert.equal(rolePolicySetDefaultPlan.status, 200);
+    const rolePolicySetDefaultBody = parseJsonPlanBody<{
+      ok: boolean;
+      workspace: { defaultMemberRoleId: string };
+    }>(rolePolicySetDefaultPlan.body);
+    assert.equal(rolePolicySetDefaultBody.ok, true);
+    assert.equal(rolePolicySetDefaultBody.workspace.defaultMemberRoleId, customMemberRoleId);
+
+    const rolePolicyDeleteFormerDefaultPlan = await workspaceAdmin.deleteWorkspaceRole(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      rolePolicyWorkspaceId,
+      'role_user'
+    );
+    assert.equal(rolePolicyDeleteFormerDefaultPlan.status, 200);
+    const rolePolicyDeleteFormerDefaultBody = parseJsonPlanBody<{
+      ok: boolean;
+      roles: Array<{ roleId: string }>;
+    }>(rolePolicyDeleteFormerDefaultPlan.body);
+    assert.equal(rolePolicyDeleteFormerDefaultBody.ok, true);
+    assert.equal(rolePolicyDeleteFormerDefaultBody.roles.some((role) => role.roleId === 'role_user'), false);
+
+    const rolePolicyMemberUpsertPlan = await workspaceAdmin.upsertWorkspaceMember(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      rolePolicyWorkspaceId,
+      {
+        accountId: 'candidate-alpha',
+        roleIds: []
+      }
+    );
+    assert.equal(rolePolicyMemberUpsertPlan.status, 200);
+    const rolePolicyMemberUpsertBody = parseJsonPlanBody<{
+      ok: boolean;
+      members: Array<{ accountId: string; roleIds: string[] }>;
+    }>(rolePolicyMemberUpsertPlan.body);
+    assert.equal(rolePolicyMemberUpsertBody.ok, true);
+    const customMember = rolePolicyMemberUpsertBody.members.find((member) => member.accountId === 'candidate-alpha');
+    assert.ok(customMember);
+    assert.deepEqual(customMember?.roleIds, [customMemberRoleId]);
+
+    const bootstrapAdminRoleMutationPlan = await workspaceAdmin.upsertWorkspaceMember(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      rolePolicyWorkspaceId,
+      {
+        accountId: 'admin',
+        roleIds: [customMemberRoleId]
+      }
+    );
+    assert.equal(bootstrapAdminRoleMutationPlan.status, 400);
+    const bootstrapAdminRoleMutationBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(bootstrapAdminRoleMutationPlan.body);
+    assert.equal(bootstrapAdminRoleMutationBody.ok, false);
+    assert.equal(bootstrapAdminRoleMutationBody.code, 'workspace_member_bootstrap_admin_immutable');
+
+    const adminGuardWorkspaceId = 'ws_admin_guard';
+    await persistence.workspaceRepository.upsertWorkspace({
+      workspaceId: adminGuardWorkspaceId,
+      tenantId: DEFAULT_TENANT,
+      name: 'Admin Guard Workspace',
+      defaultMemberRoleId: 'role_user',
+      createdBy: 'system',
+      createdAt: now,
+      updatedAt: now
+    });
+    await persistence.workspaceRepository.upsertWorkspaceRole({
+      workspaceId: adminGuardWorkspaceId,
+      roleId: 'role_workspace_admin',
+      name: 'Admin',
+      builtin: 'workspace_admin',
+      permissions: [
+        'workspace.settings.manage',
+        'workspace.members.manage',
+        'workspace.roles.manage',
+        'folder.read',
+        'folder.write'
+      ],
+      createdAt: now,
+      updatedAt: now
+    });
+    await persistence.workspaceRepository.upsertWorkspaceRole({
+      workspaceId: adminGuardWorkspaceId,
+      roleId: 'role_user',
+      name: 'User',
+      builtin: null,
+      permissions: ['folder.read', 'folder.write'],
+      createdAt: now,
+      updatedAt: now
+    });
+    await persistence.workspaceRepository.upsertWorkspaceMember({
+      workspaceId: adminGuardWorkspaceId,
+      accountId: 'manager-a',
+      roleIds: ['role_workspace_admin'],
+      joinedAt: now
+    });
+    await persistence.workspaceRepository.upsertWorkspaceMember({
+      workspaceId: adminGuardWorkspaceId,
+      accountId: 'member-a',
+      roleIds: ['role_user'],
+      joinedAt: now
+    });
+    await persistence.workspaceRepository.upsertWorkspaceMember({
+      workspaceId: adminGuardWorkspaceId,
+      accountId: 'member-b',
+      roleIds: ['role_user'],
+      joinedAt: now
+    });
+
+    const demoteLastAdminPlan = await workspaceAdmin.upsertWorkspaceMember(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      adminGuardWorkspaceId,
+      {
+        accountId: 'manager-a',
+        roleIds: ['role_user']
+      }
+    );
+    assert.equal(demoteLastAdminPlan.status, 400);
+    const demoteLastAdminBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(demoteLastAdminPlan.body);
+    assert.equal(demoteLastAdminBody.ok, false);
+    assert.equal(demoteLastAdminBody.code, 'workspace_member_last_admin_guard');
+
+    const deleteLastAdminPlan = await workspaceAdmin.deleteWorkspaceMember(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      adminGuardWorkspaceId,
+      'manager-a'
+    );
+    assert.equal(deleteLastAdminPlan.status, 400);
+    const deleteLastAdminBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(deleteLastAdminPlan.body);
+    assert.equal(deleteLastAdminBody.ok, false);
+    assert.equal(deleteLastAdminBody.code, 'workspace_member_last_admin_guard');
+
+    const selfDeletePlan = await workspaceAdmin.deleteWorkspaceMember(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      'admin'
+    );
+    assert.equal(selfDeletePlan.status, 400);
+    const selfDeleteBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(selfDeletePlan.body);
+    assert.equal(selfDeleteBody.ok, false);
+    assert.equal(selfDeleteBody.code, 'workspace_member_self_remove_forbidden');
+
+    const minimumGuardPlan = await workspaceAdmin.deleteWorkspaceMember(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      'member-existing'
+    );
+    assert.equal(minimumGuardPlan.status, 400);
+    const minimumGuardBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(minimumGuardPlan.body);
+    assert.equal(minimumGuardBody.ok, false);
+    assert.equal(minimumGuardBody.code, 'workspace_member_minimum_guard');
+
+    await persistence.workspaceRepository.upsertAccount({
+      accountId: 'member-third',
+      email: 'member-third@ashfox.local',
+      displayName: 'Third Member',
+      systemRoles: [],
+      localLoginId: 'member-third',
+      passwordHash: null,
+      githubUserId: null,
+      githubLogin: null,
+      createdAt: now,
+      updatedAt: now
+    });
+    await persistence.workspaceRepository.upsertWorkspaceMember({
+      workspaceId: DEFAULT_WORKSPACE_ID,
+      accountId: 'member-third',
+      roleIds: ['role_user'],
+      joinedAt: now
+    });
+
+    const allowedDeletePlan = await workspaceAdmin.deleteWorkspaceMember(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      'member-existing'
+    );
+    assert.equal(allowedDeletePlan.status, 200);
+    const allowedDeleteBody = parseJsonPlanBody<{
+      ok: boolean;
+      members: Array<{ accountId: string }>;
+    }>(allowedDeletePlan.body);
+    assert.equal(allowedDeleteBody.ok, true);
+    assert.equal(allowedDeleteBody.members.some((member) => member.accountId === 'member-existing'), false);
+
+    const forbiddenApiKeyListPlan = await workspaceAdmin.listWorkspaceApiKeys(
+      toRequest({
+        'x-ashfox-account-id': 'viewer'
+      }),
+      DEFAULT_WORKSPACE_ID
+    );
+    assert.equal(forbiddenApiKeyListPlan.status, 403);
+    const forbiddenApiKeyListBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(forbiddenApiKeyListPlan.body);
+    assert.equal(forbiddenApiKeyListBody.ok, false);
+    assert.equal(forbiddenApiKeyListBody.code, 'forbidden_workspace');
+
+    const createApiKeyPlan = await workspaceAdmin.createWorkspaceApiKey(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      {
+        name: 'ci token',
+        expiresAt: '2026-12-31T00:00:00.000Z'
+      }
+    );
+    assert.equal(createApiKeyPlan.status, 201);
+    const createApiKeyBody = parseJsonPlanBody<{
+      ok: boolean;
+      secret: string;
+      apiKey: {
+        keyId: string;
+        name: string;
+        keyPrefix: string;
+        expiresAt: string | null;
+      } & Record<string, unknown>;
+    }>(createApiKeyPlan.body);
+    assert.equal(createApiKeyBody.ok, true);
+    assert.equal(typeof createApiKeyBody.secret, 'string');
+    assert.equal(createApiKeyBody.secret.startsWith('ak_'), true);
+    assert.equal(createApiKeyBody.apiKey.name, 'ci token');
+    assert.equal('keyHash' in createApiKeyBody.apiKey, false);
+
+    const persistedApiKeys = await persistence.workspaceRepository.listWorkspaceApiKeys(DEFAULT_WORKSPACE_ID);
+    const persistedCreatedApiKey = persistedApiKeys.find((apiKey) => apiKey.keyId === createApiKeyBody.apiKey.keyId);
+    assert.ok(persistedCreatedApiKey);
+    assert.equal(persistedCreatedApiKey?.keyPrefix, createApiKeyBody.apiKey.keyPrefix);
+    assert.equal(persistedCreatedApiKey?.keyHash.length, 64);
+    assert.notEqual(persistedCreatedApiKey?.keyHash, createApiKeyBody.secret);
+
+    const listApiKeyPlan = await workspaceAdmin.listWorkspaceApiKeys(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      DEFAULT_WORKSPACE_ID
+    );
+    assert.equal(listApiKeyPlan.status, 200);
+    const listApiKeyBody = parseJsonPlanBody<{
+      ok: boolean;
+      apiKeys: Array<Record<string, unknown>>;
+    }>(listApiKeyPlan.body);
+    assert.equal(listApiKeyBody.ok, true);
+    const listedApiKey = listApiKeyBody.apiKeys.find((apiKey) => apiKey.keyId === createApiKeyBody.apiKey.keyId);
+    assert.ok(listedApiKey);
+    assert.equal('keyHash' in (listedApiKey ?? {}), false);
+
+    workspacePolicy.invalidateWorkspace(DEFAULT_WORKSPACE_ID);
+    const memberInitialApiKeyListPlan = await workspaceAdmin.listWorkspaceApiKeys(
+      toRequest({
+        'x-ashfox-account-id': 'member-third'
+      }),
+      DEFAULT_WORKSPACE_ID
+    );
+    assert.equal(memberInitialApiKeyListPlan.status, 200);
+    const memberInitialApiKeyListBody = parseJsonPlanBody<{
+      ok: boolean;
+      apiKeys: Array<{ keyId: string }>;
+    }>(memberInitialApiKeyListPlan.body);
+    assert.equal(memberInitialApiKeyListBody.ok, true);
+    assert.equal(memberInitialApiKeyListBody.apiKeys.length, 0);
+
+    const revokeApiKeyPlan = await workspaceAdmin.revokeWorkspaceApiKey(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      { keyId: createApiKeyBody.apiKey.keyId }
+    );
+    assert.equal(revokeApiKeyPlan.status, 200);
+    const revokeApiKeyBody = parseJsonPlanBody<{
+      ok: boolean;
+      apiKeys: Array<{ keyId: string; revokedAt: string | null }>;
+    }>(revokeApiKeyPlan.body);
+    assert.equal(revokeApiKeyBody.ok, true);
+    const revokedApiKey = revokeApiKeyBody.apiKeys.find((apiKey) => apiKey.keyId === createApiKeyBody.apiKey.keyId);
+    assert.ok(revokedApiKey);
+    assert.equal(typeof revokedApiKey?.revokedAt, 'string');
+
+    const revokeUnknownApiKeyPlan = await workspaceAdmin.revokeWorkspaceApiKey(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      { keyId: 'key_missing' }
+    );
+    assert.equal(revokeUnknownApiKeyPlan.status, 404);
+    const revokeUnknownApiKeyBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(revokeUnknownApiKeyPlan.body);
+    assert.equal(revokeUnknownApiKeyBody.ok, false);
+    assert.equal(revokeUnknownApiKeyBody.code, 'workspace_api_key_not_found');
+
+    const memberCreateApiKeyPlan = await workspaceAdmin.createWorkspaceApiKey(
+      toRequest({
+        'x-ashfox-account-id': 'member-third'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      {
+        name: 'member token'
+      }
+    );
+    assert.equal(memberCreateApiKeyPlan.status, 201);
+    const memberCreateApiKeyBody = parseJsonPlanBody<{
+      ok: boolean;
+      apiKey: { keyId: string; createdBy: string };
+    }>(memberCreateApiKeyPlan.body);
+    assert.equal(memberCreateApiKeyBody.ok, true);
+    assert.equal(memberCreateApiKeyBody.apiKey.createdBy, 'member-third');
+
+    const adminListAfterMemberCreatePlan = await workspaceAdmin.listWorkspaceApiKeys(
+      toRequest({
+        'x-ashfox-account-id': 'admin',
+        'x-ashfox-system-roles': 'system_admin'
+      }),
+      DEFAULT_WORKSPACE_ID
+    );
+    assert.equal(adminListAfterMemberCreatePlan.status, 200);
+    const adminListAfterMemberCreateBody = parseJsonPlanBody<{
+      ok: boolean;
+      apiKeys: Array<{ keyId: string }>;
+    }>(adminListAfterMemberCreatePlan.body);
+    assert.equal(adminListAfterMemberCreateBody.ok, true);
+    assert.equal(
+      adminListAfterMemberCreateBody.apiKeys.some((apiKey) => apiKey.keyId === memberCreateApiKeyBody.apiKey.keyId),
+      false
+    );
+
+    const memberListAfterCreatePlan = await workspaceAdmin.listWorkspaceApiKeys(
+      toRequest({
+        'x-ashfox-account-id': 'member-third'
+      }),
+      DEFAULT_WORKSPACE_ID
+    );
+    assert.equal(memberListAfterCreatePlan.status, 200);
+    const memberListAfterCreateBody = parseJsonPlanBody<{
+      ok: boolean;
+      apiKeys: Array<{ keyId: string; createdBy: string }>;
+    }>(memberListAfterCreatePlan.body);
+    assert.equal(memberListAfterCreateBody.ok, true);
+    assert.equal(memberListAfterCreateBody.apiKeys.some((apiKey) => apiKey.keyId === memberCreateApiKeyBody.apiKey.keyId), true);
+    assert.equal(memberListAfterCreateBody.apiKeys.every((apiKey) => apiKey.createdBy === 'member-third'), true);
+
+    const memberRevokeAdminKeyPlan = await workspaceAdmin.revokeWorkspaceApiKey(
+      toRequest({
+        'x-ashfox-account-id': 'member-third'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      { keyId: createApiKeyBody.apiKey.keyId }
+    );
+    assert.equal(memberRevokeAdminKeyPlan.status, 404);
+    const memberRevokeAdminKeyBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(memberRevokeAdminKeyPlan.body);
+    assert.equal(memberRevokeAdminKeyBody.ok, false);
+    assert.equal(memberRevokeAdminKeyBody.code, 'workspace_api_key_not_found');
+
+    const memberIssuedKeyIds: string[] = [memberCreateApiKeyBody.apiKey.keyId];
+    for (let index = 0; index < 9; index += 1) {
+      const issuedPlan = await workspaceAdmin.createWorkspaceApiKey(
+        toRequest({
+          'x-ashfox-account-id': 'member-third'
+        }),
+        DEFAULT_WORKSPACE_ID,
+        {
+          name: `member token ${index + 2}`
+        }
+      );
+      assert.equal(issuedPlan.status, 201);
+      const issuedBody = parseJsonPlanBody<{
+        ok: boolean;
+        apiKey: { keyId: string };
+      }>(issuedPlan.body);
+      assert.equal(issuedBody.ok, true);
+      memberIssuedKeyIds.push(issuedBody.apiKey.keyId);
+    }
+
+    const memberLimitPlan = await workspaceAdmin.createWorkspaceApiKey(
+      toRequest({
+        'x-ashfox-account-id': 'member-third'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      {
+        name: 'member token 11'
+      }
+    );
+    assert.equal(memberLimitPlan.status, 409);
+    const memberLimitBody = parseJsonPlanBody<{ ok: boolean; code?: string }>(memberLimitPlan.body);
+    assert.equal(memberLimitBody.ok, false);
+    assert.equal(memberLimitBody.code, 'workspace_api_key_limit_exceeded');
+
+    const memberRevokeOwnPlan = await workspaceAdmin.revokeWorkspaceApiKey(
+      toRequest({
+        'x-ashfox-account-id': 'member-third'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      { keyId: memberIssuedKeyIds[0] }
+    );
+    assert.equal(memberRevokeOwnPlan.status, 200);
+    const memberRevokeOwnBody = parseJsonPlanBody<{
+      ok: boolean;
+      apiKeys: Array<{ keyId: string; revokedAt: string | null }>;
+    }>(memberRevokeOwnPlan.body);
+    assert.equal(memberRevokeOwnBody.ok, true);
+    const revokedOwn = memberRevokeOwnBody.apiKeys.find((apiKey) => apiKey.keyId === memberIssuedKeyIds[0]);
+    assert.ok(revokedOwn);
+    assert.equal(typeof revokedOwn?.revokedAt, 'string');
+
+    const memberCreateAfterRevokePlan = await workspaceAdmin.createWorkspaceApiKey(
+      toRequest({
+        'x-ashfox-account-id': 'member-third'
+      }),
+      DEFAULT_WORKSPACE_ID,
+      {
+        name: 'member token recycle'
+      }
+    );
+    assert.equal(memberCreateAfterRevokePlan.status, 201);
 
     const lockStore = new NativePipelineStore();
     const lockAwareDispatcher = buildDispatcher(persistence, lockStore);
+    const projectTreeCommand = new ProjectTreeCommandService(
+      {
+        dashboardStore: lockStore
+      } as unknown as GatewayRuntimeService,
+      workspacePolicy
+    );
     await lockStore.acquireProjectLock({
+      workspaceId: DEFAULT_WORKSPACE_ID,
       projectId: 'prj_lock_conflict',
       ownerAgentId: 'mcp:session-holder',
       ownerSessionId: 'session-holder'
@@ -474,7 +1461,11 @@ registerAsync(
         name: 'conflict-project',
         onMissing: 'create'
       } as ToolPayloadMap['ensure_project'],
-      { mcpSessionId: 'session-other' }
+      {
+        mcpSessionId: 'session-other',
+        mcpAccountId: 'admin',
+        mcpWorkspaceId: DEFAULT_WORKSPACE_ID
+      }
     );
     assert.equal(lockConflict.ok, false);
     if (!lockConflict.ok) {
@@ -482,6 +1473,7 @@ registerAsync(
       assert.equal(lockConflict.error.details?.reason, 'project_locked');
     }
     await lockStore.releaseProjectLock({
+      workspaceId: DEFAULT_WORKSPACE_ID,
       projectId: 'prj_lock_conflict',
       ownerAgentId: 'mcp:session-holder',
       ownerSessionId: 'session-holder'
@@ -496,11 +1488,15 @@ registerAsync(
         name: 'idle-timeout-project',
         onMissing: 'create'
       } as ToolPayloadMap['ensure_project'],
-      { mcpSessionId: 'session-holder' }
+      {
+        mcpSessionId: 'session-holder',
+        mcpAccountId: 'admin',
+        mcpWorkspaceId: DEFAULT_WORKSPACE_ID
+      }
     );
     assert.equal(ownerMutation.ok, true);
 
-    const heldAfterMutation = await idleTimeoutLockStore.getProjectLock('prj_lock_idle_timeout');
+    const heldAfterMutation = await idleTimeoutLockStore.getProjectLock('prj_lock_idle_timeout', DEFAULT_WORKSPACE_ID);
     assert.equal(heldAfterMutation?.ownerSessionId, 'session-holder');
 
     const conflictBeforeExpiry = await idleTimeoutDispatcher.handle(
@@ -509,7 +1505,11 @@ registerAsync(
         projectId: 'prj_lock_idle_timeout',
         name: 'root'
       } as ToolPayloadMap['add_bone'],
-      { mcpSessionId: 'session-other' }
+      {
+        mcpSessionId: 'session-other',
+        mcpAccountId: 'admin',
+        mcpWorkspaceId: DEFAULT_WORKSPACE_ID
+      }
     );
     assert.equal(conflictBeforeExpiry.ok, false);
     if (!conflictBeforeExpiry.ok) {
@@ -528,21 +1528,25 @@ registerAsync(
           projectId: 'prj_lock_idle_timeout',
           name: 'root'
         } as ToolPayloadMap['add_bone'],
-        { mcpSessionId: 'session-other' }
+        {
+          mcpSessionId: 'session-other',
+          mcpAccountId: 'admin',
+          mcpWorkspaceId: DEFAULT_WORKSPACE_ID
+        }
       );
       assert.equal(takeOverAfterExpiry.ok, true);
     } finally {
       Date.now = originalNowForLockExpiry;
     }
 
-    const lockAfterTakeOver = await idleTimeoutLockStore.getProjectLock('prj_lock_idle_timeout');
+    const lockAfterTakeOver = await idleTimeoutLockStore.getProjectLock('prj_lock_idle_timeout', DEFAULT_WORKSPACE_ID);
     assert.equal(lockAfterTakeOver?.ownerSessionId, 'session-other');
 
     await persistence.workspaceRepository.upsertWorkspace({
       workspaceId: 'ws_rbac',
       tenantId: DEFAULT_TENANT,
       name: 'RBAC Workspace',
-      mode: 'rbac',
+      defaultMemberRoleId: 'role_reader',
       createdBy: 'system',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -552,7 +1556,7 @@ registerAsync(
       roleId: 'role_reader',
       name: 'Reader',
       builtin: null,
-      permissions: ['workspace.read', 'folder.read', 'project.read'],
+      permissions: ['folder.read'],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
@@ -561,7 +1565,7 @@ registerAsync(
       roleId: 'role_writer',
       name: 'Writer',
       builtin: null,
-      permissions: ['workspace.read', 'folder.read', 'folder.write', 'project.read', 'project.write'],
+      permissions: ['folder.read', 'folder.write'],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
@@ -579,8 +1583,26 @@ registerAsync(
     });
     await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
       workspaceId: 'ws_rbac',
+      scope: 'folder',
       folderId: null,
-      roleId: 'role_writer',
+      roleIds: ['role_reader'],
+      read: 'allow',
+      write: 'inherit',
+      updatedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+      workspaceId: 'ws_rbac',
+      scope: 'folder',
+      folderId: null,
+      roleIds: ['role_writer'],
+      read: 'allow',
+      write: 'inherit',
+      updatedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+      workspaceId: 'ws_rbac',
+      folderId: null,
+      roleIds: ['role_writer'],
       read: 'allow',
       write: 'allow',
       updatedAt: new Date().toISOString()
@@ -607,7 +1629,7 @@ registerAsync(
     assert.equal(deniedRbacMutation.ok, false);
     if (!deniedRbacMutation.ok) {
       assert.equal(deniedRbacMutation.error.code, 'invalid_state');
-      assert.equal(deniedRbacMutation.error.details?.reason, 'forbidden_workspace_project_write');
+      assert.equal(deniedRbacMutation.error.details?.reason, 'forbidden_workspace_folder_write');
     }
 
     const allowedRbacEnsure = await lockAwareDispatcher.handle(
@@ -647,7 +1669,7 @@ registerAsync(
       workspaceId: 'ws_acl',
       tenantId: DEFAULT_TENANT,
       name: 'ACL Workspace',
-      mode: 'rbac',
+      defaultMemberRoleId: 'role_user_acl',
       createdBy: 'system',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -658,14 +1680,11 @@ registerAsync(
       name: 'Workspace Admin',
       builtin: 'workspace_admin',
       permissions: [
-        'workspace.read',
         'workspace.settings.manage',
         'workspace.members.manage',
         'workspace.roles.manage',
         'folder.read',
-        'folder.write',
-        'project.read',
-        'project.write'
+        'folder.write'
       ],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -674,8 +1693,8 @@ registerAsync(
       workspaceId: 'ws_acl',
       roleId: 'role_user_acl',
       name: 'User',
-      builtin: 'user',
-      permissions: ['workspace.read', 'folder.read', 'folder.write', 'project.read', 'project.write'],
+      builtin: null,
+      permissions: ['folder.read', 'folder.write'],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
@@ -691,6 +1710,15 @@ registerAsync(
       roleIds: ['role_user_acl'],
       joinedAt: new Date().toISOString()
     });
+    await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+      workspaceId: 'ws_acl',
+      scope: 'folder',
+      folderId: null,
+      roleIds: ['role_user_acl'],
+      read: 'allow',
+      write: 'inherit',
+      updatedAt: new Date().toISOString()
+    });
     const restrictedRoot = await lockStore.createFolder({ workspaceId: 'ws_acl', name: 'Restricted Root' });
     const restrictedChild = await lockStore.createFolder({
       workspaceId: 'ws_acl',
@@ -705,7 +1733,7 @@ registerAsync(
     await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
       workspaceId: 'ws_acl',
       folderId: null,
-      roleId: 'role_user_acl',
+      roleIds: ['role_user_acl'],
       read: 'allow',
       write: 'allow',
       updatedAt: new Date().toISOString()
@@ -713,7 +1741,7 @@ registerAsync(
     await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
       workspaceId: 'ws_acl',
       folderId: restrictedChild.folderId,
-      roleId: 'role_user_acl',
+      roleIds: ['role_user_acl'],
       read: 'allow',
       write: 'deny',
       updatedAt: new Date().toISOString()
@@ -721,7 +1749,7 @@ registerAsync(
     await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
       workspaceId: 'ws_acl',
       folderId: restoredChild.folderId,
-      roleId: 'role_user_acl',
+      roleIds: ['role_user_acl'],
       read: 'allow',
       write: 'allow',
       updatedAt: new Date().toISOString()
@@ -752,6 +1780,76 @@ registerAsync(
       name: 'acl-restored',
       parentFolderId: restoredChild.folderId
     });
+    const hiddenFolder = await lockStore.createFolder({
+      workspaceId: 'ws_acl',
+      name: 'Hidden Folder'
+    });
+    await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+      workspaceId: 'ws_acl',
+      folderId: hiddenFolder.folderId,
+      roleIds: ['role_user_acl'],
+      read: 'deny',
+      write: 'deny',
+      updatedAt: new Date().toISOString()
+    });
+    const hiddenProject = await lockStore.createProject({
+      workspaceId: 'ws_acl',
+      name: 'acl-hidden',
+      parentFolderId: hiddenFolder.folderId
+    });
+    const visibleRootProject = await lockStore.createProject({
+      workspaceId: 'ws_acl',
+      name: 'acl-visible-root'
+    });
+    workspacePolicy.invalidateWorkspace('ws_acl');
+
+    const aclUserTreePlan = await projectTreeCommand.listProjectTree(
+      toRequest({
+        'x-ashfox-account-id': 'user-account'
+      }),
+      { workspaceId: 'ws_acl' }
+    );
+    assert.equal(aclUserTreePlan.status, 200);
+    const aclUserTreeBody = parseJsonPlanBody<{
+      ok: boolean;
+      projects: Array<{ projectId: string }>;
+      tree: { roots: unknown[] };
+    }>(aclUserTreePlan.body);
+    assert.equal(aclUserTreeBody.ok, true);
+    assert.equal(aclUserTreeBody.projects.some((project) => project.projectId === hiddenProject.projectId), false);
+    assert.equal(aclUserTreeBody.projects.some((project) => project.projectId === visibleRootProject.projectId), true);
+    const aclUserTreeJson = JSON.stringify(aclUserTreeBody.tree);
+    assert.equal(aclUserTreeJson.includes(hiddenFolder.folderId), false);
+    assert.equal(aclUserTreeJson.includes(hiddenProject.projectId), false);
+
+    const aclUserListPlan = await projectTreeCommand.listProjects(
+      toRequest({
+        'x-ashfox-account-id': 'user-account'
+      }),
+      { workspaceId: 'ws_acl' }
+    );
+    assert.equal(aclUserListPlan.status, 200);
+    const aclUserListBody = parseJsonPlanBody<{
+      ok: boolean;
+      projects: Array<{ projectId: string }>;
+    }>(aclUserListPlan.body);
+    assert.equal(aclUserListBody.ok, true);
+    assert.equal(aclUserListBody.projects.some((project) => project.projectId === hiddenProject.projectId), false);
+    assert.equal(aclUserListBody.projects.some((project) => project.projectId === visibleRootProject.projectId), true);
+
+    const aclAdminTreePlan = await projectTreeCommand.listProjectTree(
+      toRequest({
+        'x-ashfox-account-id': 'workspace-admin-account'
+      }),
+      { workspaceId: 'ws_acl' }
+    );
+    assert.equal(aclAdminTreePlan.status, 200);
+    const aclAdminTreeBody = parseJsonPlanBody<{
+      ok: boolean;
+      projects: Array<{ projectId: string }>;
+    }>(aclAdminTreePlan.body);
+    assert.equal(aclAdminTreeBody.ok, true);
+    assert.equal(aclAdminTreeBody.projects.some((project) => project.projectId === hiddenProject.projectId), true);
 
     const userBlockedByFolderAcl = await lockAwareDispatcher.handle(
       'ensure_project',
@@ -771,6 +1869,47 @@ registerAsync(
     if (!userBlockedByFolderAcl.ok) {
       assert.equal(userBlockedByFolderAcl.error.details?.reason, 'forbidden_workspace_folder_write');
     }
+
+    await persistence.workspaceRepository.upsertWorkspaceRole({
+      workspaceId: 'ws_acl',
+      roleId: 'role_allow_override_acl',
+      name: 'Allow Override',
+      builtin: null,
+      permissions: ['folder.read', 'folder.write'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceMember({
+      workspaceId: 'ws_acl',
+      accountId: 'user-account',
+      roleIds: ['role_user_acl', 'role_allow_override_acl'],
+      joinedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+      workspaceId: 'ws_acl',
+      folderId: restrictedChild.folderId,
+      roleIds: ['role_allow_override_acl'],
+      read: 'allow',
+      write: 'allow',
+      updatedAt: new Date().toISOString()
+    });
+
+    const lockAwareDispatcherAfterAclUnion = buildDispatcher(persistence, lockStore);
+    const userAllowedByAclUnion = await lockAwareDispatcherAfterAclUnion.handle(
+      'ensure_project',
+      {
+        projectId: blockedProject.projectId,
+        workspaceId: 'ws_acl',
+        name: blockedProject.name,
+        onMissing: 'create'
+      } as ToolPayloadMap['ensure_project'] & { workspaceId: string },
+      {
+        mcpSessionId: 'session-acl-user-union',
+        mcpAccountId: 'user-account',
+        mcpWorkspaceId: 'ws_acl'
+      }
+    );
+    assert.equal(userAllowedByAclUnion.ok, true);
 
     const userRestoredByDeeperAllow = await lockAwareDispatcher.handle(
       'ensure_project',
@@ -839,33 +1978,65 @@ registerAsync(
     assert.equal(systemAdminAllowed.ok, true);
 
     await persistence.workspaceRepository.upsertWorkspace({
-      workspaceId: 'ws_all_open_acl',
+      workspaceId: 'ws_user_template_acl',
       tenantId: DEFAULT_TENANT,
-      name: 'Open Workspace',
-      mode: 'all_open',
+      name: 'User Template Workspace',
+      defaultMemberRoleId: 'role_user_template',
       createdBy: 'system',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
-    const openProject = await lockStore.createProject({
-      workspaceId: 'ws_all_open_acl',
-      name: 'open-project'
+    await persistence.workspaceRepository.upsertWorkspaceRole({
+      workspaceId: 'ws_user_template_acl',
+      roleId: 'role_user_template',
+      name: 'User',
+      builtin: null,
+      permissions: ['folder.read', 'folder.write'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     });
-    const allOpenAllowed = await lockAwareDispatcher.handle(
+    await persistence.workspaceRepository.upsertWorkspaceMember({
+      workspaceId: 'ws_user_template_acl',
+      accountId: 'regular-user',
+      roleIds: ['role_user_template'],
+      joinedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+      workspaceId: 'ws_user_template_acl',
+      scope: 'folder',
+      folderId: null,
+      roleIds: ['role_user_template'],
+      read: 'allow',
+      write: 'inherit',
+      updatedAt: new Date().toISOString()
+    });
+    await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+      workspaceId: 'ws_user_template_acl',
+      folderId: null,
+      roleIds: ['role_user_template'],
+      read: 'allow',
+      write: 'allow',
+      updatedAt: new Date().toISOString()
+    });
+    const templateProject = await lockStore.createProject({
+      workspaceId: 'ws_user_template_acl',
+      name: 'template-project'
+    });
+    const userTemplateAllowed = await lockAwareDispatcher.handle(
       'ensure_project',
       {
-        projectId: openProject.projectId,
-        workspaceId: 'ws_all_open_acl',
-        name: openProject.name,
+        projectId: templateProject.projectId,
+        workspaceId: 'ws_user_template_acl',
+        name: templateProject.name,
         onMissing: 'create'
       } as ToolPayloadMap['ensure_project'] & { workspaceId: string },
       {
         mcpSessionId: 'session-all-open',
         mcpAccountId: 'regular-user',
-        mcpWorkspaceId: 'ws_all_open_acl'
+        mcpWorkspaceId: 'ws_user_template_acl'
       }
     );
-    assert.equal(allOpenAllowed.ok, true);
+    assert.equal(userTemplateAllowed.ok, true);
 
     // TKT-20260214-001: native backend routing skeleton -> tool execution + persistence
     const health = await engine.getHealth();

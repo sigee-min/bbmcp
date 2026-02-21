@@ -1,11 +1,14 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type {
-  PersistedProjectRecord,
-  ProjectRepository,
-  ProjectRepositoryScope,
-  ProjectRepositoryWithRevisionGuard
+import {
+  type PersistedProjectRecord,
+  type ProjectRepository,
+  type ProjectRepositoryScope,
+  type ProjectRepositoryWithRevisionGuard
 } from '@ashfox/backend-core';
-import { appendProjectSnapshotEvent, getProjectEventsSince as readProjectEventsSince } from './eventRepository';
+import {
+  appendProjectSnapshotEvent,
+  getProjectEventsSince as readProjectEventsSince
+} from './eventRepository';
 import {
   claimNextJob as claimNativeJob,
   completeJob as completeNativeJob,
@@ -34,8 +37,7 @@ import {
   moveFolder as moveProjectFolder,
   moveProject as moveProjectSnapshot,
   renameFolder as renameProjectFolder,
-  renameProject as renameProjectSnapshot,
-  seedProjects
+  renameProject as renameProjectSnapshot
 } from './projectRepository';
 import {
   acquireProjectLock as acquireNativeProjectLock,
@@ -64,18 +66,13 @@ import type {
   NativeProjectTreeSnapshot
 } from './types';
 
-const DEFAULT_WORKSPACE_ID = 'ws_default';
 const DEFAULT_STATE_SCOPE_BASE: ProjectRepositoryScope = {
   tenantId: 'native-pipeline',
-  projectId: 'pipeline-state-v3'
+  projectId: 'pipeline-state'
 };
 const DEFAULT_LOCK_SCOPE_BASE: ProjectRepositoryScope = {
   tenantId: 'native-pipeline',
-  projectId: 'pipeline-lock-v3'
-};
-const LEGACY_DEFAULT_STATE_SCOPE: ProjectRepositoryScope = {
-  tenantId: 'native-pipeline',
-  projectId: 'pipeline-state-v2'
+  projectId: 'pipeline-lock'
 };
 const DEFAULT_LOCK_TTL_MS = 2_000;
 const DEFAULT_LOCK_ACQUIRE_TIMEOUT_MS = 10_000;
@@ -92,10 +89,13 @@ const sleep = async (ms: number): Promise<void> => {
 
 const normalizeWorkspaceId = (workspaceId?: string): string => {
   if (typeof workspaceId !== 'string') {
-    return DEFAULT_WORKSPACE_ID;
+    throw new Error('workspaceId is required');
   }
   const normalized = workspaceId.trim();
-  return normalized.length > 0 ? normalized : DEFAULT_WORKSPACE_ID;
+  if (normalized.length === 0) {
+    throw new Error('workspaceId is required');
+  }
+  return normalized;
 };
 
 const toWorkspaceScope = (base: ProjectRepositoryScope, workspaceId: string): ProjectRepositoryScope => ({
@@ -124,7 +124,7 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
   private readonly lockRetryMs: number;
   private readonly initializationPromises = new Map<string, Promise<void>>();
   private readonly cachedStates = new Map<string, CachedWorkspaceState>();
-  private readonly knownWorkspaceIds = new Set<string>([DEFAULT_WORKSPACE_ID]);
+  private readonly knownWorkspaceIds = new Set<string>();
 
   constructor(
     private readonly repository: ProjectRepository,
@@ -142,7 +142,6 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
     if (targetWorkspaceId) {
       await this.withMutation(targetWorkspaceId, (state) => {
         resetNativePipelineState(state);
-        this.seedWorkspace(state, targetWorkspaceId);
       });
       return;
     }
@@ -150,7 +149,6 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
     for (const workspace of workspaceIds) {
       await this.withMutation(workspace, (state) => {
         resetNativePipelineState(state);
-        this.seedWorkspace(state, workspace);
       });
     }
   }
@@ -330,12 +328,12 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
     return toWorkspaceScope(this.lockScopeBase, workspaceId);
   }
 
-  private seedWorkspace(state: NativePipelineState, workspaceId: string): void {
-    seedProjects(state, (project) => appendProjectSnapshotEvent(state, project), workspaceId);
-  }
-
   private ensureWorkspaceProjectTag(state: NativePipelineState, workspaceId: string): boolean {
     let changed = false;
+    if (state.workspaceId !== workspaceId) {
+      (state as { workspaceId: string }).workspaceId = workspaceId;
+      changed = true;
+    }
     for (const project of state.projects.values()) {
       if (project.workspaceId === workspaceId) {
         continue;
@@ -350,23 +348,12 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
     if (!this.initializationPromises.has(workspaceId)) {
       const initialization = this.withWorkspaceLock(workspaceId, async () => {
         const stateScope = this.getStateScope(workspaceId);
-        let existingRecord = await this.repository.find(stateScope);
-        if (!existingRecord && workspaceId === DEFAULT_WORKSPACE_ID) {
-          const legacyRecord = await this.repository.find(LEGACY_DEFAULT_STATE_SCOPE);
-          if (legacyRecord) {
-            const migrated = deserializeState(legacyRecord.state);
-            if (migrated) {
-              this.ensureWorkspaceProjectTag(migrated, workspaceId);
-              await this.persistState(workspaceId, migrated, null);
-              existingRecord = await this.repository.find(stateScope);
-            }
-          }
-        }
+        const existingRecord = await this.repository.find(stateScope);
         const cached = this.getCachedState(workspaceId, existingRecord);
         if (cached) {
           return;
         }
-        const hydrated = deserializeState(existingRecord?.state);
+        const hydrated = deserializeState(existingRecord?.state, workspaceId);
         if (hydrated) {
           const tagged = this.ensureWorkspaceProjectTag(hydrated, workspaceId);
           if (tagged && existingRecord) {
@@ -378,9 +365,8 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
           }
           return;
         }
-        const seeded = createNativePipelineState(workspaceId);
-        this.seedWorkspace(seeded, workspaceId);
-        await this.persistState(workspaceId, seeded, existingRecord ?? null);
+        const emptyState = createNativePipelineState(workspaceId);
+        await this.persistState(workspaceId, emptyState, existingRecord ?? null);
       }).catch((error) => {
         this.initializationPromises.delete(workspaceId);
         this.clearCache(workspaceId);
@@ -399,7 +385,7 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
     if (cached) {
       return cached;
     }
-    const hydrated = deserializeState(record?.state);
+    const hydrated = deserializeState(record?.state, workspaceId);
     if (hydrated) {
       const tagged = this.ensureWorkspaceProjectTag(hydrated, workspaceId);
       if (tagged) {
@@ -418,7 +404,7 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
       if (latestCached) {
         return latestCached;
       }
-      const latestHydrated = deserializeState(latestRecord?.state);
+      const latestHydrated = deserializeState(latestRecord?.state, workspaceId);
       if (latestHydrated) {
         const tagged = this.ensureWorkspaceProjectTag(latestHydrated, workspaceId);
         if (tagged) {
@@ -430,10 +416,9 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
         }
         return latestHydrated;
       }
-      const seeded = createNativePipelineState(workspaceId);
-      this.seedWorkspace(seeded, workspaceId);
-      await this.persistState(workspaceId, seeded, latestRecord ?? null);
-      return seeded;
+      const emptyState = createNativePipelineState(workspaceId);
+      await this.persistState(workspaceId, emptyState, latestRecord ?? null);
+      return emptyState;
     });
   }
 
@@ -443,11 +428,9 @@ export class PersistentNativePipelineStore implements NativePipelineStorePort {
       const stateScope = this.getStateScope(workspaceId);
       const existingRecord = await this.repository.find(stateScope);
       const cached = this.getCachedState(workspaceId, existingRecord);
-      const hydrated = cached ?? deserializeState(existingRecord?.state);
+      const hydrated = cached ?? deserializeState(existingRecord?.state, workspaceId);
       const state = hydrated ?? createNativePipelineState(workspaceId);
-      if (!hydrated) {
-        this.seedWorkspace(state, workspaceId);
-      } else {
+      if (hydrated) {
         this.ensureWorkspaceProjectTag(state, workspaceId);
       }
       const result = mutator(state);

@@ -1,70 +1,63 @@
-import { X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import type {
-  WorkspaceAclEffect,
-  WorkspaceFolderAclRecord,
-  WorkspaceMemberRecord,
-  WorkspacePermissionKey,
-  WorkspaceRoleRecord,
-  WorkspaceSummary
-} from '../../../lib/dashboardModel';
+import type { ProjectTreeSnapshot, WorkspaceApiKeyRecord, WorkspaceSummary } from '../../../lib/dashboardModel';
 import { buildGatewayApiUrl } from '../../../lib/gatewayApi';
-import { cn } from '../../../lib/utils';
 import styles from '../../page.module.css';
+import { ManagementDialogFrame } from '../shared/ManagementDialogFrame';
+import { useErrorChannels } from '../shared/useErrorChannels';
+import { WorkspaceApiKeysPanel } from './WorkspaceApiKeysPanel';
 import { WorkspaceFolderAclPanel } from './WorkspaceFolderAclPanel';
 import { WorkspaceGeneralPanel } from './WorkspaceGeneralPanel';
 import { WorkspaceMembersPanel } from './WorkspaceMembersPanel';
-import { WorkspaceSettingsNav, type WorkspaceSettingsPanelId } from './WorkspaceSettingsNav';
+import {
+  createWorkspaceApiKey,
+  listWorkspaceApiKeys,
+  loadWorkspaceSettingsBundle,
+  revokeWorkspaceApiKey,
+  runWorkspaceMutation,
+  type WorkspaceSettingsBundle
+} from './workspaceSettingsApi';
+import {
+  toWorkspaceFolderOptions,
+  toWorkspaceMemberCandidateOptions,
+  toWorkspaceRoleOptions
+} from './workspaceOptionMappers';
+import {
+  buildWorkspaceSettingsPanelModels,
+  type WorkspaceSettingsPanelId
+} from './WorkspaceSettingsPanels';
+import { WorkspaceSettingsNav } from './WorkspaceSettingsNav';
 import { WorkspaceRolesPanel } from './WorkspaceRolesPanel';
-
-interface WorkspaceSettingsResponse {
-  ok: boolean;
-  workspace: WorkspaceSummary;
-  roles: WorkspaceRoleRecord[];
-  members: WorkspaceMemberRecord[];
-  folderAcl: WorkspaceFolderAclRecord[];
-}
 
 interface WorkspaceSettingsDialogProps {
   open: boolean;
   workspace: WorkspaceSummary | null;
+  projectTree: ProjectTreeSnapshot;
+  currentAccountId: string | null;
   requestHeaders: Record<string, string>;
   onClose: () => void;
   onWorkspaceUpdated: (workspace: WorkspaceSummary) => void;
 }
 
-type WorkspaceSettingsState = {
-  workspace: WorkspaceSummary;
-  roles: WorkspaceRoleRecord[];
-  members: WorkspaceMemberRecord[];
-  folderAcl: WorkspaceFolderAclRecord[];
-};
-
-const parseResponseMessage = (payload: unknown, status: number): string => {
-  if (payload && typeof payload === 'object') {
-    const message = (payload as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim().length > 0) {
-      return message;
-    }
-  }
-  return `Request failed (${status})`;
-};
-
-const roleCanBeDeleted = (role: WorkspaceRoleRecord): boolean => role.builtin !== 'user';
+type WorkspaceSettingsState = WorkspaceSettingsBundle;
+const MAX_ACTIVE_API_KEYS = 10;
 
 export function WorkspaceSettingsDialog({
   open,
   workspace,
+  projectTree,
+  currentAccountId,
   requestHeaders,
   onClose,
   onWorkspaceUpdated
 }: WorkspaceSettingsDialogProps) {
   const [activePanel, setActivePanel] = useState<WorkspaceSettingsPanelId>('general');
   const [settings, setSettings] = useState<WorkspaceSettingsState | null>(null);
+  const [apiKeys, setApiKeys] = useState<WorkspaceApiKeyRecord[]>([]);
+  const [apiKeysLoading, setApiKeysLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mutationBusy, setMutationBusy] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { panelError, clearChannelError, clearAllErrors, reportError } = useErrorChannels();
 
   const loadSettings = useCallback(async () => {
     if (!workspace) {
@@ -72,30 +65,17 @@ export function WorkspaceSettingsDialog({
       return;
     }
     setLoading(true);
-    setErrorMessage(null);
+    clearChannelError('panel');
     try {
-      const response = await fetch(buildGatewayApiUrl(`/workspaces/${encodeURIComponent(workspace.workspaceId)}/settings`), {
-        headers: requestHeaders,
-        cache: 'no-store'
-      });
-      const payload = (await response.json()) as WorkspaceSettingsResponse;
-      if (!response.ok || !payload.ok) {
-        throw new Error(parseResponseMessage(payload, response.status));
-      }
-      setSettings({
-        workspace: payload.workspace,
-        roles: payload.roles,
-        members: payload.members,
-        folderAcl: payload.folderAcl
-      });
-      onWorkspaceUpdated(payload.workspace);
+      const settingsPayload = await loadWorkspaceSettingsBundle(workspace.workspaceId, requestHeaders);
+      setSettings(settingsPayload);
+      onWorkspaceUpdated(settingsPayload.workspace);
     } catch (error) {
-      const message = error instanceof Error ? error.message : '워크스페이스 설정을 불러오지 못했습니다.';
-      setErrorMessage(message);
+      reportError(error, '워크스페이스 설정을 불러오지 못했습니다.', 'panel');
     } finally {
       setLoading(false);
     }
-  }, [onWorkspaceUpdated, requestHeaders, workspace]);
+  }, [clearChannelError, onWorkspaceUpdated, reportError, requestHeaders, workspace]);
 
   useEffect(() => {
     if (!open) {
@@ -117,32 +97,123 @@ export function WorkspaceSettingsDialog({
         return;
       }
       setMutationBusy(true);
-      setErrorMessage(null);
+      clearChannelError('panel');
       try {
-        const response = await request();
-        const payload = (await response.json()) as { ok?: boolean; message?: string };
-        if (!response.ok || !payload.ok) {
-          throw new Error(parseResponseMessage(payload, response.status));
-        }
+        await runWorkspaceMutation(request);
         await loadSettings();
       } catch (error) {
-        const message = error instanceof Error ? error.message : '요청을 처리하지 못했습니다.';
-        setErrorMessage(message);
+        reportError(error, '요청을 처리하지 못했습니다.', 'panel');
       } finally {
         setMutationBusy(false);
       }
     },
-    [loadSettings, workspace]
+    [clearChannelError, loadSettings, reportError, workspace]
   );
 
   const currentWorkspace = settings?.workspace ?? workspace;
-  const allOpenMode = currentWorkspace?.mode === 'all_open';
-  const roleOptions = settings?.roles ?? [];
+  const roleOptions = useMemo(() => toWorkspaceRoleOptions(settings?.roles ?? []), [settings?.roles]);
+  const roleMemberCountMap = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const member of settings?.members ?? []) {
+      for (const roleId of new Set(member.roleIds)) {
+        counts.set(roleId, (counts.get(roleId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [settings?.members]);
+  const memberCandidateOptions = useMemo(
+    () => toWorkspaceMemberCandidateOptions(settings?.memberCandidates ?? []),
+    [settings?.memberCandidates]
+  );
+  const folderOptions = useMemo(() => toWorkspaceFolderOptions(projectTree), [projectTree]);
 
-  const canManageWorkspace = Boolean(currentWorkspace?.capabilities.canManageWorkspace);
-  const canManageMembers = Boolean(currentWorkspace?.capabilities.canManageMembers);
-  const canManageRoles = Boolean(currentWorkspace?.capabilities.canManageRoles);
-  const canManageFolderAcl = Boolean(currentWorkspace?.capabilities.canManageFolderAcl);
+  const canManageWorkspaceSettings = Boolean(currentWorkspace?.capabilities.canManageWorkspaceSettings);
+  const canManageMembers = canManageWorkspaceSettings;
+  const canManageRoles = canManageWorkspaceSettings;
+  const canManageFolderAcl = canManageWorkspaceSettings;
+  const canManageApiKeys = Boolean(currentWorkspace?.workspaceId);
+  const activeApiKeyCount = useMemo(() => apiKeys.filter((apiKey) => !apiKey.revokedAt).length, [apiKeys]);
+  const loadApiKeys = useCallback(async () => {
+    if (!workspace) {
+      setApiKeys([]);
+      return;
+    }
+    setApiKeysLoading(true);
+    clearChannelError('panel');
+    try {
+      const records = await listWorkspaceApiKeys(workspace.workspaceId, requestHeaders);
+      setApiKeys(records);
+    } catch (error) {
+      reportError(error, 'API 키 목록을 불러오지 못했습니다.', 'panel');
+    } finally {
+      setApiKeysLoading(false);
+    }
+  }, [clearChannelError, reportError, requestHeaders, workspace]);
+
+  useEffect(() => {
+    if (!open) {
+      setApiKeys([]);
+      setApiKeysLoading(false);
+      clearAllErrors();
+      return;
+    }
+    setApiKeys([]);
+    setApiKeysLoading(false);
+  }, [clearAllErrors, open, workspace?.workspaceId]);
+
+  useEffect(() => {
+    if (!open || activePanel !== 'apiKeys') {
+      return;
+    }
+    void loadApiKeys();
+  }, [activePanel, loadApiKeys, open]);
+
+  const panelMetaById = useMemo(() => {
+    if (!currentWorkspace || !settings) {
+      return {
+        general: '정보 확인',
+        members: '0명',
+        roles: '0개',
+        folderAcl: '0개',
+        apiKeys: `${activeApiKeyCount}/${MAX_ACTIVE_API_KEYS}`
+      } as const;
+    }
+    return {
+      general: currentWorkspace.name || '워크스페이스',
+      members: `${settings.members.length}명`,
+      roles: `${settings.roles.length}개`,
+      folderAcl: `${settings.aclRules.length}개`,
+      apiKeys: `${activeApiKeyCount}/${MAX_ACTIVE_API_KEYS}`
+    } as const;
+  }, [activeApiKeyCount, currentWorkspace, settings]);
+
+  const panelModels = useMemo(
+    () =>
+      buildWorkspaceSettingsPanelModels({
+        canManageWorkspaceSettings,
+        canManageApiKeys
+      }, panelMetaById),
+    [canManageApiKeys, canManageWorkspaceSettings, panelMetaById]
+  );
+  const visiblePanels = useMemo(() => panelModels.filter((panel) => panel.visible), [panelModels]);
+
+  useEffect(() => {
+    if (!open || visiblePanels.length === 0) {
+      return;
+    }
+    if (visiblePanels.some((panel) => panel.id === activePanel)) {
+      return;
+    }
+    setActivePanel(visiblePanels[0].id);
+  }, [activePanel, open, visiblePanels]);
+
+  const handleSelectPanel = useCallback(
+    (panelId: WorkspaceSettingsPanelId) => {
+      clearChannelError('panel');
+      setActivePanel(panelId);
+    },
+    [clearChannelError]
+  );
 
   const panelNode = useMemo(() => {
     if (!currentWorkspace || !settings) {
@@ -150,37 +221,18 @@ export function WorkspaceSettingsDialog({
     }
 
     if (activePanel === 'general') {
-      return (
-        <WorkspaceGeneralPanel
-          workspace={currentWorkspace}
-          busy={loading}
-          modeMutationBusy={mutationBusy}
-          onChangeMode={(mode) => {
-            if (mode === currentWorkspace.mode) {
-              return;
-            }
-            void runMutation(() =>
-              fetch(buildGatewayApiUrl(`/workspaces/${encodeURIComponent(currentWorkspace.workspaceId)}/mode`), {
-                method: 'PATCH',
-                headers: {
-                  'content-type': 'application/json',
-                  ...requestHeaders
-                },
-                body: JSON.stringify({ mode })
-              })
-            );
-          }}
-        />
-      );
+      return <WorkspaceGeneralPanel workspace={currentWorkspace} busy={loading} />;
     }
 
     if (activePanel === 'members') {
       return (
         <WorkspaceMembersPanel
           members={settings.members}
-          roles={settings.roles}
+          roles={roleOptions}
+          memberCandidates={memberCandidateOptions}
+          defaultMemberRoleId={currentWorkspace.defaultMemberRoleId}
+          currentAccountId={currentAccountId}
           busy={loading || mutationBusy}
-          allOpenMode={allOpenMode}
           canManageMembers={canManageMembers}
           onUpsertMember={async ({ accountId, roleIds }) => {
             await runMutation(() =>
@@ -210,10 +262,11 @@ export function WorkspaceSettingsDialog({
       return (
         <WorkspaceRolesPanel
           roles={settings.roles}
+          roleMemberCountMap={roleMemberCountMap}
+          defaultMemberRoleId={currentWorkspace.defaultMemberRoleId}
           busy={loading || mutationBusy}
-          allOpenMode={allOpenMode}
           canManageRoles={canManageRoles}
-          onUpsertRole={async ({ roleId, name, permissions, builtin }) => {
+          onUpsertRole={async ({ roleId, name }) => {
             await runMutation(() =>
               fetch(buildGatewayApiUrl(`/workspaces/${encodeURIComponent(currentWorkspace.workspaceId)}/roles`), {
                 method: 'PUT',
@@ -221,15 +274,26 @@ export function WorkspaceSettingsDialog({
                   'content-type': 'application/json',
                   ...requestHeaders
                 },
-                body: JSON.stringify({ roleId, name, permissions, ...(builtin ? { builtin } : {}) })
+                body: JSON.stringify({
+                  ...(typeof roleId === 'string' && roleId.trim().length > 0 ? { roleId } : {}),
+                  name
+                })
+              })
+            );
+          }}
+          onSetDefaultMemberRole={async (roleId) => {
+            await runMutation(() =>
+              fetch(buildGatewayApiUrl(`/workspaces/${encodeURIComponent(currentWorkspace.workspaceId)}/default-member-role`), {
+                method: 'PATCH',
+                headers: {
+                  'content-type': 'application/json',
+                  ...requestHeaders
+                },
+                body: JSON.stringify({ roleId })
               })
             );
           }}
           onDeleteRole={async (roleId) => {
-            const role = settings.roles.find((entry) => entry.roleId === roleId);
-            if (!role || !roleCanBeDeleted(role)) {
-              return;
-            }
             await runMutation(() =>
               fetch(buildGatewayApiUrl(`/workspaces/${encodeURIComponent(currentWorkspace.workspaceId)}/roles/${encodeURIComponent(roleId)}`), {
                 method: 'DELETE',
@@ -241,98 +305,117 @@ export function WorkspaceSettingsDialog({
       );
     }
 
+    if (activePanel === 'apiKeys') {
+      return (
+        <WorkspaceApiKeysPanel
+          apiKeys={apiKeys}
+          busy={loading || mutationBusy || apiKeysLoading}
+          canManageApiKeys={canManageApiKeys}
+          maxActiveKeys={MAX_ACTIVE_API_KEYS}
+          onCreateApiKey={async ({ name, expiresAt }) => {
+            setMutationBusy(true);
+            clearChannelError('panel');
+            try {
+              const created = await createWorkspaceApiKey(currentWorkspace.workspaceId, requestHeaders, { name, expiresAt });
+              await loadApiKeys();
+              return created;
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'API 키를 발급하지 못했습니다.';
+              reportError(error, message, 'panel');
+              throw new Error(message);
+            } finally {
+              setMutationBusy(false);
+            }
+          }}
+          onRevokeApiKey={async ({ keyId }) => {
+            setMutationBusy(true);
+            clearChannelError('panel');
+            try {
+              const next = await revokeWorkspaceApiKey(currentWorkspace.workspaceId, requestHeaders, keyId);
+              setApiKeys(next);
+            } catch (error) {
+              reportError(error, 'API 키를 폐기하지 못했습니다.', 'panel');
+            } finally {
+              setMutationBusy(false);
+            }
+          }}
+        />
+      );
+    }
+
     return (
       <WorkspaceFolderAclPanel
-        folderAcl={settings.folderAcl}
+        aclRules={settings.aclRules}
         roles={roleOptions}
+        folderOptions={folderOptions}
         busy={loading || mutationBusy}
-        allOpenMode={allOpenMode}
         canManageFolderAcl={canManageFolderAcl}
-        onUpsertFolderAcl={async ({ roleId, folderId, read, write }) => {
+        onUpsertAclRule={async ({ ruleId, roleIds, folderId, read, write }) => {
           await runMutation(() =>
-            fetch(buildGatewayApiUrl(`/workspaces/${encodeURIComponent(currentWorkspace.workspaceId)}/folder-acl`), {
+            fetch(buildGatewayApiUrl(`/workspaces/${encodeURIComponent(currentWorkspace.workspaceId)}/acl-rules`), {
               method: 'PUT',
               headers: {
                 'content-type': 'application/json',
                 ...requestHeaders
               },
-              body: JSON.stringify({ roleId, folderId, read, write })
+              body: JSON.stringify({
+                ...(typeof ruleId === 'string' && ruleId.trim().length > 0 ? { ruleId } : {}),
+                roleIds,
+                folderId,
+                read,
+                write
+              })
             })
           );
         }}
-        onDeleteFolderAcl={async (roleId, folderId) => {
-          const query = new URLSearchParams();
-          if (folderId) {
-            query.set('folderId', folderId);
-          }
-          const suffix = query.toString();
+        onDeleteAclRule={async ({ ruleId }) => {
           await runMutation(() =>
-            fetch(
-              buildGatewayApiUrl(
-                `/workspaces/${encodeURIComponent(currentWorkspace.workspaceId)}/folder-acl/${encodeURIComponent(roleId)}${
-                  suffix ? `?${suffix}` : ''
-                }`
-              ),
-              {
-                method: 'DELETE',
-                headers: requestHeaders
-              }
-            )
+            fetch(buildGatewayApiUrl(`/workspaces/${encodeURIComponent(currentWorkspace.workspaceId)}/acl-rules`), {
+              method: 'DELETE',
+              headers: {
+                'content-type': 'application/json',
+                ...requestHeaders
+              },
+              body: JSON.stringify({ ruleId })
+            })
           );
         }}
       />
     );
   }, [
     activePanel,
-    allOpenMode,
+    apiKeys,
+    apiKeysLoading,
     canManageFolderAcl,
+    canManageApiKeys,
     canManageMembers,
     canManageRoles,
     currentWorkspace,
+    currentAccountId,
+    folderOptions,
+    loadApiKeys,
     loading,
+    memberCandidateOptions,
     mutationBusy,
+    clearChannelError,
+    reportError,
     requestHeaders,
+    roleMemberCountMap,
     roleOptions,
     runMutation,
     settings
   ]);
 
-  if (!open) {
-    return null;
-  }
-
   return (
-    <div className={styles.workspaceDialogOverlay} role="presentation" onClick={onClose}>
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label="워크스페이스 관리"
-        className={cn(styles.workspaceDialog)}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header className={styles.workspaceDialogHeader}>
-          <div>
-            <h2 className={styles.workspaceDialogTitle}>워크스페이스 관리</h2>
-            <p className={styles.workspaceDialogSubtitle}>{currentWorkspace?.name ?? '워크스페이스를 선택해 주세요.'}</p>
-            <div className={styles.workspaceTagRow}>
-              <span className={styles.workspaceTag}>mode:{currentWorkspace?.mode ?? '-'}</span>
-              <span className={styles.workspaceTag}>manage:{canManageWorkspace ? 'yes' : 'no'}</span>
-            </div>
-          </div>
-          <button type="button" className={styles.workspaceDialogClose} onClick={onClose} aria-label="닫기">
-            <X className="h-4 w-4" />
-          </button>
-        </header>
-
-        <div className={styles.workspaceDialogContent}>
-          <WorkspaceSettingsNav activePanel={activePanel} onSelectPanel={setActivePanel} />
-          <div className={styles.workspaceDialogPanel}>
-            {loading && !settings ? <p className={styles.workspaceDialogEmpty}>설정을 불러오는 중입니다…</p> : panelNode}
-          </div>
-        </div>
-
-        {errorMessage ? <p className={styles.workspaceDialogError}>{errorMessage}</p> : null}
-      </section>
-    </div>
+    <ManagementDialogFrame
+      open={open}
+      ariaLabel="워크스페이스 관리"
+      title="워크스페이스 관리"
+      subtitle={currentWorkspace?.name ?? '워크스페이스를 선택해 주세요.'}
+      onClose={onClose}
+      nav={<WorkspaceSettingsNav panels={visiblePanels} activePanel={activePanel} onSelectPanel={handleSelectPanel} />}
+      panel={loading && !settings ? <p className={styles.workspaceDialogEmpty}>설정을 불러오는 중입니다…</p> : panelNode}
+      errorMessage={panelError}
+    />
   );
 }

@@ -19,6 +19,7 @@ export type AnimationPlaybackMode = 'stopped' | 'playing';
 
 interface ViewportPanelProps {
   selectedProject: ProjectSnapshot | null;
+  workspaceId: string;
   streamStatus: StreamStatus;
   viewer: ViewerState;
   errorCode: DashboardErrorCode | null;
@@ -36,6 +37,7 @@ interface ViewportPanelProps {
 
 export const ViewportPanel = memo(function ViewportPanel({
   selectedProject,
+  workspaceId,
   streamStatus,
   viewer,
   errorCode,
@@ -123,6 +125,7 @@ export const ViewportPanel = memo(function ViewportPanel({
         >
           <ModelPreview
             projectId={selectedProject?.projectId ?? null}
+            workspaceId={workspaceId}
             hasGeometry={Boolean(selectedProject?.hasGeometry)}
             yawDeg={viewer.yawDeg}
             pitchDeg={viewer.pitchDeg}

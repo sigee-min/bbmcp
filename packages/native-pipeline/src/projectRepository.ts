@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { cloneFolder, cloneProject, cloneTreeChildRef } from './clone';
+import { cloneFolder, cloneProject } from './clone';
 import {
   collectFolderSubtree,
   collectProjectsInFolders,
@@ -15,7 +15,6 @@ import {
   resolveReorderInsertIndex
 } from './projectTreeOps';
 import { synchronizeProjectSnapshot } from './projectSnapshotSync';
-import { getDefaultSeedState } from './seeds';
 import type { NativePipelineState } from './state';
 import {
   MAX_FOLDER_DEPTH,
@@ -33,7 +32,6 @@ import {
 
 const PROJECT_ID_PREFIX = 'prj';
 const FOLDER_ID_PREFIX = 'fld';
-const DEFAULT_WORKSPACE_ID = 'ws_default';
 
 const normalizeName = (value: string, fallback: string): string => {
   const trimmed = value.trim().replace(/\s+/g, ' ');
@@ -41,12 +39,15 @@ const normalizeName = (value: string, fallback: string): string => {
 };
 
 const normalizeQuery = (query?: string): string => (typeof query === 'string' ? query.trim().toLowerCase() : '');
-const normalizeWorkspaceId = (workspaceId?: string): string => {
+const requireWorkspaceId = (workspaceId?: string): string => {
   if (typeof workspaceId !== 'string') {
-    return DEFAULT_WORKSPACE_ID;
+    throw new Error('workspaceId is required');
   }
   const normalized = workspaceId.trim();
-  return normalized.length > 0 ? normalized : DEFAULT_WORKSPACE_ID;
+  if (normalized.length === 0) {
+    throw new Error('workspaceId is required');
+  }
+  return normalized;
 };
 
 const computeEntityId = (state: NativePipelineState, prefix: string, seed: string): string => {
@@ -73,7 +74,7 @@ const createDefaultProject = (
   workspaceId?: string
 ): NativeProjectSnapshot => ({
   projectId,
-  workspaceId: normalizeWorkspaceId(workspaceId),
+  workspaceId: requireWorkspaceId(workspaceId),
   name,
   parentFolderId,
   revision: 1,
@@ -186,29 +187,6 @@ const findProjectById = (state: NativePipelineState, projectId: string): NativeP
 const findFolderById = (state: NativePipelineState, folderId: string): NativeProjectFolder | null => {
   const folder = state.folders.get(folderId);
   return folder ?? null;
-};
-
-
-export const seedProjects = (
-  state: NativePipelineState,
-  emitProjectSnapshot: (project: NativeProjectSnapshot) => void,
-  workspaceId?: string
-): void => {
-  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
-  const seeded = getDefaultSeedState();
-  for (const folder of seeded.folders) {
-    state.folders.set(folder.folderId, cloneFolder(folder));
-  }
-  for (const child of seeded.rootChildren) {
-    state.rootChildren.push(cloneTreeChildRef(child));
-  }
-  for (const project of seeded.projects) {
-    const nextProject = cloneProject(project);
-    nextProject.workspaceId = normalizedWorkspaceId;
-    synchronizeProjectSnapshot(nextProject);
-    state.projects.set(nextProject.projectId, nextProject);
-    emitProjectSnapshot(nextProject);
-  }
 };
 
 export const listProjects = (state: NativePipelineState, query?: string): NativeProjectSnapshot[] => {
@@ -325,7 +303,7 @@ export const createProject = (
   ensureTargetFolderExists(state, parentFolderId);
 
   const name = normalizeName(input.name, 'My Project');
-  const workspaceSeed = normalizeWorkspaceId(input.workspaceId);
+  const workspaceSeed = requireWorkspaceId(input.workspaceId);
   const projectId = computeEntityId(state, PROJECT_ID_PREFIX, `project:${workspaceSeed}`);
   const project = createDefaultProject(projectId, name, parentFolderId, input.workspaceId);
   synchronizeProjectSnapshot(project);
@@ -397,7 +375,7 @@ export const ensureProject = (
   emitProjectSnapshot: (project: NativeProjectSnapshot) => void,
   workspaceId?: string
 ): NativeProjectSnapshot => {
-  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+  const normalizedWorkspaceId = requireWorkspaceId(workspaceId);
   const existing = findProjectById(state, projectId);
   if (existing) {
     if (!existing.workspaceId) {

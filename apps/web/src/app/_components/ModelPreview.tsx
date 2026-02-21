@@ -33,6 +33,7 @@ import { buildGatewayApiUrl } from '../../lib/gatewayApi';
 
 interface ModelPreviewProps {
   projectId: string | null;
+  workspaceId: string | null;
   hasGeometry: boolean;
   yawDeg: number;
   pitchDeg: number;
@@ -435,6 +436,7 @@ const enhanceModelVisibility = (root: Object3D, projectId: string | null): void 
 
 export const ModelPreview = ({
   projectId,
+  workspaceId,
   hasGeometry,
   yawDeg,
   pitchDeg,
@@ -562,6 +564,15 @@ export const ModelPreview = ({
       return;
     }
 
+    const normalizedWorkspaceId = workspaceId?.trim() ?? '';
+    if (!normalizedWorkspaceId) {
+      clearPreview();
+      setIsReady(false);
+      setGltfSource(null);
+      setStatusLabel('Select a workspace');
+      return;
+    }
+
     if (!supportsWebgl()) {
       clearPreview();
       setIsReady(false);
@@ -581,9 +592,14 @@ export const ModelPreview = ({
 
     const poll = async () => {
       try {
-        const response = await fetch(buildGatewayApiUrl(`/projects/${encodeURIComponent(projectId)}/preview`), {
-          cache: 'no-store'
-        });
+        const response = await fetch(
+          buildGatewayApiUrl(
+            `/projects/${encodeURIComponent(projectId)}/preview?workspaceId=${encodeURIComponent(normalizedWorkspaceId)}`
+          ),
+          {
+            cache: 'no-store'
+          }
+        );
         const payload = (await response.json()) as PreviewResponse;
         if (cancelled) {
           return;
@@ -628,7 +644,7 @@ export const ModelPreview = ({
       cancelled = true;
       clearPoll();
     };
-  }, [projectId, hasGeometry]);
+  }, [projectId, hasGeometry, workspaceId]);
 
   useEffect(() => {
     if (!hostRef.current || !hasGeometry || !supportsWebgl()) {

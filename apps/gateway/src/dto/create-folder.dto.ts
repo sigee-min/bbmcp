@@ -1,13 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateFolderDto {
   @IsString()
   name!: string;
 
-  @IsOptional()
   @IsString()
-  workspaceId?: string;
+  @IsNotEmpty()
+  workspaceId!: string;
 
   @IsOptional()
   @IsString()

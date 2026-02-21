@@ -13,6 +13,7 @@ import {
   type BackendKind,
   type BackendPort,
   type WorkspaceRepository,
+  normalizeSystemRoles,
   ProjectLockManager,
   backendToolError,
   isMutatingTool
@@ -27,10 +28,9 @@ import { WorkspacePolicyService, type GatewaySystemRole } from '../security/work
 
 const PROJECT_ID_PREFIX = 'prj';
 const DEFAULT_PROJECT_ID = `${PROJECT_ID_PREFIX}_default`;
-const DEFAULT_WORKSPACE_ID = 'ws_default';
 const DEFAULT_TENANT_ID = 'default-tenant';
 const DEFAULT_ACTOR_ID = 'gateway';
-const DEFAULT_ACCOUNT_ID = 'anonymous';
+const DEFAULT_ACCOUNT_ID = 'admin';
 const DEFAULT_MCP_LOCK_TTL_MS = 30_000;
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
@@ -88,16 +88,7 @@ const readBackendKindFromPayload = (payload: unknown): BackendKind | null => {
 };
 
 const toGatewaySystemRoles = (roles: readonly string[] | undefined): GatewaySystemRole[] => {
-  if (!Array.isArray(roles)) {
-    return [];
-  }
-  const deduped = new Set<GatewaySystemRole>();
-  for (const role of roles) {
-    if (role === 'system_admin' || role === 'cs_admin') {
-      deduped.add(role);
-    }
-  }
-  return [...deduped];
+  return normalizeSystemRoles(roles) as GatewaySystemRole[];
 };
 
 type GatewayActorIdentity = {
@@ -131,13 +122,7 @@ const resolveActorIdentity = (context?: DispatcherExecutionContext): GatewayActo
   };
 };
 
-const normalizeWorkspaceId = (workspaceId?: string): string => {
-  if (typeof workspaceId !== 'string') {
-    return DEFAULT_WORKSPACE_ID;
-  }
-  const trimmed = workspaceId.trim();
-  return trimmed.length > 0 ? trimmed : DEFAULT_WORKSPACE_ID;
-};
+const normalizeWorkspaceId = (workspaceId?: string): string | null => asNonEmptyString(workspaceId) ?? null;
 
 const collectFolderParents = (nodes: readonly NativeProjectTreeNode[], parentMap: Map<string, string | null>): void => {
   for (const node of nodes) {
@@ -241,6 +226,17 @@ export class GatewayDispatcher implements Dispatcher {
     const backend = selection.backend;
     const projectId = readProjectIdFromPayload(payload);
     const workspaceHint = normalizeWorkspaceId(readWorkspaceIdFromPayload(payload) ?? context?.mcpWorkspaceId);
+    if (!workspaceHint) {
+      return backendToolError(
+        'invalid_payload',
+        'workspaceId is required for dispatcher execution.',
+        'Provide workspaceId in payload or MCP session context.',
+        {
+          reason: 'missing_workspace_context',
+          projectId
+        }
+      ) as ToolResponse<ToolResultMap[TName]>;
+    }
     const actor = resolveActorIdentity(context);
     const projectScope = await this.resolveProjectScope(projectId, workspaceHint, actor);
     const session: BackendSessionRef = {
@@ -251,6 +247,10 @@ export class GatewayDispatcher implements Dispatcher {
     const toolContext = { session };
     const run = () => backend.handleTool(name, payload, toolContext);
     if (!isMutatingTool(name)) {
+      const authorizationError = await this.authorizeProjectRead(name, actor, projectId, projectScope);
+      if (authorizationError) {
+        return authorizationError as ToolResponse<ToolResultMap[TName]>;
+      }
       return run();
     }
 
@@ -331,8 +331,9 @@ export class GatewayDispatcher implements Dispatcher {
 
     const withinHint = await this.lockStore.getProject(projectId, workspaceHint);
     if (withinHint) {
+      const resolvedWorkspaceId = normalizeWorkspaceId(withinHint.workspaceId ?? workspaceHint) ?? workspaceHint;
       return {
-        workspaceId: normalizeWorkspaceId(withinHint.workspaceId ?? workspaceHint),
+        workspaceId: resolvedWorkspaceId,
         folderId: withinHint.parentFolderId ?? null
       };
     }
@@ -344,7 +345,7 @@ export class GatewayDispatcher implements Dispatcher {
       };
     }
 
-    const relatedWorkspaces = await this.workspaceRepository.listWorkspaces(actor.accountId);
+    const relatedWorkspaces = await this.workspaceRepository.listAccountWorkspaces(actor.accountId);
     for (const workspace of relatedWorkspaces) {
       if (!workspace?.workspaceId || workspace.workspaceId === workspaceHint) {
         continue;
@@ -353,8 +354,9 @@ export class GatewayDispatcher implements Dispatcher {
       if (!found) {
         continue;
       }
+      const resolvedWorkspaceId = normalizeWorkspaceId(found.workspaceId ?? workspace.workspaceId) ?? workspace.workspaceId;
       return {
-        workspaceId: normalizeWorkspaceId(found.workspaceId ?? workspace.workspaceId),
+        workspaceId: resolvedWorkspaceId,
         folderId: found.parentFolderId ?? null
       };
     }
@@ -406,7 +408,7 @@ export class GatewayDispatcher implements Dispatcher {
       return backendToolError(
         'invalid_state',
         `Workspace write permission denied for project ${projectId}.`,
-        'Request project.write permission from a workspace admin.',
+        'Request folder.write permission from a workspace admin.',
         {
           reason: authorization.reason,
           workspaceId: authorization.workspaceId,
@@ -420,6 +422,72 @@ export class GatewayDispatcher implements Dispatcher {
       'invalid_state',
       `Folder write permission denied for project ${projectId}.`,
       'Request folder.write permission for this folder from a workspace admin.',
+      {
+        reason: authorization.reason,
+        workspaceId: authorization.workspaceId,
+        projectId: authorization.projectId,
+        folderId: authorization.folderId,
+        accountId: authorization.accountId,
+        tool: authorization.tool
+      }
+    ) as ToolResponse<ToolResultMap[TName]>;
+  }
+
+  private async authorizeProjectRead<TName extends ToolName>(
+    name: TName,
+    actor: GatewayActorIdentity,
+    projectId: string,
+    scope: GatewayDispatcherProjectScope
+  ): Promise<ToolResponse<ToolResultMap[TName]> | null> {
+    if (!this.workspacePolicy) {
+      return null;
+    }
+    const folderPath = await this.resolveFolderPath(scope.workspaceId, scope.folderId);
+    const authorization = await this.workspacePolicy.authorizeProjectRead({
+      workspaceId: scope.workspaceId,
+      folderId: scope.folderId,
+      folderPathFromRoot: folderPath,
+      projectId,
+      tool: name,
+      actor: {
+        accountId: actor.accountId,
+        systemRoles: actor.systemRoles
+      }
+    });
+    if (authorization.ok) {
+      return null;
+    }
+    if (authorization.reason === 'workspace_not_found') {
+      return backendToolError(
+        'invalid_state',
+        `Workspace not found: ${scope.workspaceId}`,
+        'Check workspace selection and retry.',
+        {
+          reason: authorization.reason,
+          workspaceId: authorization.workspaceId,
+          projectId: authorization.projectId,
+          tool: authorization.tool
+        }
+      ) as ToolResponse<ToolResultMap[TName]>;
+    }
+    if (authorization.reason === 'forbidden_workspace_project_read') {
+      return backendToolError(
+        'invalid_state',
+        `Workspace read permission denied for project ${projectId}.`,
+        'Request folder.read permission from a workspace admin.',
+        {
+          reason: authorization.reason,
+          workspaceId: authorization.workspaceId,
+          projectId: authorization.projectId,
+          accountId: authorization.accountId,
+          tool: authorization.tool
+        }
+      ) as ToolResponse<ToolResultMap[TName]>;
+    }
+    return backendToolError(
+      'invalid_state',
+      `Folder read permission denied for project ${projectId}.`,
+      'Request folder.read permission for this folder from a workspace admin.',
       {
         reason: authorization.reason,
         workspaceId: authorization.workspaceId,

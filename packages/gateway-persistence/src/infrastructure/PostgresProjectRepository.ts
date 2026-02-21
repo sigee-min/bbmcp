@@ -4,6 +4,12 @@ import type {
   PersistedProjectRecord,
   ProjectRepository,
   ProjectRepositoryScope,
+  ServiceUsersSearchInput,
+  ServiceUsersSearchResult,
+  ServiceWorkspacesSearchInput,
+  ServiceWorkspacesSearchResult,
+  ServiceSettingsRecord,
+  WorkspaceApiKeyRecord,
   WorkspaceFolderAclRecord,
   WorkspaceMemberRecord,
   WorkspaceRecord,
@@ -11,18 +17,39 @@ import type {
   WorkspaceRoleStorageRecord
 } from '@ashfox/backend-core';
 import {
-  createWorkspaceSeedTemplate,
-  fromAclFolderKey,
-  isWorkspacePermission,
+  createDefaultUserRootAcl,
+  createDefaultServiceSettings,
+  escapeSqlLikePattern,
+  fromAclStorageFolderKey,
+  normalizeServiceSettings,
+  normalizeServiceSearchCursorOffset,
+  normalizeServiceSearchLimit,
+  normalizeServiceSearchToken,
+  normalizeDefaultMemberRoleId,
+  normalizeRequiredAccountId,
   normalizeTimestamp,
   parseJsonStringArray,
   parseWorkspaceAclEffect,
   parseWorkspaceBuiltinRole,
-  parseWorkspaceMode,
-  parseWorkspacePermissionArray,
   toAclFolderKey,
-  uniqueStrings
+  toAclStorageFolderKey
 } from './workspace/common';
+import {
+  buildPostgresWorkspaceMigrations,
+  normalizePostgresMigrationLedgerSchema,
+  seedPostgresWorkspaceTemplate,
+  type PostgresWorkspaceMigration
+} from './sql/postgresWorkspaceBootstrap';
+import { PostgresProjectStateStore } from './sql/projectStateStore';
+import { PostgresWorkspaceAccountStore } from './sql/workspaceAccountStore';
+import {
+  removeWorkspaceAccessMetaPostgres,
+  removeWorkspaceCascadePostgres,
+  removeWorkspaceRoleCascadePostgres,
+  upsertWorkspaceAccessMetaPostgres
+} from './sql/workspaceRbacStore';
+import { runAsyncUnitOfWork } from './sql/unitOfWork';
+import { SqlWorkspaceRepositoryBase } from './workspace/sqlWorkspaceRepositoryBase';
 import { quoteSqlIdentifier } from './validation';
 
 export interface PostgresProjectRepositoryOptions {
@@ -47,34 +74,15 @@ export type PostgresQueryResult<TResult extends Record<string, unknown> = Record
   rowCount?: number | null;
 };
 
-type PersistedProjectRow = {
-  tenant_id: string;
-  project_id: string;
-  revision: string;
-  state: unknown;
-  created_at: Date | string;
-  updated_at: Date | string;
-};
-
 type MigrationRow = {
-  version: number | string;
-};
-
-type MutationProbeRow = {
-  applied: number;
-};
-
-type PostgresMigration = {
-  version: number;
-  name: string;
-  upSql: string;
+  migration_id?: string | null;
 };
 
 type WorkspaceRow = {
   workspace_id: string;
   tenant_id: string;
   name: string;
-  mode: string;
+  default_member_role_id: string | null;
   created_by: string;
   created_at: Date | string;
   updated_at: Date | string;
@@ -84,12 +92,24 @@ type WorkspaceListRow = WorkspaceRow & {
   member_account_id: string | null;
 };
 
+type PostgresAccountRow = {
+  account_id: string;
+  email: string;
+  display_name: string;
+  system_roles: unknown;
+  local_login_id: string | null;
+  password_hash: string | null;
+  github_user_id: string | null;
+  github_login: string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+};
+
 type WorkspaceRoleRow = {
   workspace_id: string;
   role_id: string;
   name: string;
   builtin: string | null;
-  permissions: unknown;
   created_at: Date | string;
   updated_at: Date | string;
 };
@@ -110,36 +130,46 @@ type WorkspaceAclRow = {
   updated_at: Date | string;
 };
 
-type AccountRow = {
-  account_id: string;
-  email: string;
-  display_name: string;
-  system_roles: unknown;
-  local_login_id: string | null;
-  password_hash: string | null;
-  github_user_id: string | null;
-  github_login: string | null;
+type WorkspaceApiKeyRow = {
+  workspace_id: string;
+  key_id: string;
+  name: string;
+  key_prefix: string;
+  key_hash: string;
+  created_by: string;
+  created_at: Date | string;
+  updated_at: Date | string;
+  last_used_at: Date | string | null;
+  expires_at: Date | string | null;
+  revoked_at: Date | string | null;
+};
+
+type ServiceSettingsRow = {
+  id: string;
+  settings_json: unknown;
   created_at: Date | string;
   updated_at: Date | string;
 };
 
-const parseState = (value: unknown): unknown => {
-  if (typeof value !== 'string') return value;
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return value;
-  }
-};
+const toAclTemplateRuleId = (
+  scope: 'workspace' | 'folder',
+  storageFolderKey: string,
+  read: WorkspaceFolderAclRecord['read'],
+  write: WorkspaceFolderAclRecord['write'],
+  locked: boolean
+): string =>
+  `acl_${Buffer.from([scope, storageFolderKey, read, write, locked ? '1' : '0'].join('::'), 'utf8').toString('base64url')}`;
 
-const parseSystemRoles = (value: unknown): Array<'system_admin' | 'cs_admin'> =>
-  parseJsonStringArray(value).filter((role): role is 'system_admin' | 'cs_admin' => role === 'system_admin' || role === 'cs_admin');
+const normalizeAclRoleIds = (roleIds: readonly string[]): string[] =>
+  Array.from(new Set(roleIds.map((roleId) => String(roleId ?? '').trim()).filter((roleId) => roleId.length > 0)));
 
-const normalizeAccountRecord = (row: AccountRow): AccountRecord => ({
+const normalizePostgresAccountRecord = (row: PostgresAccountRow): AccountRecord => ({
   accountId: row.account_id,
   email: row.email,
   displayName: row.display_name,
-  systemRoles: parseSystemRoles(row.system_roles),
+  systemRoles: parseJsonStringArray(row.system_roles).filter(
+    (role): role is 'system_admin' | 'cs_admin' => role === 'system_admin' || role === 'cs_admin'
+  ),
   localLoginId: row.local_login_id,
   passwordHash: row.password_hash,
   githubUserId: row.github_user_id,
@@ -148,7 +178,7 @@ const normalizeAccountRecord = (row: AccountRow): AccountRecord => ({
   updatedAt: normalizeTimestamp(row.updated_at)
 });
 
-export class PostgresProjectRepository implements ProjectRepository, WorkspaceRepository {
+export class PostgresProjectRepository extends SqlWorkspaceRepositoryBase implements ProjectRepository, WorkspaceRepository {
   private readonly options: PostgresProjectRepositoryOptions;
   private readonly schemaSql: string;
   private readonly tableSql: string;
@@ -158,10 +188,16 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
   private readonly workspaceMembersTableSql: string;
   private readonly workspaceRolesTableSql: string;
   private readonly workspaceAclTableSql: string;
+  private readonly workspaceAccessMetaTableSql: string;
+  private readonly workspaceApiKeysTableSql: string;
+  private readonly serviceSettingsTableSql: string;
+  private readonly projectStateStore: PostgresProjectStateStore;
+  private readonly workspaceAccountStore: PostgresWorkspaceAccountStore;
   private pool: PostgresPool | null = null;
   private initPromise: Promise<void> | null = null;
 
   constructor(options: PostgresProjectRepositoryOptions) {
+    super();
     this.options = options;
     this.schemaSql = quoteSqlIdentifier(options.schema, 'schema');
     const tableNameSql = quoteSqlIdentifier(options.tableName, 'table');
@@ -173,6 +209,29 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
     this.workspaceMembersTableSql = `${this.schemaSql}.${quoteSqlIdentifier('ashfox_workspace_members', 'table')}`;
     this.workspaceRolesTableSql = `${this.schemaSql}.${quoteSqlIdentifier('ashfox_workspace_roles', 'table')}`;
     this.workspaceAclTableSql = `${this.schemaSql}.${quoteSqlIdentifier('ashfox_workspace_folder_acl', 'table')}`;
+    this.workspaceAccessMetaTableSql = `${this.schemaSql}.${quoteSqlIdentifier('ashfox_workspace_access_meta', 'table')}`;
+    this.workspaceApiKeysTableSql = `${this.schemaSql}.${quoteSqlIdentifier('ashfox_workspace_api_keys', 'table')}`;
+    this.serviceSettingsTableSql = `${this.schemaSql}.${quoteSqlIdentifier('ashfox_service_settings', 'table')}`;
+    this.projectStateStore = new PostgresProjectStateStore({
+      ensureInitialized: async () => this.ensureInitialized(),
+      getPool: () => this.getPool(),
+      tableSql: this.tableSql,
+      parseState: (value) => {
+        if (typeof value !== 'string') return value;
+        try {
+          return JSON.parse(value) as unknown;
+        } catch {
+          return value;
+        }
+      },
+      normalizeTimestamp,
+      escapeLikePattern: (value) => value.replace(/[\\%_]/g, '\\$&')
+    });
+    this.workspaceAccountStore = new PostgresWorkspaceAccountStore({
+      ensureInitialized: async () => this.ensureInitialized(),
+      getPool: () => this.getPool(),
+      accountTableSql: this.accountTableSql
+    });
   }
 
   private getPool(): PostgresPool {
@@ -201,132 +260,65 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
     await pool.query(`CREATE SCHEMA IF NOT EXISTS ${this.schemaSql}`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS ${this.migrationsTableSql} (
-        version INTEGER PRIMARY KEY,
+        migration_id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         applied_at TIMESTAMPTZ NOT NULL
       )
     `);
-    const existing = await pool.query<MigrationRow>(`SELECT version FROM ${this.migrationsTableSql}`);
-    const appliedVersions = new Set(
+    await normalizePostgresMigrationLedgerSchema({
+      pool,
+      schema: this.options.schema,
+      migrationsTableName: this.options.migrationsTableName,
+      migrationsTableSql: this.migrationsTableSql
+    });
+    const existing = await pool.query<MigrationRow>(`SELECT migration_id FROM ${this.migrationsTableSql} WHERE migration_id IS NOT NULL`);
+    const appliedMigrationIds = new Set(
       existing.rows
-        .map((row) => Number(row.version))
-        .filter((version) => Number.isInteger(version))
+        .map((row) => (typeof row.migration_id === 'string' ? row.migration_id.trim() : ''))
+        .filter((migrationId) => migrationId.length > 0)
     );
-    for (const migration of this.buildMigrations()) {
-      if (appliedVersions.has(migration.version)) continue;
+    const migrations = buildPostgresWorkspaceMigrations({
+      tableSql: this.tableSql,
+      workspaceTableSql: this.workspaceTableSql,
+      accountTableSql: this.accountTableSql,
+      workspaceMembersTableSql: this.workspaceMembersTableSql,
+      workspaceRolesTableSql: this.workspaceRolesTableSql,
+      workspaceAclTableSql: this.workspaceAclTableSql,
+      workspaceAccessMetaTableSql: this.workspaceAccessMetaTableSql,
+      workspaceApiKeysTableSql: this.workspaceApiKeysTableSql,
+      serviceSettingsTableSql: this.serviceSettingsTableSql
+    });
+    for (const migration of migrations) {
+      if (appliedMigrationIds.has(migration.migrationId)) continue;
       await this.applyMigration(pool, migration);
-      appliedVersions.add(migration.version);
+      appliedMigrationIds.add(migration.migrationId);
     }
-    await this.seedDefaultWorkspaceTemplate(pool);
+    await seedPostgresWorkspaceTemplate({
+      pool,
+      workspaceTableSql: this.workspaceTableSql,
+      accountTableSql: this.accountTableSql,
+      workspaceRolesTableSql: this.workspaceRolesTableSql,
+      workspaceMembersTableSql: this.workspaceMembersTableSql,
+      workspaceAccessMetaTableSql: this.workspaceAccessMetaTableSql,
+      workspaceAclTableSql: this.workspaceAclTableSql
+    });
   }
 
-  private buildMigrations(): PostgresMigration[] {
-    return [
-      {
-        version: 1,
-        name: 'create_projects_table',
-        upSql: `
-          CREATE TABLE IF NOT EXISTS ${this.tableSql} (
-            tenant_id TEXT NOT NULL,
-            project_id TEXT NOT NULL,
-            revision TEXT NOT NULL,
-            state JSONB NOT NULL,
-            created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL,
-            PRIMARY KEY (tenant_id, project_id)
-          )
-        `
-      },
-      {
-        version: 2,
-        name: 'create_workspace_rbac_tables',
-        upSql: `
-          CREATE TABLE IF NOT EXISTS ${this.workspaceTableSql} (
-            workspace_id TEXT PRIMARY KEY,
-            tenant_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            mode TEXT NOT NULL,
-            created_by TEXT NOT NULL,
-            created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
-          );
-          CREATE TABLE IF NOT EXISTS ${this.accountTableSql} (
-            account_id TEXT PRIMARY KEY,
-            email TEXT NOT NULL,
-            display_name TEXT NOT NULL,
-            system_roles JSONB NOT NULL,
-            created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
-          );
-          CREATE TABLE IF NOT EXISTS ${this.workspaceMembersTableSql} (
-            workspace_id TEXT NOT NULL,
-            account_id TEXT NOT NULL,
-            role_ids JSONB NOT NULL,
-            joined_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL,
-            PRIMARY KEY (workspace_id, account_id)
-          );
-          CREATE TABLE IF NOT EXISTS ${this.workspaceRolesTableSql} (
-            workspace_id TEXT NOT NULL,
-            role_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            builtin TEXT NULL,
-            permissions JSONB NOT NULL,
-            created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL,
-            PRIMARY KEY (workspace_id, role_id)
-          );
-          CREATE TABLE IF NOT EXISTS ${this.workspaceAclTableSql} (
-            workspace_id TEXT NOT NULL,
-            folder_id TEXT NOT NULL,
-            role_id TEXT NOT NULL,
-            read_effect TEXT NOT NULL,
-            write_effect TEXT NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL,
-            PRIMARY KEY (workspace_id, folder_id, role_id)
-          );
-          CREATE INDEX IF NOT EXISTS idx_workspace_members_account_id
-            ON ${this.workspaceMembersTableSql}(account_id);
-          CREATE INDEX IF NOT EXISTS idx_workspace_roles_workspace_id
-            ON ${this.workspaceRolesTableSql}(workspace_id);
-          CREATE INDEX IF NOT EXISTS idx_workspace_acl_workspace_id
-            ON ${this.workspaceAclTableSql}(workspace_id);
-        `
-      },
-      {
-        version: 3,
-        name: 'add_account_auth_columns',
-        upSql: `
-          ALTER TABLE ${this.accountTableSql}
-            ADD COLUMN IF NOT EXISTS local_login_id TEXT NULL;
-          ALTER TABLE ${this.accountTableSql}
-            ADD COLUMN IF NOT EXISTS password_hash TEXT NULL;
-          ALTER TABLE ${this.accountTableSql}
-            ADD COLUMN IF NOT EXISTS github_user_id TEXT NULL;
-          ALTER TABLE ${this.accountTableSql}
-            ADD COLUMN IF NOT EXISTS github_login TEXT NULL;
-          CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_local_login_id
-            ON ${this.accountTableSql}(local_login_id)
-            WHERE local_login_id IS NOT NULL;
-          CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_github_user_id
-            ON ${this.accountTableSql}(github_user_id)
-            WHERE github_user_id IS NOT NULL;
-        `
-      }
-    ];
-  }
-
-  private async applyMigration(pool: PostgresPool, migration: PostgresMigration): Promise<void> {
+  private async applyMigration(pool: PostgresPool, migration: PostgresWorkspaceMigration): Promise<void> {
     await pool.query('BEGIN');
     try {
       await pool.query(migration.upSql);
       await pool.query(
         `
-          INSERT INTO ${this.migrationsTableSql} (version, name, applied_at)
-          VALUES ($1, $2, NOW())
-          ON CONFLICT (version) DO NOTHING
+          INSERT INTO ${this.migrationsTableSql} (migration_id, name, applied_at)
+          SELECT $1, $2, NOW()
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM ${this.migrationsTableSql}
+            WHERE migration_id = $1
+          )
         `,
-        [migration.version, migration.name]
+        [migration.migrationId, migration.name]
       );
       await pool.query('COMMIT');
     } catch (error) {
@@ -335,416 +327,389 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
     }
   }
 
-  private async seedDefaultWorkspaceTemplate(pool: PostgresPool): Promise<void> {
-    const seed = createWorkspaceSeedTemplate();
-    await pool.query(
-      `
-        INSERT INTO ${this.workspaceTableSql} (
-          workspace_id,
-          tenant_id,
-          name,
-          mode,
-          created_by,
-          created_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-        ON CONFLICT (workspace_id) DO NOTHING
-      `,
-      [
-        seed.workspace.workspaceId,
-        seed.workspace.tenantId,
-        seed.workspace.name,
-        seed.workspace.mode,
-        seed.workspace.createdBy
-      ]
-    );
-
-    await pool.query(
-      `
-        INSERT INTO ${this.accountTableSql} (
-          account_id,
-          email,
-          display_name,
-          system_roles,
-          created_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4::jsonb, NOW(), NOW())
-        ON CONFLICT (account_id) DO NOTHING
-      `,
-      [
-        seed.systemAccount.accountId,
-        seed.systemAccount.email,
-        seed.systemAccount.displayName,
-        JSON.stringify(seed.systemAccount.systemRoles)
-      ]
-    );
-
-    await pool.query(
-      `
-        INSERT INTO ${this.workspaceRolesTableSql} (
-          workspace_id,
-          role_id,
-          name,
-          builtin,
-          permissions,
-          created_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5::jsonb, NOW(), NOW())
-        ON CONFLICT (workspace_id, role_id) DO NOTHING
-      `,
-      [
-        seed.roles[0].workspaceId,
-        seed.roles[0].roleId,
-        seed.roles[0].name,
-        seed.roles[0].builtin,
-        JSON.stringify(seed.roles[0].permissions)
-      ]
-    );
-
-    await pool.query(
-      `
-        INSERT INTO ${this.workspaceRolesTableSql} (
-          workspace_id,
-          role_id,
-          name,
-          builtin,
-          permissions,
-          created_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5::jsonb, NOW(), NOW())
-        ON CONFLICT (workspace_id, role_id) DO NOTHING
-      `,
-      [
-        seed.roles[1].workspaceId,
-        seed.roles[1].roleId,
-        seed.roles[1].name,
-        seed.roles[1].builtin,
-        JSON.stringify(seed.roles[1].permissions)
-      ]
-    );
-
-    await pool.query(
-      `
-        INSERT INTO ${this.workspaceMembersTableSql} (
-          workspace_id,
-          account_id,
-          role_ids,
-          joined_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3::jsonb, NOW(), NOW())
-        ON CONFLICT (workspace_id, account_id) DO NOTHING
-      `,
-      [seed.member.workspaceId, seed.member.accountId, JSON.stringify(seed.member.roleIds)]
-    );
+  async find(scope: ProjectRepositoryScope): Promise<PersistedProjectRecord | null> {
+    return this.projectStateStore.find(scope);
   }
 
-  async find(scope: ProjectRepositoryScope): Promise<PersistedProjectRecord | null> {
+  async listByScopePrefix(scope: ProjectRepositoryScope): Promise<PersistedProjectRecord[]> {
+    return this.projectStateStore.listByScopePrefix(scope);
+  }
+
+  async save(record: PersistedProjectRecord): Promise<void> {
+    await this.projectStateStore.save(record);
+  }
+
+  async saveIfRevision(record: PersistedProjectRecord, expectedRevision: string | null): Promise<boolean> {
+    return this.projectStateStore.saveIfRevision(record, expectedRevision);
+  }
+
+  async remove(scope: ProjectRepositoryScope): Promise<void> {
+    await this.projectStateStore.remove(scope);
+  }
+
+  async getAccount(accountId: string): Promise<AccountRecord | null> {
+    return this.workspaceAccountStore.getAccount(accountId);
+  }
+
+  async getAccountByLocalLoginId(localLoginId: string): Promise<AccountRecord | null> {
+    return this.workspaceAccountStore.getAccountByLocalLoginId(localLoginId);
+  }
+
+  async getAccountByGithubUserId(githubUserId: string): Promise<AccountRecord | null> {
+    return this.workspaceAccountStore.getAccountByGithubUserId(githubUserId);
+  }
+
+  async listAccounts(input?: { query?: string; limit?: number; excludeAccountIds?: readonly string[] }): Promise<AccountRecord[]> {
+    return this.workspaceAccountStore.listAccounts(input);
+  }
+
+  async searchServiceUsers(input?: ServiceUsersSearchInput): Promise<ServiceUsersSearchResult> {
     await this.ensureInitialized();
     const pool = this.getPool();
-    const result = await pool.query<PersistedProjectRow>(
+    const normalizedQuery = normalizeServiceSearchToken(input?.q);
+    const normalizedWorkspaceId = String(input?.workspaceId ?? '').trim();
+    const field = input?.field ?? 'any';
+    const match = input?.match ?? 'contains';
+    const limit = normalizeServiceSearchLimit(input?.limit);
+    const offset = normalizeServiceSearchCursorOffset(input?.cursor);
+    const whereConditions: string[] = [];
+    const params: unknown[] = [];
+
+    const pushParam = (value: unknown): string => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+
+    const buildMatchCondition = (expression: string): string => {
+      if (!normalizedQuery) {
+        return '1 = 1';
+      }
+      if (match === 'exact') {
+        return `${expression} = ${pushParam(normalizedQuery)}`;
+      }
+      const escaped = escapeSqlLikePattern(normalizedQuery);
+      const token = match === 'prefix' ? `${escaped}%` : `%${escaped}%`;
+      return `${expression} LIKE ${pushParam(token)} ESCAPE '\\'`;
+    };
+
+    if (normalizedWorkspaceId) {
+      whereConditions.push(
+        `EXISTS (
+          SELECT 1
+          FROM ${this.workspaceAccessMetaTableSql} AS access
+          WHERE access.workspace_id = ${pushParam(normalizedWorkspaceId)}
+            AND access.account_id = a.account_id
+        )`
+      );
+    }
+
+    if (normalizedQuery) {
+      const accountExpr = `LOWER(a.account_id)`;
+      const emailExpr = `LOWER(a.email)`;
+      const displayNameExpr = `LOWER(a.display_name)`;
+      const localLoginExpr = `LOWER(COALESCE(a.local_login_id, ''))`;
+      const githubLoginExpr = `LOWER(COALESCE(a.github_login, ''))`;
+      const fieldExprMap: Record<'accountId' | 'email' | 'displayName' | 'localLoginId' | 'githubLogin', string> = {
+        accountId: accountExpr,
+        email: emailExpr,
+        displayName: displayNameExpr,
+        localLoginId: localLoginExpr,
+        githubLogin: githubLoginExpr
+      };
+
+      if (field === 'any') {
+        const parts = [accountExpr, emailExpr, displayNameExpr, localLoginExpr, githubLoginExpr].map((expr) =>
+          buildMatchCondition(expr)
+        );
+        whereConditions.push(`(${parts.join(' OR ')})`);
+      } else {
+        whereConditions.push(buildMatchCondition(fieldExprMap[field]));
+      }
+    }
+
+    const whereSql = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+    const countResult = await pool.query<{ count: number | string }>(
       `
-        SELECT tenant_id, project_id, revision, state, created_at, updated_at
-        FROM ${this.tableSql}
-        WHERE tenant_id = $1
-          AND project_id = $2
+        SELECT COUNT(*)::int AS count
+        FROM ${this.accountTableSql} AS a
+        ${whereSql}
+      `,
+      params
+    );
+    const totalRaw = countResult.rows[0]?.count ?? 0;
+    const total = typeof totalRaw === 'string' ? Number.parseInt(totalRaw, 10) : Number(totalRaw);
+
+    const pagingParams = [...params];
+    pagingParams.push(limit);
+    const limitPlaceholder = `$${pagingParams.length}`;
+    pagingParams.push(offset);
+    const offsetPlaceholder = `$${pagingParams.length}`;
+    const result = await pool.query<PostgresAccountRow>(
+      `
+        SELECT
+          a.account_id,
+          a.email,
+          a.display_name,
+          a.system_roles,
+          a.local_login_id,
+          a.password_hash,
+          a.github_user_id,
+          a.github_login,
+          a.created_at,
+          a.updated_at
+        FROM ${this.accountTableSql} AS a
+        ${whereSql}
+        ORDER BY a.display_name ASC, a.account_id ASC
+        LIMIT ${limitPlaceholder}
+        OFFSET ${offsetPlaceholder}
+      `,
+      pagingParams
+    );
+    const normalizedTotal = Number.isFinite(total) ? total : 0;
+    const nextOffset = offset + result.rows.length;
+    return {
+      users: result.rows.map((row) => normalizePostgresAccountRecord(row)),
+      total: normalizedTotal,
+      nextCursor: nextOffset < normalizedTotal ? String(nextOffset) : null
+    };
+  }
+
+  async searchServiceWorkspaces(input?: ServiceWorkspacesSearchInput): Promise<ServiceWorkspacesSearchResult> {
+    await this.ensureInitialized();
+    const pool = this.getPool();
+    const normalizedQuery = normalizeServiceSearchToken(input?.q);
+    const normalizedMemberAccountId = String(input?.memberAccountId ?? '').trim().toLowerCase();
+    const field = input?.field ?? 'any';
+    const match = input?.match ?? 'contains';
+    const limit = normalizeServiceSearchLimit(input?.limit);
+    const offset = normalizeServiceSearchCursorOffset(input?.cursor);
+    const whereConditions: string[] = [];
+    const params: unknown[] = [];
+
+    const pushParam = (value: unknown): string => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+
+    const buildMatchCondition = (expression: string): string => {
+      if (!normalizedQuery) {
+        return '1 = 1';
+      }
+      if (match === 'exact') {
+        return `${expression} = ${pushParam(normalizedQuery)}`;
+      }
+      const escaped = normalizedQuery.replace(/[\\%_]/g, '\\$&');
+      const token = match === 'prefix' ? `${escaped}%` : `%${escaped}%`;
+      return `${expression} LIKE ${pushParam(token)} ESCAPE '\\'`;
+    };
+
+    const buildMemberMatchCondition = (token: string): string => {
+      if (match === 'exact') {
+        return `EXISTS (
+          SELECT 1
+          FROM ${this.workspaceAccessMetaTableSql} AS access
+          WHERE access.workspace_id = w.workspace_id
+            AND LOWER(access.account_id) = ${pushParam(token)}
+        )`;
+      }
+      const escaped = escapeSqlLikePattern(token);
+      const likeToken = match === 'prefix' ? `${escaped}%` : `%${escaped}%`;
+      return `EXISTS (
+        SELECT 1
+        FROM ${this.workspaceAccessMetaTableSql} AS access
+        WHERE access.workspace_id = w.workspace_id
+          AND LOWER(access.account_id) LIKE ${pushParam(likeToken)} ESCAPE '\\'
+      )`;
+    };
+
+    if (normalizedMemberAccountId) {
+      whereConditions.push(
+        `EXISTS (
+          SELECT 1
+          FROM ${this.workspaceAccessMetaTableSql} AS access
+          WHERE access.workspace_id = w.workspace_id
+            AND LOWER(access.account_id) = ${pushParam(normalizedMemberAccountId)}
+        )`
+      );
+    }
+
+    if (normalizedQuery) {
+      const workspaceIdExpr = `LOWER(w.workspace_id)`;
+      const nameExpr = `LOWER(w.name)`;
+      const createdByExpr = `LOWER(w.created_by)`;
+      if (field === 'memberAccountId') {
+        whereConditions.push(buildMemberMatchCondition(normalizedQuery));
+      } else if (field === 'any') {
+        const parts = [workspaceIdExpr, nameExpr, createdByExpr].map((expr) => buildMatchCondition(expr));
+        parts.push(buildMemberMatchCondition(normalizedQuery));
+        whereConditions.push(`(${parts.join(' OR ')})`);
+      } else {
+        const expressionMap: Record<'workspaceId' | 'name' | 'createdBy', string> = {
+          workspaceId: workspaceIdExpr,
+          name: nameExpr,
+          createdBy: createdByExpr
+        };
+        whereConditions.push(buildMatchCondition(expressionMap[field]));
+      }
+    }
+
+    const whereSql = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+    const countResult = await pool.query<{ count: number | string }>(
+      `
+        SELECT COUNT(*)::int AS count
+        FROM ${this.workspaceTableSql} AS w
+        ${whereSql}
+      `,
+      params
+    );
+    const totalRaw = countResult.rows[0]?.count ?? 0;
+    const total = typeof totalRaw === 'string' ? Number.parseInt(totalRaw, 10) : Number(totalRaw);
+
+    const pagingParams = [...params];
+    pagingParams.push(limit);
+    const limitPlaceholder = `$${pagingParams.length}`;
+    pagingParams.push(offset);
+    const offsetPlaceholder = `$${pagingParams.length}`;
+    const result = await pool.query<WorkspaceRow>(
+      `
+        SELECT w.workspace_id, w.tenant_id, w.name, w.default_member_role_id, w.created_by, w.created_at, w.updated_at
+        FROM ${this.workspaceTableSql} AS w
+        ${whereSql}
+        ORDER BY w.created_at ASC, w.workspace_id ASC
+        LIMIT ${limitPlaceholder}
+        OFFSET ${offsetPlaceholder}
+      `,
+      pagingParams
+    );
+    const normalizedTotal = Number.isFinite(total) ? total : 0;
+    const nextOffset = offset + result.rows.length;
+    return {
+      workspaces: result.rows.map((row) => ({
+        workspaceId: row.workspace_id,
+        tenantId: row.tenant_id,
+        name: row.name,
+        defaultMemberRoleId: normalizeDefaultMemberRoleId(row.default_member_role_id),
+        createdBy: row.created_by,
+        createdAt: normalizeTimestamp(row.created_at),
+        updatedAt: normalizeTimestamp(row.updated_at)
+      })),
+      total: normalizedTotal,
+      nextCursor: nextOffset < normalizedTotal ? String(nextOffset) : null
+    };
+  }
+
+  async upsertAccount(record: AccountRecord): Promise<void> {
+    await this.workspaceAccountStore.upsertAccount(record);
+  }
+
+  async countAccountsBySystemRole(role: 'system_admin' | 'cs_admin'): Promise<number> {
+    return this.workspaceAccountStore.countAccountsBySystemRole(role);
+  }
+
+  async updateAccountSystemRoles(
+    accountId: string,
+    systemRoles: Array<'system_admin' | 'cs_admin'>,
+    updatedAt: string
+  ): Promise<AccountRecord | null> {
+    return this.workspaceAccountStore.updateAccountSystemRoles(accountId, systemRoles, updatedAt);
+  }
+
+  async getServiceSettings(): Promise<ServiceSettingsRecord | null> {
+    await this.ensureInitialized();
+    const pool = this.getPool();
+    const result = await pool.query<ServiceSettingsRow>(
+      `
+        SELECT id, settings_json, created_at, updated_at
+        FROM ${this.serviceSettingsTableSql}
+        WHERE id = $1
         LIMIT 1
       `,
-      [scope.tenantId, scope.projectId]
+      ['global']
     );
     const row = result.rows[0];
-    if (!row) return null;
+    if (!row) {
+      return null;
+    }
+    const normalized = normalizeServiceSettings(
+      row.settings_json,
+      createDefaultServiceSettings(normalizeTimestamp(row.updated_at), 'system')
+    );
     return {
-      scope: {
-        tenantId: row.tenant_id,
-        projectId: row.project_id
-      },
-      revision: row.revision,
-      state: parseState(row.state),
+      ...normalized,
       createdAt: normalizeTimestamp(row.created_at),
       updatedAt: normalizeTimestamp(row.updated_at)
     };
   }
 
-  async save(record: PersistedProjectRecord): Promise<void> {
+  async upsertServiceSettings(record: ServiceSettingsRecord): Promise<void> {
     await this.ensureInitialized();
     const pool = this.getPool();
-    const createdAt = normalizeTimestamp(record.createdAt);
-    const updatedAt = normalizeTimestamp(record.updatedAt);
+    const normalized = normalizeServiceSettings(record, createDefaultServiceSettings(record.updatedAt, record.smtp.updatedBy));
     await pool.query(
       `
-        INSERT INTO ${this.tableSql} (
-          tenant_id,
-          project_id,
-          revision,
-          state,
+        INSERT INTO ${this.serviceSettingsTableSql} (
+          id,
+          settings_json,
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4::jsonb, $5::timestamptz, $6::timestamptz)
-        ON CONFLICT (tenant_id, project_id)
+        VALUES ($1, $2::jsonb, $3::timestamptz, $4::timestamptz)
+        ON CONFLICT (id)
         DO UPDATE
-        SET revision = EXCLUDED.revision,
-            state = EXCLUDED.state,
+        SET settings_json = EXCLUDED.settings_json,
             updated_at = EXCLUDED.updated_at
       `,
-      [record.scope.tenantId, record.scope.projectId, record.revision, JSON.stringify(record.state), createdAt, updatedAt]
+      ['global', JSON.stringify(normalized), normalizeTimestamp(normalized.createdAt), normalizeTimestamp(normalized.updatedAt)]
     );
   }
 
-  async saveIfRevision(record: PersistedProjectRecord, expectedRevision: string | null): Promise<boolean> {
+  async listAllWorkspaces(): Promise<WorkspaceRecord[]> {
     await this.ensureInitialized();
     const pool = this.getPool();
-    const createdAt = normalizeTimestamp(record.createdAt);
-    const updatedAt = normalizeTimestamp(record.updatedAt);
-    if (expectedRevision === null) {
-      const inserted = await pool.query<MutationProbeRow>(
-        `
-          INSERT INTO ${this.tableSql} (
-            tenant_id,
-            project_id,
-            revision,
-            state,
-            created_at,
-            updated_at
-          )
-          VALUES ($1, $2, $3, $4::jsonb, $5::timestamptz, $6::timestamptz)
-          ON CONFLICT (tenant_id, project_id)
-          DO NOTHING
-          RETURNING 1 AS applied
-        `,
-        [record.scope.tenantId, record.scope.projectId, record.revision, JSON.stringify(record.state), createdAt, updatedAt]
-      );
-      return (inserted.rowCount ?? inserted.rows.length) > 0;
-    }
-
-    const updated = await pool.query<MutationProbeRow>(
+    const result = await pool.query<WorkspaceRow>(
       `
-        UPDATE ${this.tableSql}
-        SET revision = $3,
-            state = $4::jsonb,
-            updated_at = $5::timestamptz
-        WHERE tenant_id = $1
-          AND project_id = $2
-          AND revision = $6
-        RETURNING 1 AS applied
-      `,
-      [record.scope.tenantId, record.scope.projectId, record.revision, JSON.stringify(record.state), updatedAt, expectedRevision]
-    );
-    return (updated.rowCount ?? updated.rows.length) > 0;
-  }
-
-  async remove(scope: ProjectRepositoryScope): Promise<void> {
-    await this.ensureInitialized();
-    const pool = this.getPool();
-    await pool.query(
+        SELECT workspace_id, tenant_id, name, default_member_role_id, created_by, created_at, updated_at
+        FROM ${this.workspaceTableSql}
+        ORDER BY created_at ASC, workspace_id ASC
       `
-        DELETE FROM ${this.tableSql}
-        WHERE tenant_id = $1
-          AND project_id = $2
-      `,
-      [scope.tenantId, scope.projectId]
     );
+    return result.rows.map((row) => ({
+      workspaceId: row.workspace_id,
+      tenantId: row.tenant_id,
+      name: row.name,
+      defaultMemberRoleId: normalizeDefaultMemberRoleId(row.default_member_role_id),
+      createdBy: row.created_by,
+      createdAt: normalizeTimestamp(row.created_at),
+      updatedAt: normalizeTimestamp(row.updated_at)
+    }));
   }
 
-  async getAccount(accountId: string): Promise<AccountRecord | null> {
+  async listAccountWorkspaces(accountId: string): Promise<WorkspaceRecord[]> {
     await this.ensureInitialized();
     const pool = this.getPool();
-    const result = await pool.query<AccountRow>(
-      `
-        SELECT
-          account_id,
-          email,
-          display_name,
-          system_roles,
-          local_login_id,
-          password_hash,
-          github_user_id,
-          github_login,
-          created_at,
-          updated_at
-        FROM ${this.accountTableSql}
-        WHERE account_id = $1
-        LIMIT 1
-      `,
-      [accountId]
-    );
-    const row = result.rows[0];
-    return row ? normalizeAccountRecord(row) : null;
-  }
-
-  async getAccountByLocalLoginId(localLoginId: string): Promise<AccountRecord | null> {
-    await this.ensureInitialized();
-    const normalizedLoginId = localLoginId.trim().toLowerCase();
-    if (!normalizedLoginId) {
-      return null;
-    }
-    const pool = this.getPool();
-    const result = await pool.query<AccountRow>(
-      `
-        SELECT
-          account_id,
-          email,
-          display_name,
-          system_roles,
-          local_login_id,
-          password_hash,
-          github_user_id,
-          github_login,
-          created_at,
-          updated_at
-        FROM ${this.accountTableSql}
-        WHERE local_login_id = $1
-        LIMIT 1
-      `,
-      [normalizedLoginId]
-    );
-    const row = result.rows[0];
-    return row ? normalizeAccountRecord(row) : null;
-  }
-
-  async getAccountByGithubUserId(githubUserId: string): Promise<AccountRecord | null> {
-    await this.ensureInitialized();
-    const normalizedGithubUserId = githubUserId.trim();
-    if (!normalizedGithubUserId) {
-      return null;
-    }
-    const pool = this.getPool();
-    const result = await pool.query<AccountRow>(
-      `
-        SELECT
-          account_id,
-          email,
-          display_name,
-          system_roles,
-          local_login_id,
-          password_hash,
-          github_user_id,
-          github_login,
-          created_at,
-          updated_at
-        FROM ${this.accountTableSql}
-        WHERE github_user_id = $1
-        LIMIT 1
-      `,
-      [normalizedGithubUserId]
-    );
-    const row = result.rows[0];
-    return row ? normalizeAccountRecord(row) : null;
-  }
-
-  async upsertAccount(record: AccountRecord): Promise<void> {
-    await this.ensureInitialized();
-    const pool = this.getPool();
-    const now = new Date().toISOString();
-    const systemRoles = uniqueStrings(record.systemRoles).filter(
-      (role): role is 'system_admin' | 'cs_admin' => role === 'system_admin' || role === 'cs_admin'
-    );
-    const localLoginId =
-      typeof record.localLoginId === 'string' && record.localLoginId.trim().length > 0
-        ? record.localLoginId.trim().toLowerCase()
-        : null;
-    const githubUserId =
-      typeof record.githubUserId === 'string' && record.githubUserId.trim().length > 0
-        ? record.githubUserId.trim()
-        : null;
-    const githubLogin =
-      typeof record.githubLogin === 'string' && record.githubLogin.trim().length > 0
-        ? record.githubLogin.trim()
-        : null;
-    const passwordHash =
-      typeof record.passwordHash === 'string' && record.passwordHash.trim().length > 0 ? record.passwordHash.trim() : null;
-    await pool.query(
-      `
-        INSERT INTO ${this.accountTableSql} (
-          account_id,
-          email,
-          display_name,
-          system_roles,
-          local_login_id,
-          password_hash,
-          github_user_id,
-          github_login,
-          created_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9::timestamptz, $10::timestamptz)
-        ON CONFLICT (account_id)
-        DO UPDATE
-        SET email = EXCLUDED.email,
-            display_name = EXCLUDED.display_name,
-            system_roles = EXCLUDED.system_roles,
-            local_login_id = EXCLUDED.local_login_id,
-            password_hash = EXCLUDED.password_hash,
-            github_user_id = EXCLUDED.github_user_id,
-            github_login = EXCLUDED.github_login,
-            updated_at = EXCLUDED.updated_at
-      `,
-      [
-        record.accountId.trim(),
-        record.email.trim() || 'unknown@ashfox.local',
-        record.displayName.trim() || 'User',
-        JSON.stringify(systemRoles),
-        localLoginId,
-        passwordHash,
-        githubUserId,
-        githubLogin,
-        normalizeTimestamp(record.createdAt || now),
-        normalizeTimestamp(record.updatedAt || now)
-      ]
-    );
-  }
-
-  async listWorkspaces(accountId: string): Promise<WorkspaceRecord[]> {
-    await this.ensureInitialized();
-    const pool = this.getPool();
-    const normalizedAccountId = String(accountId ?? '').trim();
-    if (!normalizedAccountId) {
-      const result = await pool.query<WorkspaceRow>(
-        `
-          SELECT workspace_id, tenant_id, name, mode, created_by, created_at, updated_at
-          FROM ${this.workspaceTableSql}
-          ORDER BY created_at ASC, workspace_id ASC
-        `
-      );
-      return result.rows.map((row) => ({
-        workspaceId: row.workspace_id,
-        tenantId: row.tenant_id,
-        name: row.name,
-        mode: parseWorkspaceMode(row.mode),
-        createdBy: row.created_by,
-        createdAt: normalizeTimestamp(row.created_at),
-        updatedAt: normalizeTimestamp(row.updated_at)
-      }));
-    }
+    const normalizedAccountId = normalizeRequiredAccountId(accountId, 'listAccountWorkspaces.accountId');
 
     const result = await pool.query<WorkspaceListRow>(
       `
-        SELECT w.workspace_id, w.tenant_id, w.name, w.mode, w.created_by, w.created_at, w.updated_at,
-               m.account_id AS member_account_id
+        SELECT w.workspace_id, w.tenant_id, w.name, w.default_member_role_id, w.created_by, w.created_at, w.updated_at,
+               access.account_id AS member_account_id
         FROM ${this.workspaceTableSql} AS w
-        LEFT JOIN ${this.workspaceMembersTableSql} AS m
-          ON m.workspace_id = w.workspace_id
-         AND m.account_id = $1
+        INNER JOIN ${this.workspaceAccessMetaTableSql} AS access
+          ON access.workspace_id = w.workspace_id
+         AND access.account_id = $1
         ORDER BY w.created_at ASC, w.workspace_id ASC
       `,
       [normalizedAccountId]
     );
-    return result.rows
-      .filter((row) => row.member_account_id === normalizedAccountId)
-      .map((row) => ({
-        workspaceId: row.workspace_id,
-        tenantId: row.tenant_id,
-        name: row.name,
-        mode: parseWorkspaceMode(row.mode),
-        createdBy: row.created_by,
-        createdAt: normalizeTimestamp(row.created_at),
-        updatedAt: normalizeTimestamp(row.updated_at)
-      }));
+    return result.rows.map((row) => ({
+      workspaceId: row.workspace_id,
+      tenantId: row.tenant_id,
+      name: row.name,
+      defaultMemberRoleId: normalizeDefaultMemberRoleId(row.default_member_role_id),
+      createdBy: row.created_by,
+      createdAt: normalizeTimestamp(row.created_at),
+      updatedAt: normalizeTimestamp(row.updated_at)
+    }));
   }
 
   async getWorkspace(workspaceId: string): Promise<WorkspaceRecord | null> {
@@ -752,7 +717,7 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
     const pool = this.getPool();
     const result = await pool.query<WorkspaceRow>(
       `
-        SELECT workspace_id, tenant_id, name, mode, created_by, created_at, updated_at
+        SELECT workspace_id, tenant_id, name, default_member_role_id, created_by, created_at, updated_at
         FROM ${this.workspaceTableSql}
         WHERE workspace_id = $1
         LIMIT 1
@@ -765,7 +730,7 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
       workspaceId: row.workspace_id,
       tenantId: row.tenant_id,
       name: row.name,
-      mode: parseWorkspaceMode(row.mode),
+      defaultMemberRoleId: normalizeDefaultMemberRoleId(row.default_member_role_id),
       createdBy: row.created_by,
       createdAt: normalizeTimestamp(row.created_at),
       updatedAt: normalizeTimestamp(row.updated_at)
@@ -781,7 +746,7 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
           workspace_id,
           tenant_id,
           name,
-          mode,
+          default_member_role_id,
           created_by,
           created_at,
           updated_at
@@ -791,7 +756,7 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
         DO UPDATE
         SET tenant_id = EXCLUDED.tenant_id,
             name = EXCLUDED.name,
-            mode = EXCLUDED.mode,
+            default_member_role_id = EXCLUDED.default_member_role_id,
             created_by = EXCLUDED.created_by,
             updated_at = EXCLUDED.updated_at
       `,
@@ -799,10 +764,33 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
         record.workspaceId,
         record.tenantId,
         record.name,
-        record.mode,
+        normalizeDefaultMemberRoleId(record.defaultMemberRoleId),
         record.createdBy,
         normalizeTimestamp(record.createdAt),
         normalizeTimestamp(record.updatedAt)
+      ]
+    );
+    const userRootAcl = createDefaultUserRootAcl(record.workspaceId, normalizeTimestamp(record.updatedAt));
+    await pool.query(
+      `
+        INSERT INTO ${this.workspaceAclTableSql} (
+          workspace_id,
+          folder_id,
+          role_id,
+          read_effect,
+          write_effect,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
+        ON CONFLICT (workspace_id, folder_id, role_id) DO NOTHING
+      `,
+      [
+        userRootAcl.workspaceId,
+        toAclFolderKey(userRootAcl.folderId),
+        userRootAcl.roleIds[0],
+        userRootAcl.read,
+        userRootAcl.write,
+        userRootAcl.updatedAt
       ]
     );
   }
@@ -810,41 +798,18 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
   async removeWorkspace(workspaceId: string): Promise<void> {
     await this.ensureInitialized();
     const pool = this.getPool();
-    await pool.query('BEGIN');
-    try {
-      await pool.query(
-        `
-          DELETE FROM ${this.workspaceAclTableSql}
-          WHERE workspace_id = $1
-        `,
-        [workspaceId]
-      );
-      await pool.query(
-        `
-          DELETE FROM ${this.workspaceMembersTableSql}
-          WHERE workspace_id = $1
-        `,
-        [workspaceId]
-      );
-      await pool.query(
-        `
-          DELETE FROM ${this.workspaceRolesTableSql}
-          WHERE workspace_id = $1
-        `,
-        [workspaceId]
-      );
-      await pool.query(
-        `
-          DELETE FROM ${this.workspaceTableSql}
-          WHERE workspace_id = $1
-        `,
-        [workspaceId]
-      );
-      await pool.query('COMMIT');
-    } catch (error) {
-      await pool.query('ROLLBACK');
-      throw error;
-    }
+    await removeWorkspaceCascadePostgres(
+      pool,
+      {
+        workspaceTableSql: this.workspaceTableSql,
+        workspaceMembersTableSql: this.workspaceMembersTableSql,
+        workspaceRolesTableSql: this.workspaceRolesTableSql,
+        workspaceAclTableSql: this.workspaceAclTableSql,
+        workspaceAccessMetaTableSql: this.workspaceAccessMetaTableSql,
+        workspaceApiKeysTableSql: this.workspaceApiKeysTableSql
+      },
+      workspaceId
+    );
   }
 
   async listWorkspaceRoles(workspaceId: string): Promise<WorkspaceRoleStorageRecord[]> {
@@ -852,7 +817,7 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
     const pool = this.getPool();
     const result = await pool.query<WorkspaceRoleRow>(
       `
-        SELECT workspace_id, role_id, name, builtin, permissions, created_at, updated_at
+        SELECT workspace_id, role_id, name, builtin, created_at, updated_at
         FROM ${this.workspaceRolesTableSql}
         WHERE workspace_id = $1
         ORDER BY created_at ASC, role_id ASC
@@ -864,7 +829,6 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
       roleId: row.role_id,
       name: row.name,
       builtin: parseWorkspaceBuiltinRole(row.builtin),
-      permissions: parseWorkspacePermissionArray(row.permissions),
       createdAt: normalizeTimestamp(row.created_at),
       updatedAt: normalizeTimestamp(row.updated_at)
     }));
@@ -873,7 +837,6 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
   async upsertWorkspaceRole(record: WorkspaceRoleStorageRecord): Promise<void> {
     await this.ensureInitialized();
     const pool = this.getPool();
-    const permissions = uniqueStrings(record.permissions).filter(isWorkspacePermission);
     await pool.query(
       `
         INSERT INTO ${this.workspaceRolesTableSql} (
@@ -881,16 +844,14 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
           role_id,
           name,
           builtin,
-          permissions,
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5::jsonb, $6::timestamptz, $7::timestamptz)
+        VALUES ($1, $2, $3, $4, $5::timestamptz, $6::timestamptz)
         ON CONFLICT (workspace_id, role_id)
         DO UPDATE
         SET name = EXCLUDED.name,
             builtin = EXCLUDED.builtin,
-            permissions = EXCLUDED.permissions,
             updated_at = EXCLUDED.updated_at
       `,
       [
@@ -898,7 +859,6 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
         record.roleId,
         record.name,
         record.builtin,
-        JSON.stringify(permissions),
         normalizeTimestamp(record.createdAt),
         normalizeTimestamp(record.updatedAt)
       ]
@@ -908,43 +868,21 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
   async removeWorkspaceRole(workspaceId: string, roleId: string): Promise<void> {
     await this.ensureInitialized();
     const members = await this.listWorkspaceMembers(workspaceId);
+    const memberRoleUpdates = this.buildMemberRoleRemovalUpdates(members, roleId);
     const pool = this.getPool();
-    await pool.query('BEGIN');
-    try {
-      await pool.query(
-        `
-          DELETE FROM ${this.workspaceRolesTableSql}
-          WHERE workspace_id = $1
-            AND role_id = $2
-        `,
-        [workspaceId, roleId]
-      );
-      await pool.query(
-        `
-          DELETE FROM ${this.workspaceAclTableSql}
-          WHERE workspace_id = $1
-            AND role_id = $2
-        `,
-        [workspaceId, roleId]
-      );
-      for (const member of members) {
-        const roleIds = member.roleIds.filter((existingRoleId) => existingRoleId !== roleId);
-        await pool.query(
-          `
-            UPDATE ${this.workspaceMembersTableSql}
-            SET role_ids = $1::jsonb,
-                updated_at = NOW()
-            WHERE workspace_id = $2
-              AND account_id = $3
-          `,
-          [JSON.stringify(roleIds), workspaceId, member.accountId]
-        );
-      }
-      await pool.query('COMMIT');
-    } catch (error) {
-      await pool.query('ROLLBACK');
-      throw error;
-    }
+    await removeWorkspaceRoleCascadePostgres(
+      pool,
+      {
+        workspaceTableSql: this.workspaceTableSql,
+        workspaceMembersTableSql: this.workspaceMembersTableSql,
+        workspaceRolesTableSql: this.workspaceRolesTableSql,
+        workspaceAclTableSql: this.workspaceAclTableSql,
+        workspaceAccessMetaTableSql: this.workspaceAccessMetaTableSql
+      },
+      workspaceId,
+      roleId,
+      memberRoleUpdates
+    );
   }
 
   async listWorkspaceMembers(workspaceId: string): Promise<WorkspaceMemberRecord[]> {
@@ -962,7 +900,7 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
     return result.rows.map((row) => ({
       workspaceId: row.workspace_id,
       accountId: row.account_id,
-      roleIds: uniqueStrings(parseJsonStringArray(row.role_ids)),
+      roleIds: this.normalizeMemberRoleIds(parseJsonStringArray(row.role_ids)),
       joinedAt: normalizeTimestamp(row.joined_at)
     }));
   }
@@ -970,36 +908,74 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
   async upsertWorkspaceMember(record: WorkspaceMemberRecord): Promise<void> {
     await this.ensureInitialized();
     const pool = this.getPool();
-    const roleIds = uniqueStrings(record.roleIds);
-    await pool.query(
-      `
-        INSERT INTO ${this.workspaceMembersTableSql} (
-          workspace_id,
-          account_id,
-          role_ids,
-          joined_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3::jsonb, $4::timestamptz, NOW())
-        ON CONFLICT (workspace_id, account_id)
-        DO UPDATE
-        SET role_ids = EXCLUDED.role_ids,
-            updated_at = NOW()
-      `,
-      [record.workspaceId, record.accountId, JSON.stringify(roleIds), normalizeTimestamp(record.joinedAt)]
+    const roleIds = this.normalizeMemberRoleIds(record.roleIds);
+    await runAsyncUnitOfWork(
+      {
+        begin: async () => {
+          await pool.query('BEGIN');
+        },
+        commit: async () => {
+          await pool.query('COMMIT');
+        },
+        rollback: async () => {
+          await pool.query('ROLLBACK');
+        }
+      },
+      async () => {
+        await pool.query(
+          `
+            INSERT INTO ${this.workspaceMembersTableSql} (
+              workspace_id,
+              account_id,
+              role_ids,
+              joined_at,
+              updated_at
+            )
+            VALUES ($1, $2, $3::jsonb, $4::timestamptz, NOW())
+            ON CONFLICT (workspace_id, account_id)
+            DO UPDATE
+            SET role_ids = EXCLUDED.role_ids,
+                updated_at = NOW()
+          `,
+          [record.workspaceId, record.accountId, JSON.stringify(roleIds), normalizeTimestamp(record.joinedAt)]
+        );
+        await upsertWorkspaceAccessMetaPostgres(
+          pool,
+          this.workspaceAccessMetaTableSql,
+          record.workspaceId,
+          record.accountId,
+          roleIds
+        );
+      }
     );
   }
 
   async removeWorkspaceMember(workspaceId: string, accountId: string): Promise<void> {
     await this.ensureInitialized();
     const pool = this.getPool();
-    await pool.query(
-      `
-        DELETE FROM ${this.workspaceMembersTableSql}
-        WHERE workspace_id = $1
-          AND account_id = $2
-      `,
-      [workspaceId, accountId]
+    await runAsyncUnitOfWork(
+      {
+        begin: async () => {
+          await pool.query('BEGIN');
+        },
+        commit: async () => {
+          await pool.query('COMMIT');
+        },
+        rollback: async () => {
+          await pool.query('ROLLBACK');
+        }
+      },
+      async () => {
+        await pool.query(
+          `
+            DELETE FROM ${this.workspaceMembersTableSql}
+            WHERE workspace_id = $1
+              AND account_id = $2
+          `,
+          [workspaceId, accountId]
+        );
+        await removeWorkspaceAccessMetaPostgres(pool, this.workspaceAccessMetaTableSql, workspaceId, accountId);
+      }
     );
   }
 
@@ -1015,20 +991,33 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
       `,
       [workspaceId]
     );
-    return result.rows.map((row) => ({
-      workspaceId: row.workspace_id,
-      folderId: fromAclFolderKey(row.folder_id),
-      roleId: row.role_id,
-      read: parseWorkspaceAclEffect(row.read_effect),
-      write: parseWorkspaceAclEffect(row.write_effect),
-      updatedAt: normalizeTimestamp(row.updated_at)
-    }));
+    return result.rows.map((row) => {
+      const parsed = fromAclStorageFolderKey(row.folder_id);
+      const read = parseWorkspaceAclEffect(row.read_effect);
+      const write = parseWorkspaceAclEffect(row.write_effect);
+      return {
+        ...parsed,
+        workspaceId: row.workspace_id,
+        ruleId: toAclTemplateRuleId(parsed.scope, row.folder_id, read, write, false),
+        roleIds: [row.role_id],
+        read,
+        write,
+        locked: false,
+        updatedAt: normalizeTimestamp(row.updated_at)
+      };
+    });
   }
 
   async upsertWorkspaceFolderAcl(record: WorkspaceFolderAclRecord): Promise<void> {
     await this.ensureInitialized();
     const pool = this.getPool();
-    await pool.query(
+    const normalizedRoleIds = normalizeAclRoleIds(record.roleIds);
+    if (normalizedRoleIds.length === 0) {
+      return;
+    }
+    const folderStorageKey = toAclStorageFolderKey(record.scope, record.folderId);
+    for (const roleId of normalizedRoleIds) {
+      await pool.query(
       `
         INSERT INTO ${this.workspaceAclTableSql} (
           workspace_id,
@@ -1045,8 +1034,16 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
             write_effect = EXCLUDED.write_effect,
             updated_at = EXCLUDED.updated_at
       `,
-      [record.workspaceId, toAclFolderKey(record.folderId), record.roleId, record.read, record.write, normalizeTimestamp(record.updatedAt)]
-    );
+      [
+        record.workspaceId,
+        folderStorageKey,
+        roleId,
+        record.read,
+        record.write,
+        normalizeTimestamp(record.updatedAt)
+      ]
+      );
+    }
   }
 
   async removeWorkspaceFolderAcl(workspaceId: string, folderId: string | null, roleId: string): Promise<void> {
@@ -1060,6 +1057,112 @@ export class PostgresProjectRepository implements ProjectRepository, WorkspaceRe
           AND role_id = $3
       `,
       [workspaceId, toAclFolderKey(folderId), roleId]
+    );
+  }
+
+  async listWorkspaceApiKeys(workspaceId: string): Promise<WorkspaceApiKeyRecord[]> {
+    await this.ensureInitialized();
+    const pool = this.getPool();
+    const result = await pool.query<WorkspaceApiKeyRow>(
+      `
+        SELECT
+          workspace_id,
+          key_id,
+          name,
+          key_prefix,
+          key_hash,
+          created_by,
+          created_at,
+          updated_at,
+          last_used_at,
+          expires_at,
+          revoked_at
+        FROM ${this.workspaceApiKeysTableSql}
+        WHERE workspace_id = $1
+        ORDER BY created_at DESC, key_id ASC
+      `,
+      [workspaceId]
+    );
+    return result.rows.map((row) => ({
+      workspaceId: row.workspace_id,
+      keyId: row.key_id,
+      name: row.name,
+      keyPrefix: row.key_prefix,
+      keyHash: row.key_hash,
+      createdBy: row.created_by,
+      createdAt: normalizeTimestamp(row.created_at),
+      updatedAt: normalizeTimestamp(row.updated_at),
+      lastUsedAt: row.last_used_at ? normalizeTimestamp(row.last_used_at) : null,
+      expiresAt: row.expires_at ? normalizeTimestamp(row.expires_at) : null,
+      revokedAt: row.revoked_at ? normalizeTimestamp(row.revoked_at) : null
+    }));
+  }
+
+  async createWorkspaceApiKey(record: WorkspaceApiKeyRecord): Promise<void> {
+    await this.ensureInitialized();
+    const pool = this.getPool();
+    await pool.query(
+      `
+        INSERT INTO ${this.workspaceApiKeysTableSql} (
+          workspace_id,
+          key_id,
+          name,
+          key_prefix,
+          key_hash,
+          created_by,
+          created_at,
+          updated_at,
+          last_used_at,
+          expires_at,
+          revoked_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz, $8::timestamptz, $9::timestamptz, $10::timestamptz, $11::timestamptz)
+      `,
+      [
+        record.workspaceId,
+        record.keyId,
+        record.name,
+        record.keyPrefix,
+        record.keyHash,
+        record.createdBy,
+        normalizeTimestamp(record.createdAt),
+        normalizeTimestamp(record.updatedAt),
+        record.lastUsedAt ? normalizeTimestamp(record.lastUsedAt) : null,
+        record.expiresAt ? normalizeTimestamp(record.expiresAt) : null,
+        record.revokedAt ? normalizeTimestamp(record.revokedAt) : null
+      ]
+    );
+  }
+
+  async revokeWorkspaceApiKey(workspaceId: string, keyId: string, revokedAt: string): Promise<void> {
+    await this.ensureInitialized();
+    const pool = this.getPool();
+    const normalizedRevokedAt = normalizeTimestamp(revokedAt);
+    await pool.query(
+      `
+        UPDATE ${this.workspaceApiKeysTableSql}
+        SET revoked_at = $1::timestamptz,
+            updated_at = $1::timestamptz
+        WHERE workspace_id = $2
+          AND key_id = $3
+      `,
+      [normalizedRevokedAt, workspaceId, keyId]
+    );
+  }
+
+  async updateWorkspaceApiKeyLastUsed(workspaceId: string, keyId: string, lastUsedAt: string): Promise<void> {
+    await this.ensureInitialized();
+    const pool = this.getPool();
+    const normalizedLastUsedAt = normalizeTimestamp(lastUsedAt);
+    await pool.query(
+      `
+        UPDATE ${this.workspaceApiKeysTableSql}
+        SET last_used_at = $1::timestamptz,
+            updated_at = $1::timestamptz
+        WHERE workspace_id = $2
+          AND key_id = $3
+      `,
+      [normalizedLastUsedAt, workspaceId, keyId]
     );
   }
 

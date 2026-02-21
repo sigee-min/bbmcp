@@ -1,0 +1,150 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 86;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(2 6 23 / 36%);
+  padding: 1rem;
+}
+
+.dialog {
+  display: flex;
+  width: min(31rem, calc(100vw - 2rem));
+  max-height: min(82vh, 34rem);
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 0.52rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  box-shadow: 0 20px 44px rgb(2 6 23 / 22%);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 0.72rem 0.82rem;
+}
+
+.titleGroup {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.67rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.closeButton {
+  display: inline-flex;
+  height: 1.38rem;
+  width: 1.38rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.24rem;
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+}
+
+.closeButton:hover {
+  border-color: hsl(var(--primary) / 0.38);
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted) / 0.5);
+}
+
+.body {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.34rem;
+  padding: 0.74rem 0.82rem;
+}
+
+.label {
+  margin: 0;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: hsl(var(--muted-foreground));
+}
+
+.input {
+  height: 1.9rem;
+  border-radius: 0.34rem;
+  border: 1px solid hsl(var(--input));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  padding: 0 0.54rem;
+  font-size: 0.72rem;
+}
+
+.input:focus {
+  outline: none;
+  border-color: hsl(var(--ring) / 0.62);
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2);
+}
+
+.hint {
+  margin: 0.04rem 0 0;
+  font-size: 0.61rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.modeOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.26rem;
+  font-size: 0.69rem;
+  color: hsl(var(--foreground));
+}
+
+.errorNotice {
+  margin-top: 0.14rem;
+}
+
+.footer {
+  margin-top: 0.36rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  border-top: 1px solid hsl(var(--border));
+  padding-top: 0.58rem;
+}
+
+.primaryButton,
+.secondaryButton {
+  height: 1.76rem;
+  border-radius: 0.32rem;
+  border: 1px solid hsl(var(--border));
+  padding: 0 0.62rem;
+  font-size: 0.69rem;
+  font-weight: 600;
+}
+
+.primaryButton {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.secondaryButton {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.64;
+  cursor: default;
+}

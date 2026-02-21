@@ -28,8 +28,7 @@ import {
   moveFolder as moveProjectFolder,
   moveProject as moveProjectSnapshot,
   renameFolder as renameProjectFolder,
-  renameProject as renameProjectSnapshot,
-  seedProjects
+  renameProject as renameProjectSnapshot
 } from './projectRepository';
 import { createNativePipelineState, type NativePipelineState } from './state';
 import type {
@@ -50,14 +49,15 @@ import type {
   NativeProjectTreeSnapshot
 } from './types';
 
-const DEFAULT_WORKSPACE_ID = 'ws_default';
-
-const normalizeWorkspaceId = (workspaceId?: string): string => {
+const requireWorkspaceId = (workspaceId?: string): string => {
   if (typeof workspaceId !== 'string') {
-    return DEFAULT_WORKSPACE_ID;
+    throw new Error('workspaceId is required');
   }
   const normalized = workspaceId.trim();
-  return normalized.length > 0 ? normalized : DEFAULT_WORKSPACE_ID;
+  if (normalized.length === 0) {
+    throw new Error('workspaceId is required');
+  }
+  return normalized;
 };
 
 export type NativePipelineQueueStorePort = QueueStorePort<NativeJob, NativeJobSubmitInput, NativeJobResult>;
@@ -90,13 +90,10 @@ export interface NativePipelineStorePort
 export class NativePipelineStore implements NativePipelineStorePort {
   private readonly states = new Map<string, NativePipelineState>();
 
-  constructor() {
-    this.ensureWorkspaceState(DEFAULT_WORKSPACE_ID);
-  }
+  constructor() {}
 
   async reset(): Promise<void> {
     this.states.clear();
-    this.ensureWorkspaceState(DEFAULT_WORKSPACE_ID);
   }
 
   async listProjects(query?: string, workspaceId?: string): Promise<NativeProjectSnapshot[]> {
@@ -247,7 +244,7 @@ export class NativePipelineStore implements NativePipelineStorePort {
   }
 
   private getWorkspaceState(workspaceId?: string): NativePipelineState {
-    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+    const normalizedWorkspaceId = requireWorkspaceId(workspaceId);
     const existing = this.states.get(normalizedWorkspaceId);
     if (existing) {
       return existing;
@@ -261,17 +258,7 @@ export class NativePipelineStore implements NativePipelineStorePort {
       return existing;
     }
     const state = createNativePipelineState(workspaceId);
-    const emitProjectSnapshot = this.emitProjectSnapshotFor(state);
-    seedProjects(state, emitProjectSnapshot, workspaceId);
     this.states.set(workspaceId, state);
     return state;
-  }
-
-  private getDefaultState(): NativePipelineState {
-    return this.getWorkspaceState(DEFAULT_WORKSPACE_ID);
-  }
-
-  get state(): NativePipelineState {
-    return this.getDefaultState();
   }
 }

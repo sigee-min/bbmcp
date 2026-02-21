@@ -1,0 +1,44 @@
+.notice {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 0.4rem;
+  border-radius: 0.38rem;
+  border: 1px solid hsl(var(--destructive) / 0.3);
+  background: hsl(var(--destructive) / 0.08);
+  color: hsl(var(--destructive));
+}
+
+.icon {
+  width: 0.78rem;
+  height: 0.78rem;
+  flex: 0 0 auto;
+  margin-top: 0.04rem;
+}
+
+.message {
+  margin: 0;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.channelInline {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.channelBlocking {
+  border-color: hsl(var(--destructive) / 0.45);
+}
+
+.sizeSm {
+  padding: 0.32rem 0.44rem;
+  font-size: 0.65rem;
+}
+
+.sizeMd {
+  padding: 0.44rem 0.54rem;
+  font-size: 0.7rem;
+}

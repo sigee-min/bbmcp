@@ -1,0 +1,62 @@
+{
+  "description": "Disallow internal explicit version markers in persistence/native-pipeline/appwrite domains while allowing external protocol/version literals and only unavoidable external alias fallbacks.",
+  "scopes": [
+    "apps/gateway",
+    "packages/gateway-persistence",
+    "packages/native-pipeline",
+    "scripts",
+    "config"
+  ],
+  "deny": {
+    "tokens": [
+      "workspace-state-v1",
+      "workspace-state-v2",
+      "schemaVersion"
+    ],
+    "regex": [
+      "\\bv1\\b",
+      "\\bv2\\b",
+      "\\bv3\\b",
+      "version\\s*:\\s*[123]\\b"
+    ]
+  },
+  "allow": [
+    {
+      "pattern": "/v1",
+      "reason": "External HTTP API path segments (Appwrite/storage/OpenAI endpoints)."
+    },
+    {
+      "pattern": "gltf 2.0",
+      "reason": "External glTF specification version."
+    },
+    {
+      "pattern": "protocol message version",
+      "reason": "Runtime protocol contract fixtures/tests."
+    }
+  ],
+  "allowByPath": [
+    {
+      "path": "config/quality/version-marker-policy.json",
+      "allowAll": true,
+      "reason": "Policy literals are expected in this policy definition file."
+    },
+    {
+      "path": "packages/gateway-persistence/src/infrastructure/appwrite/workspaceStateStore.ts",
+      "patterns": [
+        "workspace-state-v1",
+        "workspace-state-v2",
+        "__workspace_meta_v2__"
+      ],
+      "reason": "Legacy Appwrite workspace-state aliases are read-only fallback inputs."
+    },
+    {
+      "path": "scripts/migrations/backfill-appwrite-workspace.mjs",
+      "patterns": [
+        "workspace-state-v1",
+        "workspace-state-v2",
+        "__workspace_meta_v2__"
+      ],
+      "reason": "Backfill source scope aliases must read historical workspace-state records."
+    }
+  ]
+}

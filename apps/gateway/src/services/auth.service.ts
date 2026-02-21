@@ -1,10 +1,15 @@
 import { createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  isSystemManager,
+  normalizeSystemRoles,
   toAutoProvisionedWorkspaceId,
   toAutoProvisionedWorkspaceName,
+  WORKSPACE_ADMIN_ROLE_NAME,
+  WORKSPACE_MEMBER_ROLE_NAME,
   type AccountRecord,
-  type PersistencePorts
+  type PersistencePorts,
+  type WorkspaceRecord
 } from '@ashfox/backend-core';
 import type { FastifyRequest } from 'fastify';
 import { GatewayConfigService } from './gateway-config.service';
@@ -16,10 +21,10 @@ const ADMIN_ACCOUNT_ID = 'admin';
 const ADMIN_DEFAULT_PASSWORD = 'admin';
 const DEFAULT_ADMIN_ROLE_ID = 'role_workspace_admin';
 const DEFAULT_USER_ROLE_ID = 'role_user';
-const DEFAULT_WORKSPACE_ID = 'ws_default';
+const LEGACY_DEFAULT_WORKSPACE_NAME = 'Current Workspace';
 const JWT_ALGORITHM = 'HS256';
 const GITHUB_STATE_TTL_SEC = 600;
-const PASSWORD_HASH_SCHEME = 'scrypt-v1';
+const PASSWORD_HASH_SCHEME = 'scrypt';
 const LOGIN_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{2,31}$/;
 
 type SessionTokenPayload = {
@@ -105,20 +110,8 @@ const parseJson = <T>(value: string | null): T | null => {
   }
 };
 
-const toSystemRoles = (roles: readonly string[] | undefined): GatewaySystemRole[] => {
-  const deduped = new Set<GatewaySystemRole>();
-  for (const role of roles ?? []) {
-    if (role === 'system_admin' || role === 'cs_admin') {
-      deduped.add(role);
-    }
-  }
-  return [...deduped];
-};
-
-const hasSystemRole = (roles: readonly string[] | undefined): boolean => {
-  const normalizedRoles = toSystemRoles(roles);
-  return normalizedRoles.includes('system_admin') || normalizedRoles.includes('cs_admin');
-};
+const toSystemRoles = (roles: readonly string[] | undefined): GatewaySystemRole[] =>
+  normalizeSystemRoles(roles) as GatewaySystemRole[];
 
 const readHeaderValue = (value: unknown): string => {
   if (typeof value === 'string') {
@@ -196,12 +189,26 @@ export class AuthService {
     @Inject(GATEWAY_LOGGER) private readonly logger: ConsoleLogger
   ) {}
 
+  private authConfig() {
+    const maybeConfig = this.config as GatewayConfigService & {
+      runtime?: { auth?: ReturnType<GatewayConfigService['getAuthConfig']> };
+    };
+    if (typeof maybeConfig.getAuthConfig === 'function') {
+      return maybeConfig.getAuthConfig();
+    }
+    return maybeConfig.runtime?.auth ?? this.config.runtime.auth;
+  }
+
   isGithubEnabled(): boolean {
-    return Boolean(this.config.runtime.auth.githubClientId && this.config.runtime.auth.githubClientSecret);
+    const auth = this.authConfig();
+    if (auth.githubEnabled === false) {
+      return false;
+    }
+    return Boolean(auth.githubClientId && auth.githubClientSecret);
   }
 
   getDefaultPostLoginRedirectPath(): string {
-    return this.config.runtime.auth.postLoginRedirectPath;
+    return this.authConfig().postLoginRedirectPath;
   }
 
   async ensureBootstrapAdmin(): Promise<void> {
@@ -222,27 +229,20 @@ export class AuthService {
       updatedAt: now
     };
     await repository.upsertAccount(nextAccount);
-
-    const workspace = await repository.getWorkspace(DEFAULT_WORKSPACE_ID);
-    if (workspace) {
-      await repository.upsertWorkspaceMember({
-        workspaceId: DEFAULT_WORKSPACE_ID,
-        accountId: ADMIN_ACCOUNT_ID,
-        roleIds: [DEFAULT_ADMIN_ROLE_ID],
-        joinedAt: now
-      });
-    }
     await this.ensureAutoProvisionedWorkspace(nextAccount, now);
+    await this.cleanupLegacySeedWorkspace(now);
   }
 
   serializeSessionCookie(token: string): string {
-    return this.serializeCookie(this.config.runtime.auth.cookieName, token, {
-      maxAgeSec: this.config.runtime.auth.tokenTtlSec
+    const auth = this.authConfig();
+    return this.serializeCookie(auth.cookieName, token, {
+      maxAgeSec: auth.tokenTtlSec
     });
   }
 
   serializeLogoutCookie(): string {
-    return this.serializeCookie(this.config.runtime.auth.cookieName, '', { maxAgeSec: 0 });
+    const auth = this.authConfig();
+    return this.serializeCookie(auth.cookieName, '', { maxAgeSec: 0 });
   }
 
   applyActorHeaders(headers: Record<string, unknown>, user: SessionUser): void {
@@ -375,13 +375,14 @@ export class AuthService {
   }
 
   async buildGithubAuthorizeUrl(request: FastifyRequest, redirectPath: unknown): Promise<string> {
-    const githubClientId = this.config.runtime.auth.githubClientId;
-    const githubClientSecret = this.config.runtime.auth.githubClientSecret;
+    const auth = this.authConfig();
+    const githubClientId = auth.githubClientId;
+    const githubClientSecret = auth.githubClientSecret;
     if (!githubClientId || !githubClientSecret) {
       throw new AuthServiceError('github_not_configured', 'GitHub 로그인이 설정되지 않았습니다.', 503);
     }
 
-    const normalizedRedirectPath = sanitizeRedirectPath(redirectPath, this.config.runtime.auth.postLoginRedirectPath);
+    const normalizedRedirectPath = sanitizeRedirectPath(redirectPath, auth.postLoginRedirectPath);
     const callbackUrl = this.resolveGithubCallbackUrl(request);
     const state = this.issueGithubStateToken({
       nonce: randomUUID(),
@@ -391,7 +392,7 @@ export class AuthService {
     const query = new URLSearchParams({
       client_id: githubClientId,
       redirect_uri: callbackUrl,
-      scope: this.config.runtime.auth.githubScopes,
+      scope: auth.githubScopes,
       state
     });
     return `https://github.com/login/oauth/authorize?${query.toString()}`;
@@ -402,8 +403,9 @@ export class AuthService {
     code: string,
     stateToken: string
   ): Promise<{ token: string; user: SessionUser; redirectPath: string }> {
-    const githubClientId = this.config.runtime.auth.githubClientId;
-    const githubClientSecret = this.config.runtime.auth.githubClientSecret;
+    const auth = this.authConfig();
+    const githubClientId = auth.githubClientId;
+    const githubClientSecret = auth.githubClientSecret;
     if (!githubClientId || !githubClientSecret) {
       throw new AuthServiceError('github_not_configured', 'GitHub 로그인이 설정되지 않았습니다.', 503);
     }
@@ -473,12 +475,13 @@ export class AuthService {
     const repository = this.persistence.workspaceRepository;
     const workspaceId = toAutoProvisionedWorkspaceId(account.accountId);
     const workspace = await repository.getWorkspace(workspaceId);
+    const resolvedDefaultMemberRoleId = workspace?.defaultMemberRoleId?.trim() || DEFAULT_USER_ROLE_ID;
     if (!workspace) {
       await repository.upsertWorkspace({
         workspaceId,
         tenantId: DEFAULT_TENANT_ID,
         name: toAutoProvisionedWorkspaceName(account.displayName),
-        mode: 'all_open',
+        defaultMemberRoleId: resolvedDefaultMemberRoleId,
         createdBy: account.accountId,
         createdAt: now,
         updatedAt: now
@@ -488,34 +491,36 @@ export class AuthService {
     await repository.upsertWorkspaceRole({
       workspaceId,
       roleId: DEFAULT_ADMIN_ROLE_ID,
-      name: 'Workspace Admin',
+      name: WORKSPACE_ADMIN_ROLE_NAME,
       builtin: 'workspace_admin',
-      permissions: [
-        'workspace.read',
-        'workspace.settings.manage',
-        'workspace.members.manage',
-        'workspace.roles.manage',
-        'folder.read',
-        'folder.write',
-        'project.read',
-        'project.write'
-      ],
       createdAt: now,
       updatedAt: now
     });
     await repository.upsertWorkspaceRole({
       workspaceId,
       roleId: DEFAULT_USER_ROLE_ID,
-      name: 'User',
-      builtin: 'user',
-      permissions: ['workspace.read', 'folder.read', 'folder.write', 'project.read', 'project.write'],
+      name: WORKSPACE_MEMBER_ROLE_NAME,
+      builtin: null,
       createdAt: now,
+      updatedAt: now
+    });
+    await repository.upsertWorkspaceFolderAcl({
+      workspaceId,
+      ruleId: 'acl_folder_user_write',
+      scope: 'folder',
+      folderId: null,
+      roleIds: [DEFAULT_USER_ROLE_ID],
+      read: 'allow',
+      write: 'allow',
+      locked: false,
       updatedAt: now
     });
 
     const members = await repository.listWorkspaceMembers(workspaceId);
     const member = members.find((entry) => entry.accountId === account.accountId);
-    const expectedRoleIds = hasSystemRole(account.systemRoles) ? [DEFAULT_ADMIN_ROLE_ID] : [DEFAULT_USER_ROLE_ID];
+    const expectedRoleIds = isSystemManager(account.systemRoles)
+      ? [DEFAULT_ADMIN_ROLE_ID, resolvedDefaultMemberRoleId]
+      : [resolvedDefaultMemberRoleId];
     if (!member || member.roleIds.join(',') !== expectedRoleIds.join(',')) {
       await repository.upsertWorkspaceMember({
         workspaceId,
@@ -526,6 +531,41 @@ export class AuthService {
     }
   }
 
+  private async cleanupLegacySeedWorkspace(now: string): Promise<void> {
+    const repository = this.persistence.workspaceRepository;
+    const adminWorkspaceId = toAutoProvisionedWorkspaceId(ADMIN_ACCOUNT_ID);
+    const adminWorkspaces = await repository.listAccountWorkspaces(ADMIN_ACCOUNT_ID);
+    const legacyWorkspace = adminWorkspaces.find((workspace) =>
+      this.isLegacySeedWorkspaceCandidate(workspace, adminWorkspaceId)
+    );
+    if (!legacyWorkspace) {
+      return;
+    }
+
+    const legacyMembers = await repository.listWorkspaceMembers(legacyWorkspace.workspaceId);
+    const hasNonAdminMembers = legacyMembers.some((member) => member.accountId !== ADMIN_ACCOUNT_ID);
+    if (hasNonAdminMembers) {
+      return;
+    }
+
+    await repository.removeWorkspace(legacyWorkspace.workspaceId);
+    this.logger.info('ashfox removed legacy seeded workspace', {
+      workspaceId: legacyWorkspace.workspaceId,
+      migratedWorkspaceId: adminWorkspaceId,
+      removedAt: now
+    });
+  }
+
+  private isLegacySeedWorkspaceCandidate(workspace: WorkspaceRecord, adminWorkspaceId: string): boolean {
+    if (workspace.workspaceId === adminWorkspaceId) {
+      return false;
+    }
+    if (workspace.createdBy !== ADMIN_ACCOUNT_ID) {
+      return false;
+    }
+    return workspace.name.trim() === LEGACY_DEFAULT_WORKSPACE_NAME;
+  }
+
   private serializeCookie(
     name: string,
     value: string,
@@ -533,8 +573,9 @@ export class AuthService {
       maxAgeSec: number;
     }
   ): string {
+    const auth = this.authConfig();
     const parts = [`${name}=${encodeURIComponent(value)}`, 'Path=/', 'HttpOnly', 'SameSite=Lax'];
-    if (this.config.runtime.auth.cookieSecure) {
+    if (auth.cookieSecure) {
       parts.push('Secure');
     }
     parts.push(`Max-Age=${Math.max(0, Math.trunc(options.maxAgeSec))}`);
@@ -542,17 +583,19 @@ export class AuthService {
   }
 
   private issueToken(account: AccountRecord): string {
+    const auth = this.authConfig();
     const now = Math.floor(Date.now() / 1000);
     const payload: SessionTokenPayload = {
       sub: account.accountId,
       roles: toSystemRoles(account.systemRoles),
       iat: now,
-      exp: now + this.config.runtime.auth.tokenTtlSec
+      exp: now + auth.tokenTtlSec
     };
     return this.signJwt(payload);
   }
 
   private extractTokenFromHeaders(headers: Record<string, unknown>): string | null {
+    const auth = this.authConfig();
     const authorization = readHeaderValue(headers.authorization);
     if (authorization.startsWith('Bearer ')) {
       const token = authorization.slice('Bearer '.length).trim();
@@ -565,25 +608,27 @@ export class AuthService {
       return null;
     }
     const cookies = parseCookieHeader(cookieRaw);
-    const token = cookies[this.config.runtime.auth.cookieName];
+    const token = cookies[auth.cookieName];
     return token && token.trim().length > 0 ? token.trim() : null;
   }
 
   private signJwt(payload: SessionTokenPayload): string {
+    const auth = this.authConfig();
     const encodedHeader = encodeBase64Url(JSON.stringify({ alg: JWT_ALGORITHM, typ: 'JWT' }));
     const encodedPayload = encodeBase64Url(JSON.stringify(payload));
     const unsignedToken = `${encodedHeader}.${encodedPayload}`;
-    const signature = createHmac('sha256', this.config.runtime.auth.jwtSecret).update(unsignedToken).digest('base64url');
+    const signature = createHmac('sha256', auth.jwtSecret).update(unsignedToken).digest('base64url');
     return `${unsignedToken}.${signature}`;
   }
 
   private verifyToken(token: string): SessionTokenPayload | null {
+    const auth = this.authConfig();
     const [encodedHeader, encodedPayload, signature] = token.split('.');
     if (!encodedHeader || !encodedPayload || !signature) {
       return null;
     }
     const unsignedToken = `${encodedHeader}.${encodedPayload}`;
-    const expectedSignature = createHmac('sha256', this.config.runtime.auth.jwtSecret).update(unsignedToken).digest('base64url');
+    const expectedSignature = createHmac('sha256', auth.jwtSecret).update(unsignedToken).digest('base64url');
     if (!safeEquals(expectedSignature, signature)) {
       return null;
     }
@@ -611,7 +656,10 @@ export class AuthService {
 
   private verifyPassword(password: string, passwordHash: string): boolean {
     const [scheme, salt, digest] = passwordHash.split('$');
-    if (scheme !== PASSWORD_HASH_SCHEME || !salt || !digest) {
+    const isSupportedScheme =
+      scheme === PASSWORD_HASH_SCHEME ||
+      (scheme.startsWith(`${PASSWORD_HASH_SCHEME}-`) && scheme.length > PASSWORD_HASH_SCHEME.length + 1);
+    if (!isSupportedScheme || !salt || !digest) {
       return false;
     }
     const candidate = scryptSync(password, salt, 64).toString('base64url');
@@ -631,7 +679,7 @@ export class AuthService {
   }
 
   private signValue(value: string): string {
-    return createHmac('sha256', this.config.runtime.auth.jwtSecret).update(value).digest('base64url');
+    return createHmac('sha256', this.authConfig().jwtSecret).update(value).digest('base64url');
   }
 
   private issueGithubStateToken(payload: GithubStatePayload): string {
@@ -659,7 +707,8 @@ export class AuthService {
   }
 
   private resolveGithubCallbackUrl(request: FastifyRequest): string {
-    const configured = this.config.runtime.auth.githubCallbackUrl;
+    const auth = this.authConfig();
+    const configured = auth.githubCallbackUrl;
     if (configured) {
       return configured;
     }

@@ -1,3 +1,5 @@
+const DEFAULT_WORKSPACE_ID = 'ws_auto_admin-en845w';
+
 const BASE_PROJECTS = Object.freeze([
   {
     projectId: 'prj_0990edef709a',
@@ -121,17 +123,25 @@ const BASE_TREE = Object.freeze({
 
 const BASE_WORKSPACES = Object.freeze([
   {
-    workspaceId: 'ws_default',
-    name: 'Current Workspace',
-    mode: 'all_open',
+    workspaceId: DEFAULT_WORKSPACE_ID,
+    name: 'Administrator Workspace',
+    defaultMemberRoleId: 'role_user',
     capabilities: {
-      canManageWorkspace: true,
-      canManageMembers: true,
-      canManageRoles: true,
-      canManageFolderAcl: true
+      canManageWorkspaceSettings: true
     }
   }
 ]);
+
+const BASE_SERVICE_WORKSPACES = Object.freeze(
+  BASE_WORKSPACES.map((workspace) => ({
+    workspaceId: workspace.workspaceId,
+    name: workspace.name,
+    defaultMemberRoleId: workspace.defaultMemberRoleId,
+    createdBy: 'system',
+    createdAt: '2026-02-21T00:00:00.000Z',
+    updatedAt: '2026-02-21T00:00:00.000Z'
+  }))
+);
 
 const BASE_AUTH_SESSION = Object.freeze({
   ok: true,
@@ -153,11 +163,14 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 const createProjectsFixture = () => clone(BASE_PROJECTS);
 const createProjectTreeFixture = () => clone(BASE_TREE);
 const createWorkspacesFixture = () => clone(BASE_WORKSPACES);
+const createServiceWorkspacesFixture = () => clone(BASE_SERVICE_WORKSPACES);
 const createAuthSessionFixture = () => clone(BASE_AUTH_SESSION);
 
 module.exports = {
+  DEFAULT_WORKSPACE_ID,
   createAuthSessionFixture,
   createProjectTreeFixture,
   createProjectsFixture,
+  createServiceWorkspacesFixture,
   createWorkspacesFixture
 };

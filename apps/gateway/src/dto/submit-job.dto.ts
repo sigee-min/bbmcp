@@ -1,10 +1,10 @@
-import { Allow, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { Allow, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class SubmitJobDto {
-  @IsOptional()
   @IsString()
-  workspaceId?: string;
+  @IsNotEmpty()
+  workspaceId!: string;
 
   @Allow()
   kind?: unknown;

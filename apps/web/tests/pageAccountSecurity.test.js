@@ -2,7 +2,13 @@ const assert = require('node:assert/strict');
 const React = require('react');
 const { act } = React;
 
-const { createAuthSessionFixture, createProjectTreeFixture, createProjectsFixture, createWorkspacesFixture } = require('./fixtures/projects');
+const {
+  DEFAULT_WORKSPACE_ID,
+  createAuthSessionFixture,
+  createProjectTreeFixture,
+  createProjectsFixture,
+  createWorkspacesFixture
+} = require('./fixtures/projects');
 const { MockEventSource, flushUpdates, mountHomePage } = require('./helpers/pageHarness');
 
 module.exports = async () => {
@@ -25,7 +31,7 @@ module.exports = async () => {
             headers: { 'content-type': 'application/json; charset=utf-8' }
           });
         }
-        if (url === '/api/projects/tree?workspaceId=ws_default') {
+        if (url === `/api/projects/tree?workspaceId=${DEFAULT_WORKSPACE_ID}`) {
           return new Response(JSON.stringify(projectsPayload), {
             status: 200,
             headers: { 'content-type': 'application/json; charset=utf-8' }
@@ -45,6 +51,10 @@ module.exports = async () => {
         sidebarMenuButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       });
       await flushUpdates();
+      const sidebarSettingsMenu = container.querySelector('[role="menu"][aria-label="사이드바 설정 메뉴"]');
+      assert.ok(sidebarSettingsMenu);
+      assert.match(sidebarSettingsMenu.textContent ?? '', /서비스 관리/);
+      assert.doesNotMatch(sidebarSettingsMenu.textContent ?? '', /워크스페이스 관리/);
 
       const accountSecurityButton = Array.from(container.querySelectorAll('button')).find((button) =>
         (button.textContent ?? '').includes('계정 보안')
@@ -91,7 +101,7 @@ module.exports = async () => {
             headers: { 'content-type': 'application/json; charset=utf-8' }
           });
         }
-        if (url === '/api/projects/tree?workspaceId=ws_default') {
+        if (url === `/api/projects/tree?workspaceId=${DEFAULT_WORKSPACE_ID}`) {
           return new Response(JSON.stringify(projectsPayload), {
             status: 200,
             headers: { 'content-type': 'application/json; charset=utf-8' }
@@ -129,6 +139,10 @@ module.exports = async () => {
         sidebarMenuButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       });
       await flushUpdates();
+      const sidebarSettingsMenu = container.querySelector('[role="menu"][aria-label="사이드바 설정 메뉴"]');
+      assert.ok(sidebarSettingsMenu);
+      assert.match(sidebarSettingsMenu.textContent ?? '', /서비스 관리/);
+      assert.doesNotMatch(sidebarSettingsMenu.textContent ?? '', /워크스페이스 관리/);
 
       const accountSecurityButton = Array.from(container.querySelectorAll('button')).find((button) =>
         (button.textContent ?? '').includes('계정 보안')

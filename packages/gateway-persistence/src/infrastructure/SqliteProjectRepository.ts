@@ -5,6 +5,12 @@ import type {
   PersistedProjectRecord,
   ProjectRepository,
   ProjectRepositoryScope,
+  ServiceUsersSearchInput,
+  ServiceUsersSearchResult,
+  ServiceWorkspacesSearchInput,
+  ServiceWorkspacesSearchResult,
+  ServiceSettingsRecord,
+  WorkspaceApiKeyRecord,
   WorkspaceFolderAclRecord,
   WorkspaceMemberRecord,
   WorkspaceRecord,
@@ -13,63 +19,67 @@ import type {
 } from '@ashfox/backend-core';
 import type { SqliteRepositoryConfig } from '../config';
 import {
-  createWorkspaceSeedTemplate,
-  fromAclFolderKey,
-  isWorkspacePermission,
+  createDefaultUserRootAcl,
+  createDefaultServiceSettings,
+  escapeSqlLikePattern,
+  fromAclStorageFolderKey,
+  normalizeServiceSettings,
+  normalizeServiceSearchCursorOffset,
+  normalizeServiceSearchLimit,
+  normalizeServiceSearchToken,
+  normalizeDefaultMemberRoleId,
+  normalizeRequiredAccountId,
   normalizeTimestamp,
   parseJsonStringArray,
   parseWorkspaceAclEffect,
   parseWorkspaceBuiltinRole,
-  parseWorkspaceMode,
-  parseWorkspacePermissionArray,
   toAclFolderKey,
-  uniqueStrings
+  toAclStorageFolderKey
 } from './workspace/common';
+import {
+  buildSqliteWorkspaceMigrations,
+  normalizeSqliteMigrationLedgerSchema,
+  seedSqliteWorkspaceTemplate,
+  type SqliteDatabase,
+  type SqliteWorkspaceMigration
+} from './sql/sqliteWorkspaceBootstrap';
+import { SqliteProjectStateStore } from './sql/projectStateStore';
+import { SqliteWorkspaceAccountStore } from './sql/workspaceAccountStore';
+import {
+  removeWorkspaceAccessMetaSqlite,
+  removeWorkspaceCascadeSqlite,
+  removeWorkspaceRoleCascadeSqlite,
+  upsertWorkspaceAccessMetaSqlite
+} from './sql/workspaceRbacStore';
+import { runSyncUnitOfWork } from './sql/unitOfWork';
+import { SqlWorkspaceRepositoryBase } from './workspace/sqlWorkspaceRepositoryBase';
 import { quoteSqlIdentifier } from './validation';
-
-type SqliteStatement = {
-  run: (...params: unknown[]) => unknown;
-  get: (...params: unknown[]) => unknown;
-  all: (...params: unknown[]) => unknown[];
-};
-
-type SqliteDatabase = {
-  exec: (sql: string) => unknown;
-  prepare: (sql: string) => SqliteStatement;
-  close: () => void;
-};
-
-type SqliteRunResult = {
-  changes?: number | bigint;
-};
 
 type DatabaseSyncConstructor = new (location: string) => SqliteDatabase;
 
-type SqliteProjectRow = {
-  tenant_id: string;
-  project_id: string;
-  revision: string;
-  state: string;
-  created_at: string;
-  updated_at: string;
-};
-
 type SqliteMigrationRow = {
-  version: number | string;
-};
-
-type SqliteMigration = {
-  version: number;
-  name: string;
-  upSql: string;
+  migration_id?: string | null;
 };
 
 type SqliteWorkspaceRow = {
   workspace_id: string;
   tenant_id: string;
   name: string;
-  mode: string;
+  default_member_role_id: string | null;
   created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type SqliteAccountRow = {
+  account_id: string;
+  email: string;
+  display_name: string;
+  system_roles: string;
+  local_login_id: string | null;
+  password_hash: string | null;
+  github_user_id: string | null;
+  github_login: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -79,7 +89,6 @@ type SqliteWorkspaceRoleRow = {
   role_id: string;
   name: string;
   builtin: string | null;
-  permissions: string;
   created_at: string;
   updated_at: string;
 };
@@ -100,65 +109,65 @@ type SqliteWorkspaceAclRow = {
   updated_at: string;
 };
 
-type SqliteAccountRow = {
-  account_id: string;
-  email: string;
-  display_name: string;
-  system_roles: string;
-  local_login_id: string | null;
-  password_hash: string | null;
-  github_user_id: string | null;
-  github_login: string | null;
+type SqliteWorkspaceApiKeyRow = {
+  workspace_id: string;
+  key_id: string;
+  name: string;
+  key_prefix: string;
+  key_hash: string;
+  created_by: string;
   created_at: string;
   updated_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
 };
 
 type SqliteWorkspaceListRow = SqliteWorkspaceRow & {
   member_account_id: string | null;
 };
 
+type SqliteServiceSettingsRow = {
+  id: string;
+  settings_json: string;
+  created_at: string;
+  updated_at: string;
+};
+
 const ensureIso = normalizeTimestamp;
+const toAclTemplateRuleId = (
+  scope: 'workspace' | 'folder',
+  storageFolderKey: string,
+  read: WorkspaceFolderAclRecord['read'],
+  write: WorkspaceFolderAclRecord['write'],
+  locked: boolean
+): string =>
+  `acl_${Buffer.from([scope, storageFolderKey, read, write, locked ? '1' : '0'].join('::'), 'utf8').toString('base64url')}`;
 
-const toChangedRows = (value: unknown): number => {
-  const changes = (value as SqliteRunResult | null | undefined)?.changes;
-  if (typeof changes === 'number') return Number.isFinite(changes) ? changes : 0;
-  if (typeof changes === 'bigint') {
-    const asNumber = Number(changes);
-    return Number.isFinite(asNumber) ? asNumber : 0;
-  }
-  return 0;
-};
-
-const parseState = (value: string): unknown => {
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return value;
-  }
-};
-
-const parseSystemRoles = (value: unknown): Array<'system_admin' | 'cs_admin'> =>
-  parseJsonStringArray(value).filter((role): role is 'system_admin' | 'cs_admin' => role === 'system_admin' || role === 'cs_admin');
-
-const normalizeAccountRecord = (row: SqliteAccountRow): AccountRecord => ({
-  accountId: row.account_id,
-  email: row.email,
-  displayName: row.display_name,
-  systemRoles: parseSystemRoles(row.system_roles),
-  localLoginId: row.local_login_id,
-  passwordHash: row.password_hash,
-  githubUserId: row.github_user_id,
-  githubLogin: row.github_login,
-  createdAt: ensureIso(row.created_at),
-  updatedAt: ensureIso(row.updated_at)
-});
+const normalizeAclRoleIds = (roleIds: readonly string[]): string[] =>
+  Array.from(new Set(roleIds.map((roleId) => String(roleId ?? '').trim()).filter((roleId) => roleId.length > 0)));
 
 const normalizeWorkspaceRecord = (row: SqliteWorkspaceRow): WorkspaceRecord => ({
   workspaceId: row.workspace_id,
   tenantId: row.tenant_id,
   name: row.name,
-  mode: parseWorkspaceMode(row.mode),
+  defaultMemberRoleId: normalizeDefaultMemberRoleId(row.default_member_role_id),
   createdBy: row.created_by,
+  createdAt: ensureIso(row.created_at),
+  updatedAt: ensureIso(row.updated_at)
+});
+
+const normalizeAccountRecord = (row: SqliteAccountRow): AccountRecord => ({
+  accountId: row.account_id,
+  email: row.email,
+  displayName: row.display_name,
+  systemRoles: parseJsonStringArray(row.system_roles).filter(
+    (role): role is 'system_admin' | 'cs_admin' => role === 'system_admin' || role === 'cs_admin'
+  ),
+  localLoginId: row.local_login_id,
+  passwordHash: row.password_hash,
+  githubUserId: row.github_user_id,
+  githubLogin: row.github_login,
   createdAt: ensureIso(row.created_at),
   updatedAt: ensureIso(row.updated_at)
 });
@@ -173,27 +182,64 @@ const loadDatabaseConstructor = (): DatabaseSyncConstructor => {
   return constructor;
 };
 
-export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepository {
+export class SqliteProjectRepository extends SqlWorkspaceRepositoryBase implements ProjectRepository, WorkspaceRepository {
   private readonly filePath: string;
   private readonly tableSql: string;
+  private readonly migrationsTableName: string;
   private readonly migrationsTableSql: string;
   private readonly workspaceTableSql: string;
   private readonly accountTableSql: string;
   private readonly workspaceMembersTableSql: string;
   private readonly workspaceRolesTableSql: string;
   private readonly workspaceAclTableSql: string;
+  private readonly workspaceAccessMetaTableSql: string;
+  private readonly workspaceApiKeysTableSql: string;
+  private readonly serviceSettingsTableSql: string;
+  private readonly projectStateStore: SqliteProjectStateStore;
+  private readonly workspaceAccountStore: SqliteWorkspaceAccountStore;
   private database: SqliteDatabase | null = null;
   private initPromise: Promise<void> | null = null;
 
   constructor(config: SqliteRepositoryConfig) {
+    super();
     this.filePath = path.resolve(config.filePath);
     this.tableSql = quoteSqlIdentifier(config.tableName, 'table');
+    this.migrationsTableName = config.migrationsTableName;
     this.migrationsTableSql = quoteSqlIdentifier(config.migrationsTableName, 'table');
     this.workspaceTableSql = quoteSqlIdentifier('ashfox_workspaces', 'table');
     this.accountTableSql = quoteSqlIdentifier('ashfox_accounts', 'table');
     this.workspaceMembersTableSql = quoteSqlIdentifier('ashfox_workspace_members', 'table');
     this.workspaceRolesTableSql = quoteSqlIdentifier('ashfox_workspace_roles', 'table');
     this.workspaceAclTableSql = quoteSqlIdentifier('ashfox_workspace_folder_acl', 'table');
+    this.workspaceAccessMetaTableSql = quoteSqlIdentifier('ashfox_workspace_access_meta', 'table');
+    this.workspaceApiKeysTableSql = quoteSqlIdentifier('ashfox_workspace_api_keys', 'table');
+    this.serviceSettingsTableSql = quoteSqlIdentifier('ashfox_service_settings', 'table');
+    this.projectStateStore = new SqliteProjectStateStore({
+      getDatabase: async () => this.ensureInitialized(),
+      tableSql: this.tableSql,
+      parseState: (value) => {
+        try {
+          return JSON.parse(value) as unknown;
+        } catch {
+          return value;
+        }
+      },
+      normalizeTimestamp: ensureIso,
+      escapeLikePattern: (value) => value.replace(/[\\%_]/g, '\\$&'),
+      toChangedRows: (value) => {
+        const changes = (value as { changes?: number | bigint } | null | undefined)?.changes;
+        if (typeof changes === 'number') return Number.isFinite(changes) ? changes : 0;
+        if (typeof changes === 'bigint') {
+          const asNumber = Number(changes);
+          return Number.isFinite(asNumber) ? asNumber : 0;
+        }
+        return 0;
+      }
+    });
+    this.workspaceAccountStore = new SqliteWorkspaceAccountStore({
+      getDatabase: async () => this.ensureInitialized(),
+      accountTableSql: this.accountTableSql
+    });
   }
 
   private getDatabase(): SqliteDatabase {
@@ -210,131 +256,70 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
         const db = this.getDatabase();
         db.exec(`
           CREATE TABLE IF NOT EXISTS ${this.migrationsTableSql} (
-            version INTEGER PRIMARY KEY,
+            migration_id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             applied_at TEXT NOT NULL
           )
         `);
-        const appliedRows = db.prepare(`SELECT version FROM ${this.migrationsTableSql}`).all() as SqliteMigrationRow[];
-        const appliedVersions = new Set(
+        normalizeSqliteMigrationLedgerSchema({
+          db,
+          migrationsTableSql: this.migrationsTableSql,
+          migrationsPragmaTableIdentifier: quoteSqlIdentifier(this.migrationsTableName, 'table')
+        });
+        const appliedRows = db.prepare(`SELECT migration_id FROM ${this.migrationsTableSql} WHERE migration_id IS NOT NULL`).all() as SqliteMigrationRow[];
+        const appliedMigrationIds = new Set(
           appliedRows
-            .map((row) => Number(row.version))
-            .filter((version) => Number.isInteger(version))
+            .map((row) => (typeof row.migration_id === 'string' ? row.migration_id.trim() : ''))
+            .filter((migrationId) => migrationId.length > 0)
         );
-        for (const migration of this.buildMigrations()) {
-          if (appliedVersions.has(migration.version)) continue;
+        const migrations = buildSqliteWorkspaceMigrations({
+          tableSql: this.tableSql,
+          workspaceTableSql: this.workspaceTableSql,
+          accountTableSql: this.accountTableSql,
+          workspaceMembersTableSql: this.workspaceMembersTableSql,
+          workspaceRolesTableSql: this.workspaceRolesTableSql,
+          workspaceAclTableSql: this.workspaceAclTableSql,
+          workspaceAccessMetaTableSql: this.workspaceAccessMetaTableSql,
+          workspaceApiKeysTableSql: this.workspaceApiKeysTableSql,
+          serviceSettingsTableSql: this.serviceSettingsTableSql,
+          migrationsTableSql: this.migrationsTableSql,
+          migrationsPragmaTableIdentifier: quoteSqlIdentifier(this.migrationsTableName, 'table')
+        });
+        for (const migration of migrations) {
+          if (appliedMigrationIds.has(migration.migrationId)) continue;
           this.applyMigration(db, migration);
-          appliedVersions.add(migration.version);
+          appliedMigrationIds.add(migration.migrationId);
         }
-        this.seedDefaultWorkspaceTemplate(db);
+        seedSqliteWorkspaceTemplate({
+          db,
+          workspaceTableSql: this.workspaceTableSql,
+          accountTableSql: this.accountTableSql,
+          workspaceRolesTableSql: this.workspaceRolesTableSql,
+          workspaceMembersTableSql: this.workspaceMembersTableSql,
+          workspaceAccessMetaTableSql: this.workspaceAccessMetaTableSql,
+          workspaceAclTableSql: this.workspaceAclTableSql
+        });
       })();
     }
     await this.initPromise;
     return this.getDatabase();
   }
 
-  private buildMigrations(): SqliteMigration[] {
-    return [
-      {
-        version: 1,
-        name: 'create_projects_table',
-        upSql: `
-          CREATE TABLE IF NOT EXISTS ${this.tableSql} (
-            tenant_id TEXT NOT NULL,
-            project_id TEXT NOT NULL,
-            revision TEXT NOT NULL,
-            state TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            PRIMARY KEY (tenant_id, project_id)
-          )
-        `
-      },
-      {
-        version: 2,
-        name: 'create_workspace_rbac_tables',
-        upSql: `
-          CREATE TABLE IF NOT EXISTS ${this.workspaceTableSql} (
-            workspace_id TEXT PRIMARY KEY,
-            tenant_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            mode TEXT NOT NULL,
-            created_by TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-          );
-          CREATE TABLE IF NOT EXISTS ${this.accountTableSql} (
-            account_id TEXT PRIMARY KEY,
-            email TEXT NOT NULL,
-            display_name TEXT NOT NULL,
-            system_roles TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-          );
-          CREATE TABLE IF NOT EXISTS ${this.workspaceMembersTableSql} (
-            workspace_id TEXT NOT NULL,
-            account_id TEXT NOT NULL,
-            role_ids TEXT NOT NULL,
-            joined_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            PRIMARY KEY (workspace_id, account_id)
-          );
-          CREATE TABLE IF NOT EXISTS ${this.workspaceRolesTableSql} (
-            workspace_id TEXT NOT NULL,
-            role_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            builtin TEXT NULL,
-            permissions TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            PRIMARY KEY (workspace_id, role_id)
-          );
-          CREATE TABLE IF NOT EXISTS ${this.workspaceAclTableSql} (
-            workspace_id TEXT NOT NULL,
-            folder_id TEXT NOT NULL,
-            role_id TEXT NOT NULL,
-            read_effect TEXT NOT NULL,
-            write_effect TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            PRIMARY KEY (workspace_id, folder_id, role_id)
-          );
-          CREATE INDEX IF NOT EXISTS idx_workspace_members_account_id
-            ON ${this.workspaceMembersTableSql}(account_id);
-          CREATE INDEX IF NOT EXISTS idx_workspace_roles_workspace_id
-            ON ${this.workspaceRolesTableSql}(workspace_id);
-          CREATE INDEX IF NOT EXISTS idx_workspace_acl_workspace_id
-            ON ${this.workspaceAclTableSql}(workspace_id);
-        `
-      },
-      {
-        version: 3,
-        name: 'add_account_auth_columns',
-        upSql: `
-          ALTER TABLE ${this.accountTableSql} ADD COLUMN local_login_id TEXT NULL;
-          ALTER TABLE ${this.accountTableSql} ADD COLUMN password_hash TEXT NULL;
-          ALTER TABLE ${this.accountTableSql} ADD COLUMN github_user_id TEXT NULL;
-          ALTER TABLE ${this.accountTableSql} ADD COLUMN github_login TEXT NULL;
-          CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_local_login_id
-            ON ${this.accountTableSql}(local_login_id)
-            WHERE local_login_id IS NOT NULL;
-          CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_github_user_id
-            ON ${this.accountTableSql}(github_user_id)
-            WHERE github_user_id IS NOT NULL;
-        `
-      }
-    ];
-  }
-
-  private applyMigration(db: SqliteDatabase, migration: SqliteMigration): void {
+  private applyMigration(db: SqliteDatabase, migration: SqliteWorkspaceMigration): void {
     db.exec('BEGIN');
     try {
       db.exec(migration.upSql);
       db.prepare(
         `
-          INSERT OR IGNORE INTO ${this.migrationsTableSql} (version, name, applied_at)
-          VALUES (?, ?, ?)
+          INSERT INTO ${this.migrationsTableSql} (migration_id, name, applied_at)
+          SELECT ?, ?, ?
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM ${this.migrationsTableSql}
+            WHERE migration_id = ?
+          )
         `
-      ).run(migration.version, migration.name, new Date().toISOString());
+      ).run(migration.migrationId, migration.name, new Date().toISOString(), migration.migrationId);
       db.exec('COMMIT');
     } catch (error) {
       try {
@@ -346,404 +331,365 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
     }
   }
 
-  private seedDefaultWorkspaceTemplate(db: SqliteDatabase): void {
-    const now = new Date().toISOString();
-    const seed = createWorkspaceSeedTemplate(now);
-    db.prepare(
-      `
-        INSERT OR IGNORE INTO ${this.workspaceTableSql} (
-          workspace_id,
-          tenant_id,
-          name,
-          mode,
-          created_by,
-          created_at,
-          updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `
-    ).run(
-      seed.workspace.workspaceId,
-      seed.workspace.tenantId,
-      seed.workspace.name,
-      seed.workspace.mode,
-      seed.workspace.createdBy,
-      seed.workspace.createdAt,
-      seed.workspace.updatedAt
-    );
-
-    db.prepare(
-      `
-        INSERT OR IGNORE INTO ${this.accountTableSql} (
-          account_id,
-          email,
-          display_name,
-          system_roles,
-          created_at,
-          updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?)
-      `
-    ).run(
-      seed.systemAccount.accountId,
-      seed.systemAccount.email,
-      seed.systemAccount.displayName,
-      JSON.stringify(seed.systemAccount.systemRoles),
-      seed.systemAccount.createdAt,
-      seed.systemAccount.updatedAt
-    );
-
-    db.prepare(
-      `
-        INSERT OR IGNORE INTO ${this.workspaceRolesTableSql} (
-          workspace_id,
-          role_id,
-          name,
-          builtin,
-          permissions,
-          created_at,
-          updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `
-    ).run(
-      seed.roles[0].workspaceId,
-      seed.roles[0].roleId,
-      seed.roles[0].name,
-      seed.roles[0].builtin,
-      JSON.stringify(seed.roles[0].permissions),
-      seed.roles[0].createdAt,
-      seed.roles[0].updatedAt
-    );
-
-    db.prepare(
-      `
-        INSERT OR IGNORE INTO ${this.workspaceRolesTableSql} (
-          workspace_id,
-          role_id,
-          name,
-          builtin,
-          permissions,
-          created_at,
-          updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `
-    ).run(
-      seed.roles[1].workspaceId,
-      seed.roles[1].roleId,
-      seed.roles[1].name,
-      seed.roles[1].builtin,
-      JSON.stringify(seed.roles[1].permissions),
-      seed.roles[1].createdAt,
-      seed.roles[1].updatedAt
-    );
-
-    db.prepare(
-      `
-        INSERT OR IGNORE INTO ${this.workspaceMembersTableSql} (
-          workspace_id,
-          account_id,
-          role_ids,
-          joined_at,
-          updated_at
-        )
-        VALUES (?, ?, ?, ?, ?)
-      `
-    ).run(
-      seed.member.workspaceId,
-      seed.member.accountId,
-      JSON.stringify(seed.member.roleIds),
-      seed.member.joinedAt,
-      now
-    );
+  async find(scope: ProjectRepositoryScope): Promise<PersistedProjectRecord | null> {
+    return this.projectStateStore.find(scope);
   }
 
-  async find(scope: ProjectRepositoryScope): Promise<PersistedProjectRecord | null> {
-    const db = await this.ensureInitialized();
-    const result = db
-      .prepare(
-        `
-          SELECT tenant_id, project_id, revision, state, created_at, updated_at
-          FROM ${this.tableSql}
-          WHERE tenant_id = ?
-            AND project_id = ?
-          LIMIT 1
-        `
-      )
-      .get(scope.tenantId, scope.projectId) as SqliteProjectRow | undefined;
-    if (!result) return null;
-    return {
-      scope: {
-        tenantId: result.tenant_id,
-        projectId: result.project_id
-      },
-      revision: result.revision,
-      state: parseState(result.state),
-      createdAt: ensureIso(result.created_at),
-      updatedAt: ensureIso(result.updated_at)
-    };
+  async listByScopePrefix(scope: ProjectRepositoryScope): Promise<PersistedProjectRecord[]> {
+    return this.projectStateStore.listByScopePrefix(scope);
   }
 
   async save(record: PersistedProjectRecord): Promise<void> {
-    const db = await this.ensureInitialized();
-    db.prepare(
-      `
-        INSERT INTO ${this.tableSql} (
-          tenant_id,
-          project_id,
-          revision,
-          state,
-          created_at,
-          updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT (tenant_id, project_id)
-        DO UPDATE
-        SET revision = excluded.revision,
-            state = excluded.state,
-            updated_at = excluded.updated_at
-      `
-    ).run(
-      record.scope.tenantId,
-      record.scope.projectId,
-      record.revision,
-      JSON.stringify(record.state),
-      ensureIso(record.createdAt),
-      ensureIso(record.updatedAt)
-    );
+    await this.projectStateStore.save(record);
   }
 
   async saveIfRevision(record: PersistedProjectRecord, expectedRevision: string | null): Promise<boolean> {
-    const db = await this.ensureInitialized();
-    if (expectedRevision === null) {
-      const inserted = db.prepare(
-        `
-          INSERT OR IGNORE INTO ${this.tableSql} (
-            tenant_id,
-            project_id,
-            revision,
-            state,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?)
-        `
-      ).run(
-        record.scope.tenantId,
-        record.scope.projectId,
-        record.revision,
-        JSON.stringify(record.state),
-        ensureIso(record.createdAt),
-        ensureIso(record.updatedAt)
-      );
-      return toChangedRows(inserted) > 0;
-    }
-
-    const updated = db.prepare(
-      `
-        UPDATE ${this.tableSql}
-        SET revision = ?,
-            state = ?,
-            updated_at = ?
-        WHERE tenant_id = ?
-          AND project_id = ?
-          AND revision = ?
-      `
-    ).run(
-      record.revision,
-      JSON.stringify(record.state),
-      ensureIso(record.updatedAt),
-      record.scope.tenantId,
-      record.scope.projectId,
-      expectedRevision
-    );
-    return toChangedRows(updated) > 0;
+    return this.projectStateStore.saveIfRevision(record, expectedRevision);
   }
 
   async remove(scope: ProjectRepositoryScope): Promise<void> {
-    const db = await this.ensureInitialized();
-    db.prepare(
-      `
-        DELETE FROM ${this.tableSql}
-        WHERE tenant_id = ?
-          AND project_id = ?
-      `
-    ).run(scope.tenantId, scope.projectId);
+    await this.projectStateStore.remove(scope);
   }
 
   async getAccount(accountId: string): Promise<AccountRecord | null> {
-    const db = await this.ensureInitialized();
-    const row = db.prepare(
-      `
-        SELECT
-          account_id,
-          email,
-          display_name,
-          system_roles,
-          local_login_id,
-          password_hash,
-          github_user_id,
-          github_login,
-          created_at,
-          updated_at
-        FROM ${this.accountTableSql}
-        WHERE account_id = ?
-        LIMIT 1
-      `
-    ).get(accountId) as SqliteAccountRow | undefined;
-    return row ? normalizeAccountRecord(row) : null;
+    return this.workspaceAccountStore.getAccount(accountId);
   }
 
   async getAccountByLocalLoginId(localLoginId: string): Promise<AccountRecord | null> {
-    const db = await this.ensureInitialized();
-    const normalizedLoginId = localLoginId.trim().toLowerCase();
-    if (!normalizedLoginId) {
-      return null;
-    }
-    const row = db.prepare(
-      `
-        SELECT
-          account_id,
-          email,
-          display_name,
-          system_roles,
-          local_login_id,
-          password_hash,
-          github_user_id,
-          github_login,
-          created_at,
-          updated_at
-        FROM ${this.accountTableSql}
-        WHERE local_login_id = ?
-        LIMIT 1
-      `
-    ).get(normalizedLoginId) as SqliteAccountRow | undefined;
-    return row ? normalizeAccountRecord(row) : null;
+    return this.workspaceAccountStore.getAccountByLocalLoginId(localLoginId);
   }
 
   async getAccountByGithubUserId(githubUserId: string): Promise<AccountRecord | null> {
+    return this.workspaceAccountStore.getAccountByGithubUserId(githubUserId);
+  }
+
+  async listAccounts(input?: { query?: string; limit?: number; excludeAccountIds?: readonly string[] }): Promise<AccountRecord[]> {
+    return this.workspaceAccountStore.listAccounts(input);
+  }
+
+  async searchServiceUsers(input?: ServiceUsersSearchInput): Promise<ServiceUsersSearchResult> {
     const db = await this.ensureInitialized();
-    const normalizedGithubUserId = githubUserId.trim();
-    if (!normalizedGithubUserId) {
-      return null;
+    const normalizedQuery = normalizeServiceSearchToken(input?.q);
+    const normalizedWorkspaceId = String(input?.workspaceId ?? '').trim();
+    const field = input?.field ?? 'any';
+    const match = input?.match ?? 'contains';
+    const limit = normalizeServiceSearchLimit(input?.limit);
+    const offset = normalizeServiceSearchCursorOffset(input?.cursor);
+    const whereConditions: string[] = [];
+    const params: unknown[] = [];
+
+    const buildMatch = (expression: string): { sql: string; value: string } => {
+      if (!normalizedQuery) {
+        return { sql: '1 = 1', value: '' };
+      }
+      if (match === 'exact') {
+        return { sql: `${expression} = ?`, value: normalizedQuery };
+      }
+      const escaped = escapeSqlLikePattern(normalizedQuery);
+      return {
+        sql: `${expression} LIKE ? ESCAPE '\\'`,
+        value: match === 'prefix' ? `${escaped}%` : `%${escaped}%`
+      };
+    };
+
+    if (normalizedWorkspaceId) {
+      whereConditions.push(
+        `EXISTS (
+          SELECT 1
+          FROM ${this.workspaceAccessMetaTableSql} AS access
+          WHERE access.workspace_id = ?
+            AND access.account_id = a.account_id
+        )`
+      );
+      params.push(normalizedWorkspaceId);
     }
-    const row = db.prepare(
+
+    if (normalizedQuery) {
+      const accountExpr = `LOWER(a.account_id)`;
+      const emailExpr = `LOWER(a.email)`;
+      const displayNameExpr = `LOWER(a.display_name)`;
+      const localLoginExpr = `LOWER(COALESCE(a.local_login_id, ''))`;
+      const githubLoginExpr = `LOWER(COALESCE(a.github_login, ''))`;
+      const fieldExprMap: Record<'accountId' | 'email' | 'displayName' | 'localLoginId' | 'githubLogin', string> = {
+        accountId: accountExpr,
+        email: emailExpr,
+        displayName: displayNameExpr,
+        localLoginId: localLoginExpr,
+        githubLogin: githubLoginExpr
+      };
+      if (field === 'any') {
+        const candidates = [accountExpr, emailExpr, displayNameExpr, localLoginExpr, githubLoginExpr];
+        const conditionParts: string[] = [];
+        for (const candidate of candidates) {
+          const built = buildMatch(candidate);
+          conditionParts.push(built.sql);
+          params.push(built.value);
+        }
+        whereConditions.push(`(${conditionParts.join(' OR ')})`);
+      } else {
+        const built = buildMatch(fieldExprMap[field]);
+        whereConditions.push(built.sql);
+        params.push(built.value);
+      }
+    }
+
+    const whereSql = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+    const countRow = db.prepare(
+      `
+        SELECT COUNT(*) AS count
+        FROM ${this.accountTableSql} AS a
+        ${whereSql}
+      `
+    ).get(...params) as { count?: number | string } | undefined;
+    const total = Number(countRow?.count ?? 0) || 0;
+    const rows = db.prepare(
       `
         SELECT
-          account_id,
-          email,
-          display_name,
-          system_roles,
-          local_login_id,
-          password_hash,
-          github_user_id,
-          github_login,
-          created_at,
-          updated_at
-        FROM ${this.accountTableSql}
-        WHERE github_user_id = ?
-        LIMIT 1
+          a.account_id,
+          a.email,
+          a.display_name,
+          a.system_roles,
+          a.local_login_id,
+          a.password_hash,
+          a.github_user_id,
+          a.github_login,
+          a.created_at,
+          a.updated_at
+        FROM ${this.accountTableSql} AS a
+        ${whereSql}
+        ORDER BY a.display_name ASC, a.account_id ASC
+        LIMIT ?
+        OFFSET ?
       `
-    ).get(normalizedGithubUserId) as SqliteAccountRow | undefined;
-    return row ? normalizeAccountRecord(row) : null;
+    ).all(...params, limit, offset) as SqliteAccountRow[];
+    const nextOffset = offset + rows.length;
+    return {
+      users: rows.map((row) => normalizeAccountRecord(row)),
+      total,
+      nextCursor: nextOffset < total ? String(nextOffset) : null
+    };
+  }
+
+  async searchServiceWorkspaces(input?: ServiceWorkspacesSearchInput): Promise<ServiceWorkspacesSearchResult> {
+    const db = await this.ensureInitialized();
+    const normalizedQuery = normalizeServiceSearchToken(input?.q);
+    const normalizedMemberAccountId = String(input?.memberAccountId ?? '').trim().toLowerCase();
+    const field = input?.field ?? 'any';
+    const match = input?.match ?? 'contains';
+    const limit = normalizeServiceSearchLimit(input?.limit);
+    const offset = normalizeServiceSearchCursorOffset(input?.cursor);
+    const whereConditions: string[] = [];
+    const params: unknown[] = [];
+
+    const buildMatch = (expression: string): { sql: string; value: string } => {
+      if (!normalizedQuery) {
+        return { sql: '1 = 1', value: '' };
+      }
+      if (match === 'exact') {
+        return { sql: `${expression} = ?`, value: normalizedQuery };
+      }
+      const escaped = escapeSqlLikePattern(normalizedQuery);
+      return {
+        sql: `${expression} LIKE ? ESCAPE '\\'`,
+        value: match === 'prefix' ? `${escaped}%` : `%${escaped}%`
+      };
+    };
+
+    const buildMemberPredicate = (token: string): { sql: string; value: string } => {
+      if (match === 'exact') {
+        return {
+          sql: `EXISTS (
+            SELECT 1
+            FROM ${this.workspaceAccessMetaTableSql} AS access
+            WHERE access.workspace_id = w.workspace_id
+              AND LOWER(access.account_id) = ?
+          )`,
+          value: token
+        };
+      }
+      const escaped = escapeSqlLikePattern(token);
+      return {
+        sql: `EXISTS (
+          SELECT 1
+          FROM ${this.workspaceAccessMetaTableSql} AS access
+          WHERE access.workspace_id = w.workspace_id
+            AND LOWER(access.account_id) LIKE ? ESCAPE '\\'
+        )`,
+        value: match === 'prefix' ? `${escaped}%` : `%${escaped}%`
+      };
+    };
+
+    if (normalizedMemberAccountId) {
+      whereConditions.push(
+        `EXISTS (
+          SELECT 1
+          FROM ${this.workspaceAccessMetaTableSql} AS access
+          WHERE access.workspace_id = w.workspace_id
+            AND LOWER(access.account_id) = ?
+        )`
+      );
+      params.push(normalizedMemberAccountId);
+    }
+
+    if (normalizedQuery) {
+      const workspaceIdExpr = `LOWER(w.workspace_id)`;
+      const nameExpr = `LOWER(w.name)`;
+      const createdByExpr = `LOWER(w.created_by)`;
+      if (field === 'memberAccountId') {
+        const memberPredicate = buildMemberPredicate(normalizedQuery);
+        whereConditions.push(memberPredicate.sql);
+        params.push(memberPredicate.value);
+      } else if (field === 'any') {
+        const candidates = [workspaceIdExpr, nameExpr, createdByExpr];
+        const parts: string[] = [];
+        for (const candidate of candidates) {
+          const built = buildMatch(candidate);
+          parts.push(built.sql);
+          params.push(built.value);
+        }
+        const memberPredicate = buildMemberPredicate(normalizedQuery);
+        parts.push(memberPredicate.sql);
+        params.push(memberPredicate.value);
+        whereConditions.push(`(${parts.join(' OR ')})`);
+      } else {
+        const expressionMap: Record<'workspaceId' | 'name' | 'createdBy', string> = {
+          workspaceId: workspaceIdExpr,
+          name: nameExpr,
+          createdBy: createdByExpr
+        };
+        const built = buildMatch(expressionMap[field]);
+        whereConditions.push(built.sql);
+        params.push(built.value);
+      }
+    }
+
+    const whereSql = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+    const countRow = db.prepare(
+      `
+        SELECT COUNT(*) AS count
+        FROM ${this.workspaceTableSql} AS w
+        ${whereSql}
+      `
+    ).get(...params) as { count?: number | string } | undefined;
+    const total = Number(countRow?.count ?? 0) || 0;
+    const rows = db.prepare(
+      `
+        SELECT w.workspace_id, w.tenant_id, w.name, w.default_member_role_id, w.created_by, w.created_at, w.updated_at
+        FROM ${this.workspaceTableSql} AS w
+        ${whereSql}
+        ORDER BY w.created_at ASC, w.workspace_id ASC
+        LIMIT ?
+        OFFSET ?
+      `
+    ).all(...params, limit, offset) as SqliteWorkspaceRow[];
+    const nextOffset = offset + rows.length;
+    return {
+      workspaces: rows.map((row) => normalizeWorkspaceRecord(row)),
+      total,
+      nextCursor: nextOffset < total ? String(nextOffset) : null
+    };
   }
 
   async upsertAccount(record: AccountRecord): Promise<void> {
-    const db = await this.ensureInitialized();
-    const now = new Date().toISOString();
-    const systemRoles = uniqueStrings(record.systemRoles).filter(
-      (role): role is 'system_admin' | 'cs_admin' => role === 'system_admin' || role === 'cs_admin'
-    );
-    const localLoginId =
-      typeof record.localLoginId === 'string' && record.localLoginId.trim().length > 0
-        ? record.localLoginId.trim().toLowerCase()
-        : null;
-    const githubUserId =
-      typeof record.githubUserId === 'string' && record.githubUserId.trim().length > 0
-        ? record.githubUserId.trim()
-        : null;
-    const githubLogin =
-      typeof record.githubLogin === 'string' && record.githubLogin.trim().length > 0
-        ? record.githubLogin.trim()
-        : null;
-    const passwordHash =
-      typeof record.passwordHash === 'string' && record.passwordHash.trim().length > 0 ? record.passwordHash.trim() : null;
+    await this.workspaceAccountStore.upsertAccount(record);
+  }
 
+  async countAccountsBySystemRole(role: 'system_admin' | 'cs_admin'): Promise<number> {
+    return this.workspaceAccountStore.countAccountsBySystemRole(role);
+  }
+
+  async updateAccountSystemRoles(
+    accountId: string,
+    systemRoles: Array<'system_admin' | 'cs_admin'>,
+    updatedAt: string
+  ): Promise<AccountRecord | null> {
+    return this.workspaceAccountStore.updateAccountSystemRoles(accountId, systemRoles, updatedAt);
+  }
+
+  async getServiceSettings(): Promise<ServiceSettingsRecord | null> {
+    const db = await this.ensureInitialized();
+    const row = db.prepare(
+      `
+        SELECT id, settings_json, created_at, updated_at
+        FROM ${this.serviceSettingsTableSql}
+        WHERE id = ?
+        LIMIT 1
+      `
+    ).get('global') as SqliteServiceSettingsRow | undefined;
+    if (!row) {
+      return null;
+    }
+    const parsed = (() => {
+      try {
+        return JSON.parse(row.settings_json) as unknown;
+      } catch {
+        return null;
+      }
+    })();
+    const normalized = normalizeServiceSettings(parsed, createDefaultServiceSettings(row.updated_at, 'system'));
+    return {
+      ...normalized,
+      createdAt: ensureIso(row.created_at),
+      updatedAt: ensureIso(row.updated_at)
+    };
+  }
+
+  async upsertServiceSettings(record: ServiceSettingsRecord): Promise<void> {
+    const db = await this.ensureInitialized();
+    const normalized = normalizeServiceSettings(record, createDefaultServiceSettings(record.updatedAt, record.smtp.updatedBy));
     db.prepare(
       `
-        INSERT INTO ${this.accountTableSql} (
-          account_id,
-          email,
-          display_name,
-          system_roles,
-          local_login_id,
-          password_hash,
-          github_user_id,
-          github_login,
+        INSERT INTO ${this.serviceSettingsTableSql} (
+          id,
+          settings_json,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT (account_id)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT (id)
         DO UPDATE
-        SET email = excluded.email,
-            display_name = excluded.display_name,
-            system_roles = excluded.system_roles,
-            local_login_id = excluded.local_login_id,
-            password_hash = excluded.password_hash,
-            github_user_id = excluded.github_user_id,
-            github_login = excluded.github_login,
+        SET settings_json = excluded.settings_json,
             updated_at = excluded.updated_at
       `
-    ).run(
-      record.accountId.trim(),
-      record.email.trim() || 'unknown@ashfox.local',
-      record.displayName.trim() || 'User',
-      JSON.stringify(systemRoles),
-      localLoginId,
-      passwordHash,
-      githubUserId,
-      githubLogin,
-      ensureIso(record.createdAt || now),
-      ensureIso(record.updatedAt || now)
-    );
+    ).run('global', JSON.stringify(normalized), ensureIso(normalized.createdAt), ensureIso(normalized.updatedAt));
   }
 
-  async listWorkspaces(accountId: string): Promise<WorkspaceRecord[]> {
+  async listAllWorkspaces(): Promise<WorkspaceRecord[]> {
     const db = await this.ensureInitialized();
-    const normalizedAccountId = String(accountId ?? '').trim();
-    if (!normalizedAccountId) {
-      const rows = db.prepare(
-        `
-          SELECT workspace_id, tenant_id, name, mode, created_by, created_at, updated_at
-          FROM ${this.workspaceTableSql}
-          ORDER BY created_at ASC, workspace_id ASC
-        `
-      ).all() as SqliteWorkspaceRow[];
-      return rows.map((row) => normalizeWorkspaceRecord(row));
-    }
+    const rows = db.prepare(
+      `
+        SELECT workspace_id, tenant_id, name, default_member_role_id, created_by, created_at, updated_at
+        FROM ${this.workspaceTableSql}
+        ORDER BY created_at ASC, workspace_id ASC
+      `
+    ).all() as SqliteWorkspaceRow[];
+    return rows.map((row) => normalizeWorkspaceRecord(row));
+  }
+
+  async listAccountWorkspaces(accountId: string): Promise<WorkspaceRecord[]> {
+    const db = await this.ensureInitialized();
+    const normalizedAccountId = normalizeRequiredAccountId(accountId, 'listAccountWorkspaces.accountId');
 
     const rows = db.prepare(
       `
-        SELECT w.workspace_id, w.tenant_id, w.name, w.mode, w.created_by, w.created_at, w.updated_at,
-               m.account_id AS member_account_id
+        SELECT w.workspace_id, w.tenant_id, w.name, w.default_member_role_id, w.created_by, w.created_at, w.updated_at,
+               access.account_id AS member_account_id
         FROM ${this.workspaceTableSql} AS w
-        LEFT JOIN ${this.workspaceMembersTableSql} AS m
-          ON m.workspace_id = w.workspace_id
-         AND m.account_id = ?
+        INNER JOIN ${this.workspaceAccessMetaTableSql} AS access
+          ON access.workspace_id = w.workspace_id
+         AND access.account_id = ?
         ORDER BY w.created_at ASC, w.workspace_id ASC
       `
     ).all(normalizedAccountId) as SqliteWorkspaceListRow[];
 
-    return rows.filter((row) => row.member_account_id === normalizedAccountId).map((row) => normalizeWorkspaceRecord(row));
+    return rows.map((row) => normalizeWorkspaceRecord(row));
   }
 
   async getWorkspace(workspaceId: string): Promise<WorkspaceRecord | null> {
     const db = await this.ensureInitialized();
     const row = db.prepare(
       `
-        SELECT workspace_id, tenant_id, name, mode, created_by, created_at, updated_at
+        SELECT workspace_id, tenant_id, name, default_member_role_id, created_by, created_at, updated_at
         FROM ${this.workspaceTableSql}
         WHERE workspace_id = ?
         LIMIT 1
@@ -760,7 +706,7 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
           workspace_id,
           tenant_id,
           name,
-          mode,
+          default_member_role_id,
           created_by,
           created_at,
           updated_at
@@ -770,7 +716,7 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
         DO UPDATE
         SET tenant_id = excluded.tenant_id,
             name = excluded.name,
-            mode = excluded.mode,
+            default_member_role_id = excluded.default_member_role_id,
             created_by = excluded.created_by,
             updated_at = excluded.updated_at
       `
@@ -778,53 +724,57 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
       record.workspaceId,
       record.tenantId,
       record.name,
-      record.mode,
+      normalizeDefaultMemberRoleId(record.defaultMemberRoleId),
       record.createdBy,
       ensureIso(record.createdAt),
       ensureIso(record.updatedAt)
+    );
+    const userRootAcl = createDefaultUserRootAcl(record.workspaceId, ensureIso(record.updatedAt));
+    db.prepare(
+      `
+        INSERT INTO ${this.workspaceAclTableSql} (
+          workspace_id,
+          folder_id,
+          role_id,
+          read_effect,
+          write_effect,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT (workspace_id, folder_id, role_id)
+        DO NOTHING
+      `
+    ).run(
+      userRootAcl.workspaceId,
+      toAclFolderKey(userRootAcl.folderId),
+      userRootAcl.roleIds[0],
+      userRootAcl.read,
+      userRootAcl.write,
+      userRootAcl.updatedAt
     );
   }
 
   async removeWorkspace(workspaceId: string): Promise<void> {
     const db = await this.ensureInitialized();
-    db.exec('BEGIN');
-    try {
-      db.prepare(
-        `
-          DELETE FROM ${this.workspaceAclTableSql}
-          WHERE workspace_id = ?
-        `
-      ).run(workspaceId);
-      db.prepare(
-        `
-          DELETE FROM ${this.workspaceMembersTableSql}
-          WHERE workspace_id = ?
-        `
-      ).run(workspaceId);
-      db.prepare(
-        `
-          DELETE FROM ${this.workspaceRolesTableSql}
-          WHERE workspace_id = ?
-        `
-      ).run(workspaceId);
-      db.prepare(
-        `
-          DELETE FROM ${this.workspaceTableSql}
-          WHERE workspace_id = ?
-        `
-      ).run(workspaceId);
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    removeWorkspaceCascadeSqlite(
+      db,
+      {
+        workspaceTableSql: this.workspaceTableSql,
+        workspaceMembersTableSql: this.workspaceMembersTableSql,
+        workspaceRolesTableSql: this.workspaceRolesTableSql,
+        workspaceAclTableSql: this.workspaceAclTableSql,
+        workspaceAccessMetaTableSql: this.workspaceAccessMetaTableSql,
+        workspaceApiKeysTableSql: this.workspaceApiKeysTableSql
+      },
+      workspaceId
+    );
   }
 
   async listWorkspaceRoles(workspaceId: string): Promise<WorkspaceRoleStorageRecord[]> {
     const db = await this.ensureInitialized();
     const rows = db.prepare(
       `
-        SELECT workspace_id, role_id, name, builtin, permissions, created_at, updated_at
+        SELECT workspace_id, role_id, name, builtin, created_at, updated_at
         FROM ${this.workspaceRolesTableSql}
         WHERE workspace_id = ?
         ORDER BY created_at ASC, role_id ASC
@@ -835,7 +785,6 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
       roleId: row.role_id,
       name: row.name,
       builtin: parseWorkspaceBuiltinRole(row.builtin),
-      permissions: parseWorkspacePermissionArray(row.permissions),
       createdAt: ensureIso(row.created_at),
       updatedAt: ensureIso(row.updated_at)
     }));
@@ -843,7 +792,6 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
 
   async upsertWorkspaceRole(record: WorkspaceRoleStorageRecord): Promise<void> {
     const db = await this.ensureInitialized();
-    const permissions = uniqueStrings(record.permissions).filter(isWorkspacePermission);
     db.prepare(
       `
         INSERT INTO ${this.workspaceRolesTableSql} (
@@ -851,16 +799,14 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
           role_id,
           name,
           builtin,
-          permissions,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT (workspace_id, role_id)
         DO UPDATE
         SET name = excluded.name,
             builtin = excluded.builtin,
-            permissions = excluded.permissions,
             updated_at = excluded.updated_at
       `
     ).run(
@@ -868,7 +814,6 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
       record.roleId,
       record.name,
       record.builtin,
-      JSON.stringify(permissions),
       ensureIso(record.createdAt),
       ensureIso(record.updatedAt)
     );
@@ -877,39 +822,20 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
   async removeWorkspaceRole(workspaceId: string, roleId: string): Promise<void> {
     const db = await this.ensureInitialized();
     const members = await this.listWorkspaceMembers(workspaceId);
-    db.exec('BEGIN');
-    try {
-      db.prepare(
-        `
-          DELETE FROM ${this.workspaceRolesTableSql}
-          WHERE workspace_id = ?
-            AND role_id = ?
-        `
-      ).run(workspaceId, roleId);
-      db.prepare(
-        `
-          DELETE FROM ${this.workspaceAclTableSql}
-          WHERE workspace_id = ?
-            AND role_id = ?
-        `
-      ).run(workspaceId, roleId);
-      for (const member of members) {
-        const roleIds = member.roleIds.filter((existingRoleId) => existingRoleId !== roleId);
-        db.prepare(
-          `
-            UPDATE ${this.workspaceMembersTableSql}
-            SET role_ids = ?,
-                updated_at = ?
-            WHERE workspace_id = ?
-              AND account_id = ?
-          `
-        ).run(JSON.stringify(roleIds), new Date().toISOString(), workspaceId, member.accountId);
-      }
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    const memberRoleUpdates = this.buildMemberRoleRemovalUpdates(members, roleId);
+    removeWorkspaceRoleCascadeSqlite(
+      db,
+      {
+        workspaceTableSql: this.workspaceTableSql,
+        workspaceMembersTableSql: this.workspaceMembersTableSql,
+        workspaceRolesTableSql: this.workspaceRolesTableSql,
+        workspaceAclTableSql: this.workspaceAclTableSql,
+        workspaceAccessMetaTableSql: this.workspaceAccessMetaTableSql
+      },
+      workspaceId,
+      roleId,
+      memberRoleUpdates
+    );
   }
 
   async listWorkspaceMembers(workspaceId: string): Promise<WorkspaceMemberRecord[]> {
@@ -925,42 +851,81 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
     return rows.map((row) => ({
       workspaceId: row.workspace_id,
       accountId: row.account_id,
-      roleIds: uniqueStrings(parseJsonStringArray(row.role_ids)),
+      roleIds: this.normalizeMemberRoleIds(parseJsonStringArray(row.role_ids)),
       joinedAt: ensureIso(row.joined_at)
     }));
   }
 
   async upsertWorkspaceMember(record: WorkspaceMemberRecord): Promise<void> {
     const db = await this.ensureInitialized();
-    const roleIds = uniqueStrings(record.roleIds);
+    const roleIds = this.normalizeMemberRoleIds(record.roleIds);
     const now = new Date().toISOString();
-    db.prepare(
-      `
-        INSERT INTO ${this.workspaceMembersTableSql} (
-          workspace_id,
-          account_id,
-          role_ids,
-          joined_at,
-          updated_at
-        )
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT (workspace_id, account_id)
-        DO UPDATE
-        SET role_ids = excluded.role_ids,
-            updated_at = excluded.updated_at
-      `
-    ).run(record.workspaceId, record.accountId, JSON.stringify(roleIds), ensureIso(record.joinedAt), now);
+    runSyncUnitOfWork(
+      {
+        begin: () => {
+          db.exec('BEGIN');
+        },
+        commit: () => {
+          db.exec('COMMIT');
+        },
+        rollback: () => {
+          db.exec('ROLLBACK');
+        }
+      },
+      () => {
+        db.prepare(
+          `
+            INSERT INTO ${this.workspaceMembersTableSql} (
+              workspace_id,
+              account_id,
+              role_ids,
+              joined_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (workspace_id, account_id)
+            DO UPDATE
+            SET role_ids = excluded.role_ids,
+                updated_at = excluded.updated_at
+          `
+        ).run(record.workspaceId, record.accountId, JSON.stringify(roleIds), ensureIso(record.joinedAt), now);
+        upsertWorkspaceAccessMetaSqlite(
+          db,
+          this.workspaceAccessMetaTableSql,
+          record.workspaceId,
+          record.accountId,
+          roleIds,
+          now
+        );
+      }
+    );
   }
 
   async removeWorkspaceMember(workspaceId: string, accountId: string): Promise<void> {
     const db = await this.ensureInitialized();
-    db.prepare(
-      `
-        DELETE FROM ${this.workspaceMembersTableSql}
-        WHERE workspace_id = ?
-          AND account_id = ?
-      `
-    ).run(workspaceId, accountId);
+    runSyncUnitOfWork(
+      {
+        begin: () => {
+          db.exec('BEGIN');
+        },
+        commit: () => {
+          db.exec('COMMIT');
+        },
+        rollback: () => {
+          db.exec('ROLLBACK');
+        }
+      },
+      () => {
+        db.prepare(
+          `
+            DELETE FROM ${this.workspaceMembersTableSql}
+            WHERE workspace_id = ?
+              AND account_id = ?
+          `
+        ).run(workspaceId, accountId);
+        removeWorkspaceAccessMetaSqlite(db, this.workspaceAccessMetaTableSql, workspaceId, accountId);
+      }
+    );
   }
 
   async listWorkspaceFolderAcl(workspaceId: string): Promise<WorkspaceFolderAclRecord[]> {
@@ -973,19 +938,31 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
         ORDER BY folder_id ASC, role_id ASC
       `
     ).all(workspaceId) as SqliteWorkspaceAclRow[];
-    return rows.map((row) => ({
-      workspaceId: row.workspace_id,
-      folderId: fromAclFolderKey(row.folder_id),
-      roleId: row.role_id,
-      read: parseWorkspaceAclEffect(row.read_effect),
-      write: parseWorkspaceAclEffect(row.write_effect),
-      updatedAt: ensureIso(row.updated_at)
-    }));
+    return rows.map((row) => {
+      const parsed = fromAclStorageFolderKey(row.folder_id);
+      const read = parseWorkspaceAclEffect(row.read_effect);
+      const write = parseWorkspaceAclEffect(row.write_effect);
+      return {
+        ...parsed,
+        workspaceId: row.workspace_id,
+        ruleId: toAclTemplateRuleId(parsed.scope, row.folder_id, read, write, false),
+        roleIds: [row.role_id],
+        read,
+        write,
+        locked: false,
+        updatedAt: ensureIso(row.updated_at)
+      };
+    });
   }
 
   async upsertWorkspaceFolderAcl(record: WorkspaceFolderAclRecord): Promise<void> {
     const db = await this.ensureInitialized();
-    db.prepare(
+    const normalizedRoleIds = normalizeAclRoleIds(record.roleIds);
+    if (normalizedRoleIds.length === 0) {
+      return;
+    }
+    const folderStorageKey = toAclStorageFolderKey(record.scope, record.folderId);
+    const statement = db.prepare(
       `
         INSERT INTO ${this.workspaceAclTableSql} (
           workspace_id,
@@ -1002,14 +979,10 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
             write_effect = excluded.write_effect,
             updated_at = excluded.updated_at
       `
-    ).run(
-      record.workspaceId,
-      toAclFolderKey(record.folderId),
-      record.roleId,
-      record.read,
-      record.write,
-      ensureIso(record.updatedAt)
     );
+    for (const roleId of normalizedRoleIds) {
+      statement.run(record.workspaceId, folderStorageKey, roleId, record.read, record.write, ensureIso(record.updatedAt));
+    }
   }
 
   async removeWorkspaceFolderAcl(workspaceId: string, folderId: string | null, roleId: string): Promise<void> {
@@ -1022,6 +995,102 @@ export class SqliteProjectRepository implements ProjectRepository, WorkspaceRepo
           AND role_id = ?
       `
     ).run(workspaceId, toAclFolderKey(folderId), roleId);
+  }
+
+  async listWorkspaceApiKeys(workspaceId: string): Promise<WorkspaceApiKeyRecord[]> {
+    const db = await this.ensureInitialized();
+    const rows = db.prepare(
+      `
+        SELECT
+          workspace_id,
+          key_id,
+          name,
+          key_prefix,
+          key_hash,
+          created_by,
+          created_at,
+          updated_at,
+          last_used_at,
+          expires_at,
+          revoked_at
+        FROM ${this.workspaceApiKeysTableSql}
+        WHERE workspace_id = ?
+        ORDER BY created_at DESC, key_id ASC
+      `
+    ).all(workspaceId) as SqliteWorkspaceApiKeyRow[];
+    return rows.map((row) => ({
+      workspaceId: row.workspace_id,
+      keyId: row.key_id,
+      name: row.name,
+      keyPrefix: row.key_prefix,
+      keyHash: row.key_hash,
+      createdBy: row.created_by,
+      createdAt: ensureIso(row.created_at),
+      updatedAt: ensureIso(row.updated_at),
+      lastUsedAt: row.last_used_at ? ensureIso(row.last_used_at) : null,
+      expiresAt: row.expires_at ? ensureIso(row.expires_at) : null,
+      revokedAt: row.revoked_at ? ensureIso(row.revoked_at) : null
+    }));
+  }
+
+  async createWorkspaceApiKey(record: WorkspaceApiKeyRecord): Promise<void> {
+    const db = await this.ensureInitialized();
+    db.prepare(
+      `
+        INSERT INTO ${this.workspaceApiKeysTableSql} (
+          workspace_id,
+          key_id,
+          name,
+          key_prefix,
+          key_hash,
+          created_by,
+          created_at,
+          updated_at,
+          last_used_at,
+          expires_at,
+          revoked_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    ).run(
+      record.workspaceId,
+      record.keyId,
+      record.name,
+      record.keyPrefix,
+      record.keyHash,
+      record.createdBy,
+      ensureIso(record.createdAt),
+      ensureIso(record.updatedAt),
+      record.lastUsedAt ? ensureIso(record.lastUsedAt) : null,
+      record.expiresAt ? ensureIso(record.expiresAt) : null,
+      record.revokedAt ? ensureIso(record.revokedAt) : null
+    );
+  }
+
+  async revokeWorkspaceApiKey(workspaceId: string, keyId: string, revokedAt: string): Promise<void> {
+    const db = await this.ensureInitialized();
+    db.prepare(
+      `
+        UPDATE ${this.workspaceApiKeysTableSql}
+        SET revoked_at = ?,
+            updated_at = ?
+        WHERE workspace_id = ?
+          AND key_id = ?
+      `
+    ).run(ensureIso(revokedAt), ensureIso(revokedAt), workspaceId, keyId);
+  }
+
+  async updateWorkspaceApiKeyLastUsed(workspaceId: string, keyId: string, lastUsedAt: string): Promise<void> {
+    const db = await this.ensureInitialized();
+    db.prepare(
+      `
+        UPDATE ${this.workspaceApiKeysTableSql}
+        SET last_used_at = ?,
+            updated_at = ?
+        WHERE workspace_id = ?
+          AND key_id = ?
+      `
+    ).run(ensureIso(lastUsedAt), ensureIso(lastUsedAt), workspaceId, keyId);
   }
 
   async close(): Promise<void> {

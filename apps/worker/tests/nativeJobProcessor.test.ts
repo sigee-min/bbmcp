@@ -67,6 +67,47 @@ module.exports = async () => {
 
   {
     const claimedJob: MutableJob = {
+      id: 'job-workspace-scan',
+      projectId: 'project-workspace',
+      kind: 'texture.preflight',
+      status: 'running',
+      attemptCount: 1,
+      maxAttempts: 2,
+      leaseMs: 10000,
+      createdAt: new Date().toISOString()
+    };
+    const claimWorkspaceIds: Array<string | undefined> = [];
+    let completedWorkspaceId = '';
+    const store = {
+      claimNextJob: async (_workerId: string, workspaceId?: string) => {
+        claimWorkspaceIds.push(workspaceId);
+        if (workspaceId === 'ws-empty') {
+          return null;
+        }
+        return claimedJob;
+      },
+      completeJob: async (_jobId: string, _result?: NativeJobResult, workspaceId?: string) => {
+        completedWorkspaceId = workspaceId ?? '';
+        return { ...claimedJob, status: 'completed' };
+      },
+      failJob: async () => null
+    } satisfies NativePipelineStorePort;
+
+    await processOneNativeJob({
+      workerId: 'worker-workspace',
+      logger,
+      enabled: true,
+      store,
+      workspaceIdsResolver: async () => ['ws-empty', 'ws-ready'],
+      processor: async () => ({ kind: 'texture.preflight', status: 'passed' })
+    });
+
+    assert.deepEqual(claimWorkspaceIds, ['ws-empty', 'ws-ready']);
+    assert.equal(completedWorkspaceId, 'ws-ready');
+  }
+
+  {
+    const claimedJob: MutableJob = {
       id: 'job-1',
       projectId: 'project-a',
       kind: 'gltf.convert',

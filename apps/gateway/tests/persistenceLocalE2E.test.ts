@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { evaluateWorkspaceFolderPermission, toAutoProvisionedWorkspaceId } from '@ashfox/backend-core';
 import type { ProjectRepositoryWithRevisionGuard } from '@ashfox/backend-core';
 import { closeGatewayPersistence, createGatewayPersistence } from '@ashfox/gateway-persistence/createPersistence';
+import { PersistentNativePipelineStore } from '@ashfox/native-pipeline/persistent';
 import { registerAsync } from './helpers';
 
 const hasSqliteDriver = (): boolean => {
@@ -82,6 +84,31 @@ registerAsync(
         const guardedFound = await persistence.projectRepository.find(scope);
         assert.equal(guardedFound?.revision, 'rev-2');
         assert.deepEqual(guardedFound?.state, { mesh: { cubes: 4 } });
+
+        const [concurrentA, concurrentB] = await Promise.all([
+          persistence.projectRepository.saveIfRevision(
+            {
+              ...record,
+              revision: 'rev-3-a',
+              state: { mesh: { cubes: 6 }, source: 'concurrent-a' },
+              updatedAt: '2026-02-09T00:30:00.000Z'
+            },
+            'rev-2'
+          ),
+          persistence.projectRepository.saveIfRevision(
+            {
+              ...record,
+              revision: 'rev-3-b',
+              state: { mesh: { cubes: 7 }, source: 'concurrent-b' },
+              updatedAt: '2026-02-09T00:30:00.000Z'
+            },
+            'rev-2'
+          )
+        ]);
+        assert.equal([concurrentA, concurrentB].filter(Boolean).length, 1, 'only one optimistic concurrent update should succeed');
+        const conflictFound = await persistence.projectRepository.find(scope);
+        assert.ok(conflictFound);
+        assert.ok(conflictFound?.revision === 'rev-3-a' || conflictFound?.revision === 'rev-3-b');
       }
 
       await persistence.blobStore.put({
@@ -113,21 +140,42 @@ registerAsync(
       const afterRemove = await persistence.projectRepository.find(scope);
       assert.equal(afterRemove, null);
 
-      const initialWorkspacesForUnknown = await persistence.workspaceRepository.listWorkspaces('any-account');
+      const initialWorkspacesForUnknown = await persistence.workspaceRepository.listAccountWorkspaces('any-account');
       assert.equal(initialWorkspacesForUnknown.length, 0);
-      const initialWorkspaces = await persistence.workspaceRepository.listWorkspaces('');
+      const initialWorkspaces = await persistence.workspaceRepository.listAllWorkspaces();
       assert.ok(initialWorkspaces.length >= 1);
-      assert.equal(initialWorkspaces[0]?.mode, 'all_open');
 
-      const initialDefault = await persistence.workspaceRepository.getWorkspace('ws_default');
-      assert.ok(initialDefault);
-      assert.equal(initialDefault?.workspaceId, 'ws_default');
+      const initialAdminWorkspaceId = toAutoProvisionedWorkspaceId('admin');
+      const initialAdminWorkspace = await persistence.workspaceRepository.getWorkspace(initialAdminWorkspaceId);
+      assert.ok(initialAdminWorkspace);
+      assert.equal(initialAdminWorkspace?.workspaceId, initialAdminWorkspaceId);
+      assert.equal(initialAdminWorkspace?.defaultMemberRoleId, 'role_user');
+      const initialAdminRoles = await persistence.workspaceRepository.listWorkspaceRoles(initialAdminWorkspaceId);
+      assert.equal(
+        initialAdminRoles.some((role) => role.roleId === 'role_admin' && role.builtin === 'workspace_admin'),
+        true
+      );
+      assert.equal(initialAdminRoles.some((role) => role.roleId === 'role_user' && role.builtin === null), true);
+      const initialAdminMembers = await persistence.workspaceRepository.listWorkspaceMembers(initialAdminWorkspaceId);
+      const seededAdminMember = initialAdminMembers.find((member) => member.accountId === 'admin');
+      assert.ok(seededAdminMember);
+      assert.equal(seededAdminMember?.roleIds.includes('role_admin'), true);
+      assert.equal(seededAdminMember?.roleIds.includes('role_user'), false);
+      const initialAdminAcl = await persistence.workspaceRepository.listWorkspaceFolderAcl(initialAdminWorkspaceId);
+      const hasUserRootAcl = initialAdminAcl.some(
+        (rule) => rule.roleIds.includes('role_user') && rule.folderId === null && rule.read === 'allow' && rule.write === 'allow'
+      );
+      assert.equal(hasUserRootAcl, true);
+      const initialServiceSettings = await persistence.workspaceRepository.getServiceSettings();
+      assert.ok(initialServiceSettings);
+      assert.equal(initialServiceSettings?.smtp.enabled, false);
+      assert.equal(initialServiceSettings?.githubAuth.enabled, false);
 
       const workspaceRecord = {
         workspaceId: 'ws_local_test',
         tenantId: 'tenant-local',
         name: 'Local Test Workspace',
-        mode: 'rbac' as const,
+        defaultMemberRoleId: 'role_user',
         createdBy: 'tester',
         createdAt: '2026-02-09T01:00:00.000Z',
         updatedAt: '2026-02-09T01:00:00.000Z'
@@ -135,14 +183,13 @@ registerAsync(
       await persistence.workspaceRepository.upsertWorkspace(workspaceRecord);
       const workspaceFound = await persistence.workspaceRepository.getWorkspace(workspaceRecord.workspaceId);
       assert.equal(workspaceFound?.name, workspaceRecord.name);
-      assert.equal(workspaceFound?.mode, 'rbac');
+      assert.equal(workspaceFound?.defaultMemberRoleId, workspaceRecord.defaultMemberRoleId);
 
       await persistence.workspaceRepository.upsertWorkspaceRole({
         workspaceId: workspaceRecord.workspaceId,
         roleId: 'role_editor',
         name: 'Editor',
         builtin: null,
-        permissions: ['workspace.read', 'folder.read', 'folder.write', 'project.read', 'project.write'],
         createdAt: '2026-02-09T01:05:00.000Z',
         updatedAt: '2026-02-09T01:05:00.000Z'
       });
@@ -160,20 +207,83 @@ registerAsync(
 
       await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
         workspaceId: workspaceRecord.workspaceId,
+        ruleId: 'acl_workspace_editor_rw',
+        scope: 'folder',
         folderId: null,
-        roleId: 'role_editor',
+        roleIds: ['role_editor'],
         read: 'allow',
         write: 'allow',
         updatedAt: '2026-02-09T01:15:00.000Z'
       });
       const aclList = await persistence.workspaceRepository.listWorkspaceFolderAcl(workspaceRecord.workspaceId);
-      assert.ok(aclList.some((acl) => acl.roleId === 'role_editor'));
+      assert.ok(aclList.some((acl) => acl.roleIds.includes('role_editor')));
 
-      const workspaceListForMember = await persistence.workspaceRepository.listWorkspaces('account-local');
+      await persistence.workspaceRepository.upsertWorkspaceRole({
+        workspaceId: workspaceRecord.workspaceId,
+        roleId: 'role_auditor',
+        name: 'Auditor',
+        builtin: null,
+        createdAt: '2026-02-09T01:16:00.000Z',
+        updatedAt: '2026-02-09T01:16:00.000Z'
+      });
+      await persistence.workspaceRepository.upsertWorkspaceMember({
+        workspaceId: workspaceRecord.workspaceId,
+        accountId: 'account-role-cleanup',
+        roleIds: ['role_auditor', 'role_editor'],
+        joinedAt: '2026-02-09T01:17:00.000Z'
+      });
+      await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+        workspaceId: workspaceRecord.workspaceId,
+        ruleId: 'acl_folder_audit_rw',
+        scope: 'folder',
+        folderId: 'folder-audit',
+        roleIds: ['role_auditor'],
+        read: 'allow',
+        write: 'deny',
+        updatedAt: '2026-02-09T01:18:00.000Z'
+      });
+      await persistence.workspaceRepository.upsertWorkspaceFolderAcl({
+        workspaceId: workspaceRecord.workspaceId,
+        ruleId: 'acl_folder_audit_rw',
+        scope: 'folder',
+        folderId: 'folder-audit',
+        roleIds: ['role_editor'],
+        read: 'allow',
+        write: 'allow',
+        updatedAt: '2026-02-09T01:18:30.000Z'
+      });
+
+      const allowWinsPermission = evaluateWorkspaceFolderPermission(
+        {
+          workspaceId: workspaceRecord.workspaceId,
+          accountId: 'account-role-cleanup',
+          roleAssignments: [
+            {
+              accountId: 'account-role-cleanup',
+              roleIds: ['role_auditor', 'role_editor']
+            }
+          ],
+          aclRules: await persistence.workspaceRepository.listWorkspaceFolderAcl(workspaceRecord.workspaceId)
+        },
+        [null, 'folder-audit']
+      );
+      assert.equal(allowWinsPermission.read, true);
+      assert.equal(allowWinsPermission.write, true);
+
+      await persistence.workspaceRepository.removeWorkspaceRole(workspaceRecord.workspaceId, 'role_auditor');
+      const membersAfterRoleRemoval = await persistence.workspaceRepository.listWorkspaceMembers(workspaceRecord.workspaceId);
+      const roleCleanupMember = membersAfterRoleRemoval.find((member) => member.accountId === 'account-role-cleanup');
+      assert.ok(roleCleanupMember);
+      assert.equal(roleCleanupMember?.roleIds.includes('role_auditor'), false);
+      const aclAfterRoleRemoval = await persistence.workspaceRepository.listWorkspaceFolderAcl(workspaceRecord.workspaceId);
+      assert.equal(aclAfterRoleRemoval.some((acl) => acl.roleIds.includes('role_auditor')), false);
+
+      const workspaceListForMember = await persistence.workspaceRepository.listAccountWorkspaces('account-local');
       assert.ok(workspaceListForMember.some((workspace) => workspace.workspaceId === workspaceRecord.workspaceId));
 
       await persistence.workspaceRepository.removeWorkspaceFolderAcl(workspaceRecord.workspaceId, null, 'role_editor');
       await persistence.workspaceRepository.removeWorkspaceMember(workspaceRecord.workspaceId, 'account-local');
+      await persistence.workspaceRepository.removeWorkspaceMember(workspaceRecord.workspaceId, 'account-role-cleanup');
       await persistence.workspaceRepository.removeWorkspaceRole(workspaceRecord.workspaceId, 'role_editor');
 
       const roleListAfterDelete = await persistence.workspaceRepository.listWorkspaceRoles(workspaceRecord.workspaceId);
@@ -181,7 +291,32 @@ registerAsync(
       const memberListAfterDelete = await persistence.workspaceRepository.listWorkspaceMembers(workspaceRecord.workspaceId);
       assert.ok(memberListAfterDelete.every((member) => member.accountId !== 'account-local'));
       const aclListAfterDelete = await persistence.workspaceRepository.listWorkspaceFolderAcl(workspaceRecord.workspaceId);
-      assert.ok(aclListAfterDelete.every((acl) => acl.roleId !== 'role_editor'));
+      assert.ok(aclListAfterDelete.every((acl) => !acl.roleIds.includes('role_editor')));
+
+      const adminStateScope = {
+        tenantId: 'native-pipeline',
+        projectId: `pipeline-state:${initialAdminWorkspaceId}`
+      };
+      const isolatedWorkspaceId = 'workspace-isolated-empty';
+
+      const seedStore = new PersistentNativePipelineStore(persistence.projectRepository);
+      const seededProject = await seedStore.createProject({
+        workspaceId: initialAdminWorkspaceId,
+        name: 'Persistent Store Seed Check'
+      });
+
+      const adminStateRecord = await persistence.projectRepository.find(adminStateScope);
+      assert.ok(adminStateRecord);
+      if (!adminStateRecord) {
+        throw new Error('Expected admin workspace native pipeline state to be persisted.');
+      }
+
+      const isolatedStore = new PersistentNativePipelineStore(persistence.projectRepository);
+      const isolatedProjects = await isolatedStore.listProjects(undefined, isolatedWorkspaceId);
+      assert.deepEqual(isolatedProjects, []);
+
+      const seededProjects = await isolatedStore.listProjects(undefined, initialAdminWorkspaceId);
+      assert.equal(seededProjects.some((project) => project.projectId === seededProject.projectId), true);
 
       await closeGatewayPersistence(persistence);
     } finally {

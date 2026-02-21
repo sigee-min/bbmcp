@@ -3,7 +3,7 @@
   "version": "0.0.2",
   "private": true,
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 8686",
+    "dev": "node ../../scripts/dev/web-gateway-preflight.mjs && vite --host 0.0.0.0 --port 8686",
     "build": "vite build",
     "start": "vite preview --host 0.0.0.0 --port 8686",
     "test": "node tests/run.js"

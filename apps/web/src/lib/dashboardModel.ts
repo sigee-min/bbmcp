@@ -4,31 +4,71 @@ export { isProjectStreamPayload } from './dashboardPayloadValidation';
 export type DashboardStatus = 'loading' | 'empty' | 'success' | 'error';
 export type StreamStatus = 'idle' | 'connecting' | 'open' | 'reconnecting';
 export type DashboardErrorCode = 'project_load_failed' | 'stream_unavailable';
-export type WorkspaceMode = 'all_open' | 'rbac';
+export type UiErrorSeverity = 'info' | 'warning' | 'error';
+export type UiErrorChannel = 'blocking' | 'panel' | 'inline';
+export type UiErrorKind = 'network' | 'auth' | 'validation' | 'permission' | 'not_found' | 'conflict' | 'server' | 'unknown';
+
+export interface UiErrorContract<TCode extends string = string> {
+  code: TCode;
+  kind: UiErrorKind;
+  channel: UiErrorChannel;
+  severity: UiErrorSeverity;
+  fallback: string;
+  dedupeKey?: string;
+}
 
 export interface WorkspaceCapabilities {
-  canManageWorkspace: boolean;
-  canManageMembers: boolean;
-  canManageRoles: boolean;
-  canManageFolderAcl: boolean;
+  canManageWorkspaceSettings: boolean;
 }
 
 export interface WorkspaceSummary {
   workspaceId: string;
   name: string;
-  mode: WorkspaceMode;
+  defaultMemberRoleId: string;
   capabilities: WorkspaceCapabilities;
+}
+
+export interface ServiceWorkspaceSummary {
+  workspaceId: string;
+  name: string;
+  defaultMemberRoleId: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ServiceSearchMatchMode = 'exact' | 'prefix' | 'contains';
+export type ServiceUsersSearchField = 'any' | 'accountId' | 'displayName' | 'email' | 'localLoginId' | 'githubLogin';
+export type ServiceWorkspacesSearchField = 'any' | 'workspaceId' | 'name' | 'createdBy' | 'memberAccountId';
+
+export interface ServiceSearchMeta<TField extends string> {
+  q: string | null;
+  field: TField;
+  match: ServiceSearchMatchMode;
+  limit: number;
+  cursor: string | null;
+  nextCursor: string | null;
+  total: number;
+}
+
+export interface ServiceUserWorkspaceMembershipSummary {
+  accountId: string;
+  workspaceId: string;
+  roleIds: string[];
+  joinedAt: string;
 }
 
 export interface WorkspaceRoleRecord {
   workspaceId: string;
   roleId: string;
   name: string;
-  builtin: 'workspace_admin' | 'user' | null;
-  permissions: WorkspacePermissionKey[];
+  builtin: 'workspace_admin' | null;
   createdAt: string;
   updatedAt: string;
 }
+
+export const WORKSPACE_ADMIN_ROLE_NAME = '어드민';
+export const WORKSPACE_MEMBER_ROLE_NAME = '유저';
 
 export interface WorkspaceMemberRecord {
   workspaceId: string;
@@ -37,26 +77,99 @@ export interface WorkspaceMemberRecord {
   joinedAt: string;
 }
 
-export interface WorkspaceFolderAclRecord {
+export interface WorkspaceMemberCandidateRecord {
+  accountId: string;
+  displayName: string;
+  email: string;
+  localLoginId: string | null;
+  githubLogin: string | null;
+  systemRoles: Array<'system_admin' | 'cs_admin'>;
+}
+
+export type WorkspaceAclScope = 'folder';
+
+export interface WorkspaceAclRuleRecord {
   workspaceId: string;
+  ruleId: string;
+  scope?: WorkspaceAclScope;
   folderId: string | null;
-  roleId: string;
+  roleIds: string[];
   read: WorkspaceAclEffect;
   write: WorkspaceAclEffect;
+  locked?: boolean;
   updatedAt: string;
 }
 
+export type WorkspaceFolderAclRecord = WorkspaceAclRuleRecord;
+
 export type WorkspaceAclEffect = 'allow' | 'deny' | 'inherit';
 
-export type WorkspacePermissionKey =
-  | 'workspace.read'
-  | 'workspace.settings.manage'
-  | 'workspace.members.manage'
-  | 'workspace.roles.manage'
-  | 'folder.read'
-  | 'folder.write'
-  | 'project.read'
-  | 'project.write';
+export interface WorkspaceApiKeyRecord {
+  workspaceId: string;
+  keyId: string;
+  name: string;
+  keyPrefix: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+}
+
+export type SystemRole = 'system_admin' | 'cs_admin';
+
+export const normalizeSystemRoles = (roles: readonly string[] | undefined): SystemRole[] => {
+  const deduped = new Set<SystemRole>();
+  for (const role of roles ?? []) {
+    if (role === 'system_admin' || role === 'cs_admin') {
+      deduped.add(role);
+    }
+  }
+  return [...deduped];
+};
+
+export const isSystemManager = (roles: readonly string[] | undefined): boolean => {
+  const normalized = normalizeSystemRoles(roles);
+  return normalized.includes('system_admin') || normalized.includes('cs_admin');
+};
+
+export interface ServiceManagedAccountRecord {
+  accountId: string;
+  displayName: string;
+  email: string;
+  localLoginId: string | null;
+  githubLogin: string | null;
+  systemRoles: SystemRole[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServiceSmtpSettingsView {
+  enabled: boolean;
+  host: string | null;
+  port: number | null;
+  secure: boolean;
+  username: string | null;
+  fromEmail: string | null;
+  fromName: string | null;
+  hasPassword: boolean;
+  updatedAt: string;
+}
+
+export interface ServiceGithubAuthSettingsView {
+  enabled: boolean;
+  clientId: string | null;
+  callbackUrl: string | null;
+  scopes: string;
+  hasClientSecret: boolean;
+  updatedAt: string;
+}
+
+export interface ServiceSettingsView {
+  smtp: ServiceSmtpSettingsView;
+  githubAuth: ServiceGithubAuthSettingsView;
+}
 
 export type HierarchyKind = 'bone' | 'cube';
 export type ActiveJobStatus = 'queued' | 'running' | 'completed' | 'failed' | null;

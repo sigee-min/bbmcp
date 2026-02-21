@@ -9,8 +9,6 @@ import {
   asTreeChildRef,
   normalizeCounter
 } from './persistenceParsers';
-import { cloneHierarchy, deriveHierarchyStats, synchronizeProjectSnapshot } from './projectSnapshotSync';
-import { getDefaultSeedState } from './seeds';
 import { createNativePipelineState, type NativePipelineState } from './state';
 import type {
   NativeJob,
@@ -96,32 +94,6 @@ const parseJobCounter = (jobId: string): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const repairLegacySeedHierarchy = (state: NativePipelineState): void => {
-  const seedState = getDefaultSeedState();
-  const seedByProjectId = new Map(seedState.projects.map((project) => [project.projectId, project]));
-
-  for (const project of state.projects.values()) {
-    const seed = seedByProjectId.get(project.projectId);
-    if (!seed) {
-      continue;
-    }
-    if (project.name !== seed.name || project.parentFolderId !== seed.parentFolderId) {
-      continue;
-    }
-
-    const current = deriveHierarchyStats(project.hierarchy);
-    const expected = deriveHierarchyStats(seed.hierarchy);
-    const looksLegacySparse = current.cubes === 0 && current.bones <= 2;
-    const hasSeedGeometry = expected.bones > 0 || expected.cubes > 0;
-    if (!looksLegacySparse || !hasSeedGeometry) {
-      continue;
-    }
-
-    project.hierarchy = cloneHierarchy(seed.hierarchy);
-    synchronizeProjectSnapshot(project);
-  }
-};
-
 const rebuildProjectEventsFromSnapshots = (state: NativePipelineState): void => {
   state.projectEvents.clear();
   const projects = Array.from(state.projects.values()).sort((left, right) => left.projectId.localeCompare(right.projectId));
@@ -138,7 +110,11 @@ const rebuildProjectEventsFromSnapshots = (state: NativePipelineState): void => 
   }
 };
 
-export const deserializeState = (value: unknown): NativePipelineState | null => {
+export const deserializeState = (value: unknown, workspaceId: string): NativePipelineState | null => {
+  const normalizedWorkspaceId = workspaceId.trim();
+  if (normalizedWorkspaceId.length === 0) {
+    return null;
+  }
   if (!isRecord(value)) return null;
   if (value.version !== PERSISTED_STATE_VERSION) return null;
   if (
@@ -152,9 +128,7 @@ export const deserializeState = (value: unknown): NativePipelineState | null => 
     return null;
   }
 
-  const workspaceId =
-    typeof value.workspaceId === 'string' && value.workspaceId.trim().length > 0 ? value.workspaceId.trim() : 'ws_default';
-  const state = createNativePipelineState(workspaceId);
+  const state = createNativePipelineState(normalizedWorkspaceId);
   for (const rawFolder of value.folders) {
     const folder = asFolder(rawFolder);
     if (!folder) continue;
@@ -171,9 +145,7 @@ export const deserializeState = (value: unknown): NativePipelineState | null => 
   for (const rawProject of value.projects) {
     const project = asProjectSnapshot(rawProject);
     if (!project) continue;
-    if (!project.workspaceId) {
-      project.workspaceId = workspaceId;
-    }
+    project.workspaceId = normalizedWorkspaceId;
     if (project.parentFolderId && !state.folders.has(project.parentFolderId)) {
       project.parentFolderId = null;
     }
@@ -244,8 +216,6 @@ export const deserializeState = (value: unknown): NativePipelineState | null => 
     project.parentFolderId = null;
     state.rootChildren.push({ kind: 'project', id: project.projectId });
   }
-
-  repairLegacySeedHierarchy(state);
 
   let maxJobCounter = 0;
   for (const rawJob of value.jobs) {

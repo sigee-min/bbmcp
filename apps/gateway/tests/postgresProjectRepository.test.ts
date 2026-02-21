@@ -13,7 +13,7 @@ type StoredRow = {
 };
 
 class FakePostgresPool implements PostgresPool {
-  readonly migrations = new Map<number, string>();
+  readonly migrations = new Map<string, string>();
   readonly records = new Map<string, StoredRow>();
   readonly queries: string[] = [];
   closed = false;
@@ -42,19 +42,31 @@ class FakePostgresPool implements PostgresPool {
     if (normalized.startsWith('create table if not exists') && normalized.includes('ashfox_schema_migrations')) {
       return { rows: [] };
     }
-    if (normalized.startsWith('select version from') && normalized.includes('ashfox_schema_migrations')) {
-      const rows = Array.from(this.migrations.keys()).map((version) => ({ version }));
+    if (normalized.startsWith('select column_name') && normalized.includes('information_schema.columns')) {
+      return this.toResultRows<TResult>([{ column_name: 'migration_id' }]);
+    }
+    if (normalized.startsWith('alter table') && normalized.includes('ashfox_schema_migrations') && normalized.includes('migration_id')) {
+      return { rows: [] };
+    }
+    if (normalized.startsWith('update') && normalized.includes('ashfox_schema_migrations') && normalized.includes('set migration_id')) {
+      return { rows: [] };
+    }
+    if (normalized.startsWith('select migration_id from') && normalized.includes('ashfox_schema_migrations')) {
+      const rows = Array.from(this.migrations.keys()).map((migrationId) => ({ migration_id: migrationId }));
       return this.toResultRows<TResult>(rows);
     }
     if (normalized.startsWith('insert into') && normalized.includes('ashfox_schema_migrations')) {
-      const version = Number(params[0]);
+      const migrationId = String(params[0]);
       const name = String(params[1]);
-      if (!this.migrations.has(version)) {
-        this.migrations.set(version, name);
+      if (!this.migrations.has(migrationId)) {
+        this.migrations.set(migrationId, name);
       }
       return { rows: [] };
     }
     if (normalized.startsWith('create table if not exists')) {
+      return { rows: [] };
+    }
+    if (normalized.includes('alter table') && normalized.includes('ashfox_workspaces') && normalized.includes('default_member_role_id')) {
       return { rows: [] };
     }
     if (normalized.includes('alter table') && normalized.includes('ashfox_accounts')) {
@@ -66,14 +78,22 @@ class FakePostgresPool implements PostgresPool {
     ) {
       return { rows: [] };
     }
+    if (normalized.startsWith('create index if not exists')) {
+      return { rows: [] };
+    }
     if (
       normalized.startsWith('insert into') &&
       normalized.includes('on conflict') &&
       (normalized.includes('ashfox_workspaces') ||
         normalized.includes('ashfox_accounts') ||
         normalized.includes('ashfox_workspace_roles') ||
-        normalized.includes('ashfox_workspace_members'))
+        normalized.includes('ashfox_workspace_members') ||
+        normalized.includes('ashfox_workspace_folder_acl') ||
+        normalized.includes('ashfox_workspace_access_meta'))
     ) {
+      return { rows: [] };
+    }
+    if (normalized.startsWith('delete from') && normalized.includes('ashfox_workspace_access_meta')) {
       return { rows: [] };
     }
     if (normalized.startsWith('select tenant_id') && normalized.includes('where tenant_id = $1')) {
@@ -169,7 +189,22 @@ registerAsync(
     };
 
     await repository.save(record);
-    assert.equal(fakePool.migrations.get(1), 'create_projects_table');
+    const expectedMigrationIds = [
+      'create-projects-table',
+      'create-workspace-rbac-tables',
+      'add-account-auth-columns',
+      'add-workspace-and-scope-performance-indexes',
+      'create-workspace-access-meta-projection',
+      'add-workspace-default-member-role',
+      'create-workspace-api-keys-table',
+      'create-service-settings-table'
+    ] as const;
+    assert.equal(fakePool.migrations.get('create-projects-table'), 'create_projects_table');
+    assert.equal(fakePool.migrations.size, expectedMigrationIds.length);
+    for (const migrationId of expectedMigrationIds) {
+      assert.equal(fakePool.migrations.has(migrationId), true);
+      assert.equal(migrationId.startsWith('legacy-version-'), false);
+    }
 
     const firstRead = await repository.find(record.scope);
     assert.ok(firstRead);

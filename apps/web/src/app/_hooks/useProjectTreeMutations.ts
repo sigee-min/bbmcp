@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-import { buildGatewayApiUrl } from '../../lib/gatewayApi';
+import { requestGatewayApi } from '../../lib/gatewayApiClient';
 
 const requestGatewayMutation = async (
   path: string,
@@ -8,27 +8,28 @@ const requestGatewayMutation = async (
   body?: Record<string, unknown>,
   requestHeaders?: Record<string, string>
 ): Promise<void> => {
-  const response = await fetch(buildGatewayApiUrl(path), {
-    method,
-    headers: {
-      'content-type': 'application/json',
-      ...(requestHeaders ?? {})
+  const hasBody = typeof body !== 'undefined';
+  const mergedHeaders: Record<string, string> = {
+    ...(requestHeaders ?? {})
+  };
+  if (hasBody) {
+    mergedHeaders['content-type'] = 'application/json';
+  } else {
+    delete mergedHeaders['content-type'];
+    delete mergedHeaders['Content-Type'];
+  }
+
+  await requestGatewayApi(
+    path,
+    {
+      method,
+      headers: mergedHeaders,
+      ...(hasBody ? { body: JSON.stringify(body) } : {})
     },
-    ...(body ? { body: JSON.stringify(body) } : {})
-  });
-
-  let payload: unknown = null;
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  const candidate = payload as { ok?: boolean; message?: unknown } | null;
-  if (!response.ok || !candidate?.ok) {
-    const message = typeof candidate?.message === 'string' ? candidate.message : `Request failed (${response.status})`;
-    throw new Error(message);
-  }
+    {
+      fallbackMessage: '요청을 처리하지 못했습니다.'
+    }
+  );
 };
 
 const promptName = (title: string, fallback: string): string | null => {

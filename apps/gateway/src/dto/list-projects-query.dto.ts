@@ -1,11 +1,11 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class ListProjectsQueryDto {
   @IsOptional()
   @IsString()
   q?: string;
 
-  @IsOptional()
   @IsString()
-  workspaceId?: string;
+  @IsNotEmpty()
+  workspaceId!: string;
 }

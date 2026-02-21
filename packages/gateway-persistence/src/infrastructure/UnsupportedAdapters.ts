@@ -4,8 +4,15 @@ import type {
   BlobReadResult,
   BlobStore,
   BlobWriteInput,
+  PersistedProjectRecord,
   ProjectRepository,
   ProjectRepositoryScope,
+  ServiceUsersSearchInput,
+  ServiceUsersSearchResult,
+  ServiceWorkspacesSearchInput,
+  ServiceWorkspacesSearchResult,
+  ServiceSettingsRecord,
+  WorkspaceApiKeyRecord,
   WorkspaceFolderAclRecord,
   WorkspaceMemberRecord,
   WorkspaceRecord,
@@ -24,6 +31,10 @@ export class UnsupportedProjectRepository implements ProjectRepository {
   }
 
   async find(_scope: ProjectRepositoryScope): Promise<null> {
+    throw this.error;
+  }
+
+  async listByScopePrefix(_scope: ProjectRepositoryScope): Promise<PersistedProjectRecord[]> {
     throw this.error;
   }
 
@@ -75,11 +86,43 @@ export class UnsupportedWorkspaceRepository implements WorkspaceRepository {
     throw this.error;
   }
 
+  async countAccountsBySystemRole(_role: 'system_admin' | 'cs_admin'): Promise<number> {
+    throw this.error;
+  }
+
+  async listAccounts(_input?: {
+    query?: string;
+    limit?: number;
+    excludeAccountIds?: readonly string[];
+  }): Promise<AccountRecord[]> {
+    throw this.error;
+  }
+
+  async searchServiceUsers(_input?: ServiceUsersSearchInput): Promise<ServiceUsersSearchResult> {
+    throw this.error;
+  }
+
+  async searchServiceWorkspaces(_input?: ServiceWorkspacesSearchInput): Promise<ServiceWorkspacesSearchResult> {
+    throw this.error;
+  }
+
   async upsertAccount(_record: AccountRecord): Promise<void> {
     throw this.error;
   }
 
-  async listWorkspaces(_accountId: string): Promise<WorkspaceRecord[]> {
+  async updateAccountSystemRoles(
+    _accountId: string,
+    _systemRoles: Array<'system_admin' | 'cs_admin'>,
+    _updatedAt: string
+  ): Promise<AccountRecord | null> {
+    throw this.error;
+  }
+
+  async listAccountWorkspaces(_accountId: string): Promise<WorkspaceRecord[]> {
+    throw this.error;
+  }
+
+  async listAllWorkspaces(): Promise<WorkspaceRecord[]> {
     throw this.error;
   }
 
@@ -128,6 +171,30 @@ export class UnsupportedWorkspaceRepository implements WorkspaceRepository {
   }
 
   async removeWorkspaceFolderAcl(_workspaceId: string, _folderId: string | null, _roleId: string): Promise<void> {
+    throw this.error;
+  }
+
+  async listWorkspaceApiKeys(_workspaceId: string): Promise<WorkspaceApiKeyRecord[]> {
+    throw this.error;
+  }
+
+  async createWorkspaceApiKey(_record: WorkspaceApiKeyRecord): Promise<void> {
+    throw this.error;
+  }
+
+  async revokeWorkspaceApiKey(_workspaceId: string, _keyId: string, _revokedAt: string): Promise<void> {
+    throw this.error;
+  }
+
+  async updateWorkspaceApiKeyLastUsed(_workspaceId: string, _keyId: string, _lastUsedAt: string): Promise<void> {
+    throw this.error;
+  }
+
+  async getServiceSettings(): Promise<ServiceSettingsRecord | null> {
+    throw this.error;
+  }
+
+  async upsertServiceSettings(_record: ServiceSettingsRecord): Promise<void> {
     throw this.error;
   }
 }

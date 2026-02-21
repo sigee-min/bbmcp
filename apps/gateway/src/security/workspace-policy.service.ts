@@ -1,6 +1,9 @@
 import {
   evaluateWorkspaceFolderPermission,
-  type WorkspaceFolderAclRecord,
+  hasSystemRole,
+  SYSTEM_ROLES,
+  type SystemRole,
+  type WorkspaceAclRuleRecord,
   type WorkspaceMemberRecord,
   type WorkspacePermission,
   type WorkspaceRecord,
@@ -10,19 +13,31 @@ import {
 
 const DEFAULT_POLICY_CACHE_TTL_MS = 1_500;
 
-export type GatewaySystemRole = 'system_admin' | 'cs_admin';
+export type GatewaySystemRole = SystemRole;
 
 export interface WorkspacePolicyActor {
   accountId: string;
   systemRoles: readonly GatewaySystemRole[];
 }
 
+export type WorkspaceAccessPermission = WorkspacePermission | 'workspace.member';
+
 export interface WorkspaceCapabilities {
-  canManageWorkspace: boolean;
-  canManageMembers: boolean;
-  canManageRoles: boolean;
-  canManageFolderAcl: boolean;
+  canManageWorkspaceSettings: boolean;
 }
+
+export type AuthorizeWorkspaceAccessResult =
+  | {
+      ok: true;
+      workspace: WorkspaceRecord;
+    }
+  | {
+      ok: false;
+      reason: 'workspace_not_found' | 'forbidden_workspace';
+      workspaceId: string;
+      accountId: string;
+      permission: WorkspaceAccessPermission;
+    };
 
 export interface AuthorizeProjectWriteInput {
   workspaceId: string;
@@ -45,12 +60,32 @@ export type AuthorizeProjectWriteResult =
       tool: string;
     };
 
+export interface AuthorizeProjectReadInput {
+  workspaceId: string;
+  folderId: string | null;
+  folderPathFromRoot: readonly (string | null)[];
+  projectId: string;
+  tool: string;
+  actor: WorkspacePolicyActor;
+}
+
+export type AuthorizeProjectReadResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: 'workspace_not_found' | 'forbidden_workspace_project_read' | 'forbidden_workspace_folder_read';
+      workspaceId: string;
+      projectId: string;
+      accountId: string;
+      folderId: string | null;
+      tool: string;
+    };
+
 type WorkspacePolicySnapshot = {
   workspace: WorkspaceRecord | null;
   roles: WorkspaceRoleStorageRecord[];
-  roleMap: Map<string, WorkspaceRoleStorageRecord>;
   members: WorkspaceMemberRecord[];
-  folderAcl: WorkspaceFolderAclRecord[];
+  aclRules: WorkspaceAclRuleRecord[];
   workspaceAdminRoleIds: string[];
 };
 
@@ -59,41 +94,32 @@ type WorkspacePolicyCacheEntry = {
   snapshot: WorkspacePolicySnapshot;
 };
 
-const buildRoleMap = (roles: readonly WorkspaceRoleStorageRecord[]): Map<string, WorkspaceRoleStorageRecord> => {
-  const roleMap = new Map<string, WorkspaceRoleStorageRecord>();
-  for (const role of roles) {
-    roleMap.set(role.roleId, role);
-  }
-  return roleMap;
-};
-
 const buildWorkspaceAdminRoleIds = (roles: readonly WorkspaceRoleStorageRecord[]): string[] =>
   roles.filter((role) => role.builtin === 'workspace_admin').map((role) => role.roleId);
-
-const toPermissionSet = (
-  member: WorkspaceMemberRecord | null,
-  roleMap: ReadonlyMap<string, WorkspaceRoleStorageRecord>
-): Set<WorkspacePermission> => {
-  if (!member) {
-    return new Set<WorkspacePermission>();
-  }
-  const permissions = new Set<WorkspacePermission>();
-  for (const roleId of member.roleIds) {
-    const role = roleMap.get(roleId);
-    if (!role) {
-      continue;
-    }
-    for (const permission of role.permissions) {
-      permissions.add(permission);
-    }
-  }
-  return permissions;
-};
 
 const resolveMember = (
   members: readonly WorkspaceMemberRecord[],
   accountId: string
 ): WorkspaceMemberRecord | null => members.find((entry) => entry.accountId === accountId) ?? null;
+
+const toAclRules = (rules: readonly WorkspaceAclRuleRecord[]): WorkspaceAclRuleRecord[] =>
+  rules.map((rule) => ({
+    ...rule,
+    scope: rule.scope ?? 'folder',
+    locked: Boolean(rule.locked)
+  }));
+
+const toRoleAssignments = (member: WorkspaceMemberRecord): Array<{ accountId: string; roleIds: string[] }> => [
+  {
+    accountId: member.accountId,
+    roleIds: member.roleIds
+  }
+];
+
+const isWorkspaceAdmin = (
+  member: WorkspaceMemberRecord,
+  workspaceAdminRoleIds: readonly string[]
+): boolean => member.roleIds.some((roleId) => workspaceAdminRoleIds.includes(roleId));
 
 export class WorkspacePolicyService {
   private readonly cache = new Map<string, WorkspacePolicyCacheEntry>();
@@ -110,7 +136,7 @@ export class WorkspacePolicyService {
   }
 
   isSystemManager(actor: WorkspacePolicyActor): boolean {
-    return actor.systemRoles.includes('system_admin') || actor.systemRoles.includes('cs_admin');
+    return SYSTEM_ROLES.some((role) => hasSystemRole(actor.systemRoles, role));
   }
 
   invalidateWorkspace(workspaceId: string): void {
@@ -128,32 +154,127 @@ export class WorkspacePolicyService {
 
   async resolveWorkspaceRolePermissions(workspaceId: string, accountId: string): Promise<Set<WorkspacePermission>> {
     const snapshot = await this.readSnapshot(workspaceId);
-    return toPermissionSet(resolveMember(snapshot.members, accountId), snapshot.roleMap);
+    const member = resolveMember(snapshot.members, accountId);
+    if (!snapshot.workspace || !member) {
+      return new Set<WorkspacePermission>();
+    }
+    const roleAssignments = toRoleAssignments(member);
+    const folderPermission = evaluateWorkspaceFolderPermission(
+      {
+        workspaceId,
+        accountId,
+        roleAssignments,
+        workspaceAdminRoleIds: snapshot.workspaceAdminRoleIds,
+        aclRules: snapshot.aclRules
+      },
+      [null]
+    );
+    const permissions = new Set<WorkspacePermission>();
+    if (isWorkspaceAdmin(member, snapshot.workspaceAdminRoleIds)) {
+      permissions.add('workspace.manage');
+    }
+    if (folderPermission.read) {
+      permissions.add('folder.read');
+    }
+    if (folderPermission.write) {
+      permissions.add('folder.write');
+    }
+    return permissions;
+  }
+
+  async authorizeWorkspaceAccess(
+    workspaceId: string,
+    actor: WorkspacePolicyActor,
+    permission: WorkspaceAccessPermission = 'workspace.member'
+  ): Promise<AuthorizeWorkspaceAccessResult> {
+    const snapshot = await this.readSnapshot(workspaceId);
+    if (!snapshot.workspace) {
+      return {
+        ok: false,
+        reason: 'workspace_not_found',
+        workspaceId,
+        accountId: actor.accountId,
+        permission
+      };
+    }
+
+    if (this.isSystemManager(actor)) {
+      return {
+        ok: true,
+        workspace: snapshot.workspace
+      };
+    }
+
+    const member = resolveMember(snapshot.members, actor.accountId);
+    if (!member) {
+      return {
+        ok: false,
+        reason: 'forbidden_workspace',
+        workspaceId,
+        accountId: actor.accountId,
+        permission
+      };
+    }
+
+    if (permission === 'workspace.member') {
+      return {
+        ok: true,
+        workspace: snapshot.workspace
+      };
+    }
+
+    if (permission === 'workspace.manage') {
+      if (isWorkspaceAdmin(member, snapshot.workspaceAdminRoleIds)) {
+        return {
+          ok: true,
+          workspace: snapshot.workspace
+        };
+      }
+      return {
+        ok: false,
+        reason: 'forbidden_workspace',
+        workspaceId,
+        accountId: actor.accountId,
+        permission
+      };
+    }
+
+    const folderPermission = evaluateWorkspaceFolderPermission(
+      {
+        workspaceId,
+        accountId: actor.accountId,
+        roleAssignments: toRoleAssignments(member),
+        workspaceAdminRoleIds: snapshot.workspaceAdminRoleIds,
+        aclRules: snapshot.aclRules
+      },
+      [null]
+    );
+    const allowed = permission === 'folder.write' ? folderPermission.write : folderPermission.read;
+    if (allowed) {
+      return {
+        ok: true,
+        workspace: snapshot.workspace
+      };
+    }
+    return {
+      ok: false,
+      reason: 'forbidden_workspace',
+      workspaceId,
+      accountId: actor.accountId,
+      permission
+    };
   }
 
   async resolveWorkspaceCapabilities(workspace: WorkspaceRecord, actor: WorkspacePolicyActor): Promise<WorkspaceCapabilities> {
-    if (workspace.mode === 'all_open') {
-      return {
-        canManageWorkspace: false,
-        canManageMembers: false,
-        canManageRoles: false,
-        canManageFolderAcl: false
-      };
-    }
     if (this.isSystemManager(actor)) {
       return {
-        canManageWorkspace: true,
-        canManageMembers: true,
-        canManageRoles: true,
-        canManageFolderAcl: true
+        canManageWorkspaceSettings: true
       };
     }
     const permissions = await this.resolveWorkspaceRolePermissions(workspace.workspaceId, actor.accountId);
+    const canManage = permissions.has('workspace.manage');
     return {
-      canManageWorkspace: permissions.has('workspace.settings.manage'),
-      canManageMembers: permissions.has('workspace.members.manage'),
-      canManageRoles: permissions.has('workspace.roles.manage'),
-      canManageFolderAcl: permissions.has('workspace.roles.manage') || permissions.has('workspace.members.manage')
+      canManageWorkspaceSettings: canManage
     };
   }
 
@@ -176,14 +297,7 @@ export class WorkspacePolicyService {
     }
 
     const member = resolveMember(snapshot.members, input.actor.accountId);
-    const permissions = toPermissionSet(member, snapshot.roleMap);
-    const memberRoleIds = member?.roleIds ?? [];
-    const isWorkspaceAdmin = memberRoleIds.some((roleId) => snapshot.workspaceAdminRoleIds.includes(roleId));
-    if (isWorkspaceAdmin) {
-      return { ok: true };
-    }
-
-    if (snapshot.workspace.mode === 'rbac' && !permissions.has('project.write')) {
+    if (!member) {
       return {
         ok: false,
         reason: 'forbidden_workspace_project_write',
@@ -195,33 +309,17 @@ export class WorkspacePolicyService {
       };
     }
 
+    if (isWorkspaceAdmin(member, snapshot.workspaceAdminRoleIds)) {
+      return { ok: true };
+    }
+
     const folderPermission = evaluateWorkspaceFolderPermission(
       {
         workspaceId: input.workspaceId,
-        mode: snapshot.workspace.mode,
         accountId: input.actor.accountId,
-        roleAssignments: member
-          ? [
-              {
-                accountId: member.accountId,
-                roleIds: member.roleIds
-              }
-            ]
-          : [],
-        roleCatalog: snapshot.roles.map((role) => ({
-          roleId: role.roleId,
-          name: role.roleId,
-          builtin: role.builtin,
-          permissions: role.permissions
-        })),
+        roleAssignments: toRoleAssignments(member),
         workspaceAdminRoleIds: snapshot.workspaceAdminRoleIds,
-        folderAclRules: snapshot.folderAcl.map((rule) => ({
-          workspaceId: rule.workspaceId,
-          folderId: rule.folderId,
-          roleId: rule.roleId,
-          read: rule.read,
-          write: rule.write
-        }))
+        aclRules: snapshot.aclRules
       },
       input.folderPathFromRoot
     );
@@ -229,6 +327,65 @@ export class WorkspacePolicyService {
       return {
         ok: false,
         reason: 'forbidden_workspace_folder_write',
+        workspaceId: input.workspaceId,
+        projectId: input.projectId,
+        accountId: input.actor.accountId,
+        folderId: input.folderId,
+        tool: input.tool
+      };
+    }
+    return { ok: true };
+  }
+
+  async authorizeProjectRead(input: AuthorizeProjectReadInput): Promise<AuthorizeProjectReadResult> {
+    if (this.isSystemManager(input.actor)) {
+      return { ok: true };
+    }
+
+    const snapshot = await this.readSnapshot(input.workspaceId);
+    if (!snapshot.workspace) {
+      return {
+        ok: false,
+        reason: 'workspace_not_found',
+        workspaceId: input.workspaceId,
+        projectId: input.projectId,
+        accountId: input.actor.accountId,
+        folderId: input.folderId,
+        tool: input.tool
+      };
+    }
+
+    const member = resolveMember(snapshot.members, input.actor.accountId);
+    if (!member) {
+      return {
+        ok: false,
+        reason: 'forbidden_workspace_project_read',
+        workspaceId: input.workspaceId,
+        projectId: input.projectId,
+        accountId: input.actor.accountId,
+        folderId: input.folderId,
+        tool: input.tool
+      };
+    }
+
+    if (isWorkspaceAdmin(member, snapshot.workspaceAdminRoleIds)) {
+      return { ok: true };
+    }
+
+    const folderPermission = evaluateWorkspaceFolderPermission(
+      {
+        workspaceId: input.workspaceId,
+        accountId: input.actor.accountId,
+        roleAssignments: toRoleAssignments(member),
+        workspaceAdminRoleIds: snapshot.workspaceAdminRoleIds,
+        aclRules: snapshot.aclRules
+      },
+      input.folderPathFromRoot
+    );
+    if (!folderPermission.read) {
+      return {
+        ok: false,
+        reason: 'forbidden_workspace_folder_read',
         workspaceId: input.workspaceId,
         projectId: input.projectId,
         accountId: input.actor.accountId,
@@ -251,9 +408,8 @@ export class WorkspacePolicyService {
       const emptySnapshot: WorkspacePolicySnapshot = {
         workspace: null,
         roles: [],
-        roleMap: new Map(),
         members: [],
-        folderAcl: [],
+        aclRules: [],
         workspaceAdminRoleIds: []
       };
       this.cache.set(workspaceId, {
@@ -271,9 +427,8 @@ export class WorkspacePolicyService {
     const snapshot: WorkspacePolicySnapshot = {
       workspace,
       roles,
-      roleMap: buildRoleMap(roles),
       members,
-      folderAcl,
+      aclRules: toAclRules(folderAcl),
       workspaceAdminRoleIds: buildWorkspaceAdminRoleIds(roles)
     };
     this.cache.set(workspaceId, {
@@ -283,4 +438,3 @@ export class WorkspacePolicyService {
     return snapshot;
   }
 }
-

@@ -7,8 +7,10 @@ import {
   buildStreamUrl,
   createInitialDashboardState,
   createLoadedState,
+  isSystemManager,
   markStreamOpen,
   markStreamReconnecting,
+  normalizeSystemRoles,
   rotateViewer,
   selectProject,
   shouldApplyStreamPayload,
@@ -54,6 +56,13 @@ const makeTree = (projects: readonly ProjectSnapshot[]): ProjectTreeSnapshot => 
     activeJobStatus: null
   }))
 });
+
+{
+  assert.deepEqual(normalizeSystemRoles(undefined), []);
+  assert.deepEqual(normalizeSystemRoles(['invalid', 'system_admin', 'cs_admin', 'system_admin']), ['system_admin', 'cs_admin']);
+  assert.equal(isSystemManager([]), false);
+  assert.equal(isSystemManager(['cs_admin']), true);
+}
 
 {
   assert.equal(INSPECTOR_TABS.length, 2);
@@ -136,8 +145,8 @@ const makeTree = (projects: readonly ProjectSnapshot[]): ProjectTreeSnapshot => 
   assert.equal(buildStreamUrl('project-a', -1), '/api/projects/project-a/stream');
   assert.equal(buildStreamUrl('project-a', 33), '/api/projects/project-a/stream?lastEventId=33');
   assert.equal(
-    buildStreamUrl('project-a', 33, 'ws_default'),
-    '/api/projects/project-a/stream?lastEventId=33&workspaceId=ws_default'
+    buildStreamUrl('project-a', 33, 'ws_auto_admin-en845w'),
+    '/api/projects/project-a/stream?lastEventId=33&workspaceId=ws_auto_admin-en845w'
   );
 }
 

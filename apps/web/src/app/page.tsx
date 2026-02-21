@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   createLoadedState,
   createInitialDashboardState,
+  isSystemManager,
   replaceProjectTree,
   rotateViewer,
   selectProject,
@@ -16,27 +17,30 @@ import {
 import type { WorkspaceSummary } from '../lib/dashboardModel';
 import type { ThemeMode } from '../lib/theme';
 import { buildGatewayApiUrl } from '../lib/gatewayApi';
+import { parseGatewayApiResponse, requestGatewayApi, resolveGatewayRequestErrorMessage } from '../lib/gatewayApiClient';
 import { cn } from '../lib/utils';
 import { useDashboardStream } from './_hooks/useDashboardStream';
 import { useOverlaySelection } from './_hooks/useOverlaySelection';
 import { useProjectList } from './_hooks/useProjectList';
 import { useProjectTreeMutations } from './_hooks/useProjectTreeMutations';
 import { useThemeMode } from './_hooks/useThemeMode';
+import { ServiceManagementDialog } from './features/admin/ServiceManagementDialog';
 import { AccountSecurityDialog } from './features/auth/AccountSecurityDialog';
 import { AuthScreen } from './features/auth/AuthScreen';
 import { InspectorSidebar, type HierarchyRow } from './features/inspector/InspectorSidebar';
 import { ProjectSidebar } from './features/project-tree/ProjectSidebar';
 import { errorCopy } from './features/shared/dashboardCopy';
 import { StateScreen } from './features/shared/StateScreen';
+import { useErrorChannels } from './features/shared/useErrorChannels';
 import { ViewportPanel, type RotateSource } from './features/viewport/ViewportPanel';
 import styles from './page.module.css';
+import { WorkspaceCreateDialog, type WorkspaceCreateInput } from './features/workspace/WorkspaceCreateDialog';
 import { WorkspaceSettingsDialog } from './features/workspace/WorkspaceSettingsDialog';
 
 const INVERT_POINTER_STORAGE_KEY = 'ashfox.viewer.invertPointer';
 const LEGACY_INVERT_X_STORAGE_KEY = 'ashfox.viewer.invertX';
 const LEGACY_INVERT_Y_STORAGE_KEY = 'ashfox.viewer.invertY';
 const TEXTURE_OVERLAY_ANCHOR_SELECTOR = '[data-overlay-anchor="texture"], [data-overlay="texture"]';
-const DEFAULT_WORKSPACE_ID = 'ws_default';
 
 type AuthSessionUser = {
   accountId: string;
@@ -64,34 +68,34 @@ interface SessionResponse {
   ok: boolean;
   user?: AuthSessionUser;
   githubEnabled?: boolean;
+  code?: string;
   message?: string;
 }
 
-const parseApiErrorMessage = async (response: Response, fallback: string): Promise<string> => {
-  try {
-    const payload = (await response.json()) as { message?: unknown };
-    if (typeof payload.message === 'string' && payload.message.trim().length > 0) {
-      return payload.message;
-    }
-    return fallback;
-  } catch {
-    return fallback;
-  }
+interface CreateWorkspaceResponse {
+  ok: boolean;
+  workspace?: WorkspaceSummary;
+  code?: string;
+  message?: string;
+}
+
+const toFriendlySessionError = (error: unknown): string => {
+  return resolveGatewayRequestErrorMessage(error, '세션을 확인하지 못했습니다.');
+};
+
+const toFriendlyAuthError = (error: unknown, fallback: string): string => {
+  return resolveGatewayRequestErrorMessage(error, fallback);
 };
 
 const areWorkspaceCapabilitiesEqual = (
   left: WorkspaceSummary['capabilities'],
   right: WorkspaceSummary['capabilities']
-): boolean =>
-  left.canManageWorkspace === right.canManageWorkspace &&
-  left.canManageMembers === right.canManageMembers &&
-  left.canManageRoles === right.canManageRoles &&
-  left.canManageFolderAcl === right.canManageFolderAcl;
+): boolean => left.canManageWorkspaceSettings === right.canManageWorkspaceSettings;
 
 const areWorkspaceSummariesEqual = (left: WorkspaceSummary, right: WorkspaceSummary): boolean =>
   left.workspaceId === right.workspaceId &&
   left.name === right.name &&
-  left.mode === right.mode &&
+  left.defaultMemberRoleId === right.defaultMemberRoleId &&
   areWorkspaceCapabilitiesEqual(left.capabilities, right.capabilities);
 
 const buildWorkspaceScopedPath = (path: string, workspaceId: string): string => {
@@ -116,7 +120,6 @@ const flattenHierarchyRows = (nodes: readonly HierarchyNode[], depth = 0): Hiera
 export default function HomePage() {
   const [authResolved, setAuthResolved] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<AuthSessionUser | null>(null);
   const [githubEnabled, setGithubEnabled] = useState(false);
   const [accountSecurityOpen, setAccountSecurityOpen] = useState(false);
@@ -126,22 +129,40 @@ export default function HomePage() {
   const [state, setState] = useState<DashboardState>(() => createInitialDashboardState());
   const [reloadVersion, setReloadVersion] = useState(0);
   const [workspaces, setWorkspaces] = useState<readonly WorkspaceSummary[]>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(DEFAULT_WORKSPACE_ID);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState('');
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
-  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
+  const [workspaceCreateOpen, setWorkspaceCreateOpen] = useState(false);
+  const [serviceManagementOpen, setServiceManagementOpen] = useState(false);
+  const [workspaceCreateBusy, setWorkspaceCreateBusy] = useState(false);
   const [invertPointer, setInvertPointer] = useState(false);
-  const requestHeaders = useMemo(
-    () => ({
-      'x-ashfox-workspace-id': selectedWorkspaceId
-    }),
-    [selectedWorkspaceId]
-  );
+  const {
+    panelError: authError,
+    clearChannelError: clearAuthErrorChannel,
+    clearAllErrors: clearAllAuthErrors,
+    reportError: reportAuthError
+  } = useErrorChannels();
+  const {
+    panelError: workspaceError,
+    inlineError: workspaceCreateError,
+    clearChannelError: clearWorkspaceErrorChannel,
+    clearAllErrors: clearAllWorkspaceErrors,
+    reportError: reportWorkspaceError
+  } = useErrorChannels();
+  const requestHeaders = useMemo(() => {
+    const normalizedWorkspaceId = selectedWorkspaceId.trim();
+    if (normalizedWorkspaceId.length === 0) {
+      return {};
+    }
+    return {
+      'x-ashfox-workspace-id': normalizedWorkspaceId
+    };
+  }, [selectedWorkspaceId]);
   const isAuthenticated = authResolved && authUser !== null;
   const workspaceSelectionReady = workspaces.length > 0 || workspaceError !== null;
 
   const refreshSession = useCallback(async () => {
-    setAuthError(null);
+    clearAuthErrorChannel('panel');
     try {
       const response = await fetch(buildGatewayApiUrl('/auth/me'), {
         cache: 'no-store'
@@ -151,22 +172,21 @@ export default function HomePage() {
         setGithubEnabled(true);
         return;
       }
-      if (!response.ok) {
-        throw new Error(await parseApiErrorMessage(response, '세션을 확인하지 못했습니다.'));
-      }
-      const payload = (await response.json()) as SessionResponse;
-      if (!payload.ok || !payload.user) {
+      const payload = await parseGatewayApiResponse<SessionResponse>(response, {
+        fallbackMessage: '세션을 확인하지 못했습니다.'
+      });
+      if (!payload.user) {
         throw new Error(payload.message ?? '세션을 확인하지 못했습니다.');
       }
       setAuthUser(payload.user);
       setGithubEnabled(payload.githubEnabled !== false);
     } catch (error) {
       setAuthUser(null);
-      setAuthError(error instanceof Error ? error.message : '세션을 확인하지 못했습니다.');
+      reportAuthError(error, toFriendlySessionError(error), 'panel');
     } finally {
       setAuthResolved(true);
     }
-  }, []);
+  }, [clearAuthErrorChannel, reportAuthError]);
 
   useEffect(() => {
     void refreshSession();
@@ -175,30 +195,32 @@ export default function HomePage() {
   const handleDirectLogin = useCallback(
     async (loginId: string, password: string) => {
       setAuthBusy(true);
-      setAuthError(null);
+      clearAuthErrorChannel('panel');
       try {
-        const response = await fetch(buildGatewayApiUrl('/auth/login'), {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json'
+        const payload = await requestGatewayApi<SessionResponse>(
+          '/auth/login',
+          {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json'
+            },
+            body: JSON.stringify({ loginId, password })
           },
-          body: JSON.stringify({ loginId, password })
-        });
-        if (!response.ok) {
-          throw new Error(await parseApiErrorMessage(response, '로그인에 실패했습니다.'));
-        }
-        const payload = (await response.json()) as SessionResponse;
-        if (!payload.ok || !payload.user) {
+          {
+            fallbackMessage: '로그인에 실패했습니다.'
+          }
+        );
+        if (!payload.user) {
           throw new Error(payload.message ?? '로그인에 실패했습니다.');
         }
         setAuthUser(payload.user);
       } catch (error) {
-        setAuthError(error instanceof Error ? error.message : '로그인에 실패했습니다.');
+        reportAuthError(error, toFriendlyAuthError(error, '로그인에 실패했습니다.'), 'panel');
       } finally {
         setAuthBusy(false);
       }
     },
-    []
+    [clearAuthErrorChannel, reportAuthError]
   );
 
   const handleGitHubLogin = useCallback(() => {
@@ -217,24 +239,26 @@ export default function HomePage() {
       setCredentialUpdateError(null);
       setCredentialUpdateSuccess(null);
       try {
-        const response = await fetch(buildGatewayApiUrl('/auth/local-credential'), {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json'
+        const payload = await requestGatewayApi<SessionResponse>(
+          '/auth/local-credential',
+          {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json'
+            },
+            body: JSON.stringify(input)
           },
-          body: JSON.stringify(input)
-        });
-        if (!response.ok) {
-          throw new Error(await parseApiErrorMessage(response, '로컬 로그인 정보를 저장하지 못했습니다.'));
-        }
-        const payload = (await response.json()) as SessionResponse;
-        if (!payload.ok || !payload.user) {
+          {
+            fallbackMessage: '로컬 로그인 정보를 저장하지 못했습니다.'
+          }
+        );
+        if (!payload.user) {
           throw new Error(payload.message ?? '로컬 로그인 정보를 저장하지 못했습니다.');
         }
         setAuthUser(payload.user);
         setCredentialUpdateSuccess('로컬 로그인 정보가 저장되었습니다.');
       } catch (error) {
-        setCredentialUpdateError(error instanceof Error ? error.message : '로컬 로그인 정보를 저장하지 못했습니다.');
+        setCredentialUpdateError(toFriendlyAuthError(error, '로컬 로그인 정보를 저장하지 못했습니다.'));
       } finally {
         setCredentialUpdateBusy(false);
       }
@@ -255,31 +279,35 @@ export default function HomePage() {
     setCredentialUpdateSuccess(null);
     setAccountSecurityOpen(false);
     setWorkspaceSettingsOpen(false);
-  }, []);
+    setWorkspaceCreateOpen(false);
+    setServiceManagementOpen(false);
+    clearAllAuthErrors();
+    clearAllWorkspaceErrors();
+  }, [clearAllAuthErrors, clearAllWorkspaceErrors]);
 
   useEffect(() => {
     if (!isAuthenticated) {
       setWorkspaceLoading(false);
-      setWorkspaceError(null);
+      clearAllWorkspaceErrors();
       setWorkspaces([]);
-      setSelectedWorkspaceId(DEFAULT_WORKSPACE_ID);
+      setSelectedWorkspaceId('');
+      setWorkspaceCreateOpen(false);
       return;
     }
     let cancelled = false;
     const loadWorkspaces = async () => {
       setWorkspaceLoading(true);
-      setWorkspaceError(null);
+      clearWorkspaceErrorChannel('panel');
       try {
-        const response = await fetch(buildGatewayApiUrl('/workspaces'), {
-          cache: 'no-store'
-        });
-        if (!response.ok) {
-          throw new Error(await parseApiErrorMessage(response, `workspace list failed: ${response.status}`));
-        }
-        const payload = (await response.json()) as WorkspacesResponse;
-        if (!payload.ok) {
-          throw new Error('workspace list failed');
-        }
+        const payload = await requestGatewayApi<WorkspacesResponse>(
+          '/workspaces',
+          {
+            cache: 'no-store'
+          },
+          {
+            fallbackMessage: '워크스페이스를 불러오지 못했습니다.'
+          }
+        );
         if (cancelled) {
           return;
         }
@@ -288,14 +316,14 @@ export default function HomePage() {
           if (payload.workspaces.some((workspace) => workspace.workspaceId === prev)) {
             return prev;
           }
-          return payload.workspaces[0]?.workspaceId ?? DEFAULT_WORKSPACE_ID;
+          return payload.workspaces[0]?.workspaceId ?? '';
         });
       } catch (error) {
         if (cancelled) {
           return;
         }
         const message = error instanceof Error ? error.message : '워크스페이스를 불러오지 못했습니다.';
-        setWorkspaceError(message);
+        reportWorkspaceError(error, message, 'panel');
       } finally {
         if (!cancelled) {
           setWorkspaceLoading(false);
@@ -306,7 +334,7 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, reloadVersion]);
+  }, [clearAllWorkspaceErrors, clearWorkspaceErrorChannel, isAuthenticated, reloadVersion, reportWorkspaceError]);
 
   useProjectList({
     setState,
@@ -337,14 +365,9 @@ export default function HomePage() {
       cache: 'no-store',
       headers: requestHeaders
     });
-    if (!response.ok) {
-      throw new Error(`project list failed: ${response.status}`);
-    }
-
-    const payload = (await response.json()) as ProjectsResponse;
-    if (!payload.ok) {
-      throw new Error('project list failed');
-    }
+    const payload = await parseGatewayApiResponse<ProjectsResponse>(response, {
+      fallbackMessage: '프로젝트를 불러오지 못했습니다.'
+    });
 
     setState((prev) => {
       if (prev.projects.length === 0) {
@@ -418,6 +441,17 @@ export default function HomePage() {
     setAccountSecurityOpen(true);
   }, []);
 
+  const handleOpenWorkspaceCreate = useCallback(() => {
+    clearWorkspaceErrorChannel('inline');
+    setWorkspaceCreateOpen(true);
+  }, [clearWorkspaceErrorChannel]);
+  const handleOpenWorkspaceSettings = useCallback(() => {
+    setWorkspaceSettingsOpen(true);
+  }, []);
+  const handleOpenServiceManagement = useCallback(() => {
+    setServiceManagementOpen(true);
+  }, []);
+
   const toggleInvertPointer = useCallback(() => {
     setInvertPointer((prev) => {
       const next = !prev;
@@ -440,7 +474,7 @@ export default function HomePage() {
     () => workspaces.find((workspace) => workspace.workspaceId === selectedWorkspaceId) ?? null,
     [selectedWorkspaceId, workspaces]
   );
-  const handleWorkspaceUpdated = useCallback((workspace: WorkspaceSummary) => {
+  const upsertWorkspaceSummary = useCallback((workspace: WorkspaceSummary) => {
     setWorkspaces((prev) => {
       const existing = prev.find((entry) => entry.workspaceId === workspace.workspaceId);
       if (existing) {
@@ -452,13 +486,56 @@ export default function HomePage() {
       return [...prev, workspace];
     });
   }, []);
-  const canManageWorkspace = Boolean(
-    selectedWorkspace?.capabilities.canManageWorkspace ||
-      selectedWorkspace?.capabilities.canManageMembers ||
-      selectedWorkspace?.capabilities.canManageRoles ||
-      selectedWorkspace?.capabilities.canManageFolderAcl
+  const handleWorkspaceUpdated = useCallback(
+    (workspace: WorkspaceSummary) => {
+      upsertWorkspaceSummary(workspace);
+    },
+    [upsertWorkspaceSummary]
   );
-
+  const handleCreateWorkspace = useCallback(
+    async (input: WorkspaceCreateInput) => {
+      setWorkspaceCreateBusy(true);
+      clearWorkspaceErrorChannel('inline');
+      try {
+        const payload = await requestGatewayApi<CreateWorkspaceResponse>(
+          '/workspaces',
+          {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              ...requestHeaders
+            },
+            body: JSON.stringify(input)
+          },
+          {
+            fallbackMessage: '워크스페이스를 생성하지 못했습니다.'
+          }
+        );
+        if (!payload.workspace) {
+          throw new Error(payload.message ?? '워크스페이스를 생성하지 못했습니다.');
+        }
+        upsertWorkspaceSummary(payload.workspace);
+        setWorkspaceCreateOpen(false);
+        handleWorkspaceSelect(payload.workspace.workspaceId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '워크스페이스를 생성하지 못했습니다.';
+        reportWorkspaceError(error, message, 'inline');
+      } finally {
+        setWorkspaceCreateBusy(false);
+      }
+    },
+    [clearWorkspaceErrorChannel, handleWorkspaceSelect, reportWorkspaceError, requestHeaders, upsertWorkspaceSummary]
+  );
+  const canManageService = isSystemManager(authUser?.systemRoles);
+  const canCreateWorkspace = canManageService;
+  useEffect(() => {
+    if (canManageService) {
+      return;
+    }
+    setServiceManagementOpen(false);
+  }, [canManageService]);
+  const projectListLoading = state.status === 'loading' && state.projects.length === 0;
+  const projectListError = state.status === 'error' && state.projects.length === 0 ? errorCopy.project_load_failed : null;
   const projectTextures = selectedProject?.textures ?? [];
   const projectAnimations = selectedProject?.animations ?? [];
 
@@ -502,34 +579,6 @@ export default function HomePage() {
     );
   }
 
-  if (state.status === 'loading' && state.projects.length === 0) {
-    return <StateScreen title="Ashfox Dashboard" description="프로젝트 목록을 불러오는 중입니다." loading />;
-  }
-
-  if (state.status === 'error' && state.projects.length === 0) {
-    return (
-      <StateScreen
-        title="Ashfox Dashboard"
-        description={errorCopy.project_load_failed}
-        destructive
-        actionLabel="다시 시도"
-        onAction={retryProjectLoad}
-      />
-    );
-  }
-
-  if (state.status === 'empty') {
-    return (
-      <StateScreen
-        title="Ashfox Dashboard"
-        description="표시할 프로젝트가 없습니다."
-        actionLabel="프로젝트 다시 불러오기"
-        actionVariant="secondary"
-        onAction={retryProjectLoad}
-      />
-    );
-  }
-
   return (
     <main className={cn('layout', styles.shell)}>
       <div className={cn('layout', styles.layout)}>
@@ -537,16 +586,22 @@ export default function HomePage() {
           projectTree={state.projectTree}
           selectedProjectId={state.selectedProjectId}
           streamStatus={state.streamStatus}
+          projectListLoading={projectListLoading}
+          projectListError={projectListError}
           workspaces={workspaces}
           selectedWorkspaceId={selectedWorkspaceId}
           workspaceLoading={workspaceLoading}
           workspaceError={workspaceError}
-          canManageWorkspace={canManageWorkspace}
           mutationBusy={mutationBusy}
           mutationError={mutationError}
           onRetryProjectLoad={retryProjectLoad}
-          onOpenWorkspaceSettings={() => setWorkspaceSettingsOpen(true)}
+          canCreateWorkspace={canCreateWorkspace}
+          canManageService={canManageService}
+          onOpenWorkspaceCreate={handleOpenWorkspaceCreate}
+          onOpenServiceManagement={handleOpenServiceManagement}
+          onOpenWorkspaceSettings={handleOpenWorkspaceSettings}
           onOpenAccountSecurity={handleOpenAccountSecurity}
+          onLogout={handleLogout}
           onSelectWorkspace={handleWorkspaceSelect}
           onSelectProject={handleProjectSelect}
           onThemeModeChange={handleThemeModeChange}
@@ -562,6 +617,7 @@ export default function HomePage() {
         />
         <ViewportPanel
           selectedProject={selectedProject}
+          workspaceId={selectedWorkspaceId}
           streamStatus={state.streamStatus}
           viewer={state.viewer}
           errorCode={state.errorCode}
@@ -590,9 +646,25 @@ export default function HomePage() {
         <WorkspaceSettingsDialog
           open={workspaceSettingsOpen}
           workspace={selectedWorkspace}
+          projectTree={state.projectTree}
+          currentAccountId={authUser.accountId}
           requestHeaders={requestHeaders}
           onClose={() => setWorkspaceSettingsOpen(false)}
           onWorkspaceUpdated={handleWorkspaceUpdated}
+        />
+        <WorkspaceCreateDialog
+          open={workspaceCreateOpen}
+          busy={workspaceCreateBusy}
+          errorMessage={workspaceCreateError}
+          onClose={() => setWorkspaceCreateOpen(false)}
+          onCreate={handleCreateWorkspace}
+        />
+        <ServiceManagementDialog
+          open={serviceManagementOpen && canManageService}
+          currentUserName={authUser.displayName}
+          currentUserSystemRoles={authUser.systemRoles}
+          requestHeaders={requestHeaders}
+          onClose={() => setServiceManagementOpen(false)}
         />
         <AccountSecurityDialog
           open={accountSecurityOpen}
@@ -603,9 +675,6 @@ export default function HomePage() {
           onClose={() => setAccountSecurityOpen(false)}
           onSubmit={handleUpdateLocalCredential}
         />
-        <button className={styles.logoutButton} type="button" onClick={() => void handleLogout()}>
-          로그아웃
-        </button>
       </div>
     </main>
   );

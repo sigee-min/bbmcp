@@ -12,7 +12,7 @@ import {
 } from '../constants';
 import { resolveBackendKind, resolveBooleanFlag, resolveLogLevel, resolvePositiveInt, toPort } from '../env';
 import { GATEWAY_ENV } from '../tokens';
-import type { GatewayPersistenceConfig, GatewayRuntimeConfig } from '../types';
+import type { GatewayAuthConfig, GatewayPersistenceConfig, GatewayRuntimeConfig } from '../types';
 
 @Injectable()
 export class GatewayConfigService {
@@ -20,6 +20,7 @@ export class GatewayConfigService {
   readonly runtime: GatewayRuntimeConfig;
   readonly persistence: GatewayPersistenceConfig;
   readonly logLevel: LogLevel;
+  private authOverrides: Partial<GatewayAuthConfig> = {};
 
   constructor(@Inject(GATEWAY_ENV) env: NodeJS.ProcessEnv) {
     this.env = env;
@@ -46,5 +47,19 @@ export class GatewayConfigService {
       failFast: resolveBooleanFlag(this.env.ASHFOX_PERSISTENCE_FAIL_FAST, true)
     };
     this.logLevel = resolveLogLevel(this.env.ASHFOX_GATEWAY_LOG_LEVEL, 'info');
+  }
+
+  getAuthConfig(): GatewayAuthConfig {
+    return {
+      ...this.runtime.auth,
+      ...this.authOverrides
+    };
+  }
+
+  applyAuthConfigOverrides(overrides: Partial<GatewayAuthConfig>): void {
+    this.authOverrides = {
+      ...this.authOverrides,
+      ...overrides
+    };
   }
 }

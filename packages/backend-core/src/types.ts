@@ -5,52 +5,79 @@ export type BackendKind = 'blockbench' | 'engine';
 export type BackendAvailability = 'ready' | 'degraded' | 'offline';
 
 export type SystemRole = 'system_admin' | 'cs_admin';
+export const SYSTEM_ROLES: readonly SystemRole[] = ['system_admin', 'cs_admin'];
 
-export type WorkspaceMode = 'all_open' | 'rbac';
+export const normalizeSystemRoles = (roles: readonly string[] | undefined): SystemRole[] => {
+  const deduped = new Set<SystemRole>();
+  for (const role of roles ?? []) {
+    if (role === 'system_admin' || role === 'cs_admin') {
+      deduped.add(role);
+    }
+  }
+  return [...deduped];
+};
 
-export type WorkspaceBuiltinRole = 'workspace_admin' | 'user';
+export const hasSystemRole = (roles: readonly string[] | undefined, target: SystemRole): boolean =>
+  normalizeSystemRoles(roles).includes(target);
+
+export const isSystemManager = (roles: readonly string[] | undefined): boolean =>
+  hasSystemRole(roles, 'system_admin') || hasSystemRole(roles, 'cs_admin');
+
+export type WorkspaceBuiltinRole = 'workspace_admin';
+
+export const WORKSPACE_ADMIN_ROLE_NAME = '어드민';
+export const WORKSPACE_MEMBER_ROLE_NAME = '유저';
+
+const LEGACY_WORKSPACE_ADMIN_ROLE_TOKENS = new Set(['workspace admin', 'admin', WORKSPACE_ADMIN_ROLE_NAME]);
+const LEGACY_WORKSPACE_MEMBER_ROLE_TOKENS = new Set(['user', WORKSPACE_MEMBER_ROLE_NAME]);
+const normalizeWorkspaceRoleToken = (value: string): string => value.trim().toLowerCase();
 
 export type WorkspacePermission =
-  | 'workspace.read'
-  | 'workspace.settings.manage'
-  | 'workspace.members.manage'
-  | 'workspace.roles.manage'
+  | 'workspace.manage'
   | 'folder.read'
-  | 'folder.write'
-  | 'project.read'
-  | 'project.write';
+  | 'folder.write';
+
+export const normalizeWorkspaceRoleName = (input: { builtin: WorkspaceBuiltinRole | null; name: string }): string => {
+  if (input.builtin === 'workspace_admin') {
+    return WORKSPACE_ADMIN_ROLE_NAME;
+  }
+  const trimmedName = input.name.trim();
+  const token = normalizeWorkspaceRoleToken(trimmedName);
+  if (LEGACY_WORKSPACE_ADMIN_ROLE_TOKENS.has(token)) {
+    return WORKSPACE_ADMIN_ROLE_NAME;
+  }
+  if (LEGACY_WORKSPACE_MEMBER_ROLE_TOKENS.has(token)) {
+    return WORKSPACE_MEMBER_ROLE_NAME;
+  }
+  return trimmedName || 'Role';
+};
 
 export type WorkspaceAclEffect = 'allow' | 'deny' | 'inherit';
-
-export interface WorkspaceRoleRecord {
-  roleId: string;
-  name: string;
-  builtin: WorkspaceBuiltinRole | null;
-  permissions: WorkspacePermission[];
-}
+export type WorkspaceAclScope = 'workspace' | 'folder';
 
 export interface WorkspaceMemberRoleAssignment {
   accountId: string;
   roleIds: string[];
 }
 
-export interface WorkspaceFolderAclRule {
+export interface WorkspaceAclRule {
   workspaceId: string;
+  ruleId: string;
+  scope?: WorkspaceAclScope;
   folderId: string | null;
-  roleId: string;
+  roleIds: string[];
   read: WorkspaceAclEffect;
   write: WorkspaceAclEffect;
+  locked?: boolean;
 }
 
 export interface WorkspacePermissionContext {
   workspaceId: string;
-  mode: WorkspaceMode;
   accountId: string;
   systemRoles?: readonly SystemRole[];
   workspaceAdminRoleIds?: readonly string[];
   roleAssignments?: readonly WorkspaceMemberRoleAssignment[];
-  roleCatalog?: readonly WorkspaceRoleRecord[];
-  folderAclRules?: readonly WorkspaceFolderAclRule[];
+  aclRules?: readonly WorkspaceAclRule[];
 }
 
 export interface WorkspaceFolderPermissionResult {
@@ -83,34 +110,50 @@ const toRoleIdSetForAccount = (
 };
 
 const resolveAclValue = (
-  rules: readonly WorkspaceFolderAclRule[],
-  roleIds: ReadonlySet<string>,
+  rules: readonly WorkspaceAclRule[],
+  memberRoleIds: ReadonlySet<string>,
   folderId: string | null,
   field: 'read' | 'write'
 ): WorkspaceAclEffect => {
   let hasAllow = false;
+  let hasDeny = false;
+  const hasAnyRoleMatch = (ruleRoleIds: readonly string[] | undefined): boolean => {
+    if (!Array.isArray(ruleRoleIds) || ruleRoleIds.length === 0) {
+      return false;
+    }
+    for (const roleId of ruleRoleIds) {
+      if (typeof roleId === 'string' && memberRoleIds.has(roleId)) {
+        return true;
+      }
+    }
+    return false;
+  };
   for (const rule of rules) {
-    if (!roleIds.has(rule.roleId) || rule.folderId !== folderId) {
+    if (!hasAnyRoleMatch(rule.roleIds) || (rule.scope ?? 'folder') !== 'folder' || rule.folderId !== folderId) {
       continue;
     }
     const value = rule[field];
-    if (value === 'deny') {
-      return 'deny';
-    }
     if (value === 'allow') {
       hasAllow = true;
+      continue;
+    }
+    if (value === 'deny') {
+      hasDeny = true;
     }
   }
-  return hasAllow ? 'allow' : 'inherit';
+  if (hasAllow) {
+    return 'allow';
+  }
+  if (hasDeny) {
+    return 'deny';
+  }
+  return 'inherit';
 };
 
 export const evaluateWorkspaceFolderPermission = (
   context: WorkspacePermissionContext,
   folderPathFromRoot: readonly (string | null)[] = [null]
 ): WorkspaceFolderPermissionResult => {
-  if (context.mode === 'all_open') {
-    return { read: true, write: true };
-  }
   if (hasSystemOverride(context.systemRoles)) {
     return { read: true, write: true };
   }
@@ -122,7 +165,7 @@ export const evaluateWorkspaceFolderPermission = (
     }
   }
 
-  const rules = Array.isArray(context.folderAclRules) ? context.folderAclRules : [];
+  const rules = Array.isArray(context.aclRules) ? context.aclRules : [];
   const resolvedPath = folderPathFromRoot.length > 0 ? folderPathFromRoot : [null];
 
   let readValue: WorkspaceAclEffect = 'inherit';

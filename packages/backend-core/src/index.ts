@@ -6,9 +6,16 @@ export {
   type BackendPort,
   type BackendSessionRef,
   type BackendToolContext,
+  hasSystemRole,
+  isSystemManager,
+  normalizeSystemRoles,
+  normalizeWorkspaceRoleName,
+  SYSTEM_ROLES,
+  type SystemRole,
+  WORKSPACE_ADMIN_ROLE_NAME,
+  WORKSPACE_MEMBER_ROLE_NAME,
   type WorkspaceAclEffect,
   type WorkspaceBuiltinRole,
-  type WorkspaceMode,
   type WorkspacePermission
 } from './types';
 export * from './errors';

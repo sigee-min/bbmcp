@@ -4,6 +4,12 @@ import type {
   PersistedProjectRecord,
   ProjectRepository,
   ProjectRepositoryScope,
+  ServiceUsersSearchInput,
+  ServiceUsersSearchResult,
+  ServiceWorkspacesSearchInput,
+  ServiceWorkspacesSearchResult,
+  ServiceSettingsRecord,
+  WorkspaceApiKeyRecord,
   WorkspaceFolderAclRecord,
   WorkspaceMemberRecord,
   WorkspaceRecord,
@@ -13,18 +19,45 @@ import type {
 import type { AppwriteDatabaseConfig } from '../config';
 import { createAppwriteTransport } from './appwrite/transport';
 import {
+  cloneWorkspaceState,
+  createDefaultWorkspaceState,
+  dedupeByKey,
+  isExpired,
+  normalizeRequired,
+  normalizeWorkspaceState,
+  normalizeAclRoleIds,
+  normalizeOptionalTimestamp,
+  parseLockState,
+  parseSystemRoles,
+  parseState,
+  resolvePositiveInt,
+  sleep,
+  toAclTemplateRuleId,
+  WORKSPACE_STATE_SCOPE,
+  type AppwriteProjectDocument,
+  type ProjectDocumentData,
+  type WorkspaceStateDocument
+} from './appwrite/workspaceStateNormalization';
+import { AppwriteWorkspaceStateStore, toWorkspaceStateRevision } from './appwrite/workspaceStateStore';
+import {
+  createDefaultServiceSettings,
   DEFAULT_WORKSPACE_CREATED_BY,
   ensureWorkspaceBuiltinRoles as ensureBuiltinWorkspaceRoles,
-  fromAclFolderKey,
+  ensureWorkspaceDefaultMemberRole,
+  ensureWorkspaceDefaultFolderAcl as ensureDefaultWorkspaceFolderAcl,
+  fromAclStorageFolderKey,
+  normalizeDefaultMemberRoleId,
+  normalizeServiceSettings,
+  normalizeRequiredAccountId,
+  normalizeServiceSearchCursorOffset,
+  normalizeServiceSearchLimit,
+  normalizeServiceSearchToken,
   normalizeTimestamp,
-  parseJsonStringArray,
   parseWorkspaceAclEffect,
   parseWorkspaceBuiltinRole,
-  parseWorkspaceMode,
-  parseWorkspacePermissionArray,
   toAclFolderKey,
-  uniqueStrings,
-  createWorkspaceSeedTemplate
+  toAclStorageFolderKey,
+  uniqueStrings
 } from './workspace/common';
 
 export interface AppwriteProjectRepositoryOptions {
@@ -35,50 +68,14 @@ export interface AppwriteProjectRepositoryOptions {
   sleepImpl?: (delayMs: number) => Promise<void>;
 }
 
-type ProjectDocumentData = {
-  tenantId: string;
-  projectId: string;
-  revision: string;
-  stateJson: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type AppwriteProjectDocument = Partial<ProjectDocumentData> & {
-  $id?: string;
-  $createdAt?: string;
-  $updatedAt?: string;
-};
-
-type AppwriteProjectLockState = {
-  owner: string;
-  expiresAt: string;
-};
-
-type WorkspaceStateDocument = {
-  version: 1;
-  workspaces: WorkspaceRecord[];
-  accounts: AccountRecord[];
-  members: WorkspaceMemberRecord[];
-  roles: WorkspaceRoleStorageRecord[];
-  folderAcl: WorkspaceFolderAclRecord[];
+type AppwriteListDocumentsResponse = {
+  total?: unknown;
+  documents?: unknown;
 };
 
 const DEFAULT_LOCK_TTL_MS = 15000;
 const DEFAULT_LOCK_TIMEOUT_MS = 10000;
 const DEFAULT_LOCK_RETRY_MS = 25;
-const WORKSPACE_STATE_SCOPE: ProjectRepositoryScope = {
-  tenantId: '__workspace_meta__',
-  projectId: 'workspace-state-v1'
-};
-
-const normalizeRequired = (value: string, field: string): string => {
-  const normalized = value.trim();
-  if (!normalized) {
-    throw new Error(`${field} must be a non-empty string.`);
-  }
-  return normalized;
-};
 
 const toDocumentId = (scope: ProjectRepositoryScope): string => {
   const key = `${scope.tenantId}::${scope.projectId}`;
@@ -92,157 +89,14 @@ const toLockDocumentId = (scope: ProjectRepositoryScope): string => {
   return `l${digest.slice(0, 35)}`;
 };
 
-const resolvePositiveInt = (value: unknown, fallback: number): number => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
-  const next = Math.trunc(value);
-  return next > 0 ? next : fallback;
-};
-
-const parseLockState = (document: AppwriteProjectDocument | null): AppwriteProjectLockState | null => {
-  if (!document) return null;
-  const state = parseState(document.stateJson);
-  if (!state || typeof state !== 'object' || Array.isArray(state)) return null;
-  const owner = (state as { owner?: unknown }).owner;
-  const expiresAt = (state as { expiresAt?: unknown }).expiresAt;
-  if (typeof owner !== 'string' || typeof expiresAt !== 'string') return null;
-  return {
-    owner,
-    expiresAt
-  };
-};
-
-const isExpired = (expiresAt: string): boolean => {
-  const parsed = Date.parse(expiresAt);
-  if (!Number.isFinite(parsed)) return true;
-  return parsed <= Date.now();
-};
-
-const sleep = async (delayMs: number): Promise<void> => {
-  await new Promise((resolve) => setTimeout(resolve, delayMs));
-};
-
-const parseState = (value: unknown): unknown => {
-  if (typeof value !== 'string') return value;
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return value;
-  }
-};
-
-const createDefaultWorkspaceState = (): WorkspaceStateDocument => {
-  const seed = createWorkspaceSeedTemplate();
-  return {
-    version: 1,
-    workspaces: [seed.workspace],
-    accounts: [seed.systemAccount],
-    members: [seed.member],
-    roles: [...seed.roles],
-    folderAcl: []
-  };
-};
-
-const parseSystemRoles = (value: unknown): Array<'system_admin' | 'cs_admin'> =>
-  parseJsonStringArray(value).filter((role): role is 'system_admin' | 'cs_admin' => role === 'system_admin' || role === 'cs_admin');
-
-const normalizeWorkspaceState = (value: unknown): WorkspaceStateDocument | null => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const record = value as Record<string, unknown>;
-  const workspacesRaw = Array.isArray(record.workspaces) ? record.workspaces : [];
-  const accountsRaw = Array.isArray(record.accounts) ? record.accounts : [];
-  const membersRaw = Array.isArray(record.members) ? record.members : [];
-  const rolesRaw = Array.isArray(record.roles) ? record.roles : [];
-  const folderAclRaw = Array.isArray(record.folderAcl) ? record.folderAcl : [];
-
-  const workspaces = workspacesRaw
-    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
-    .map((entry) => ({
-      workspaceId: normalizeRequired(String(entry.workspaceId ?? ''), 'workspaceId'),
-      tenantId: normalizeRequired(String(entry.tenantId ?? ''), 'tenantId'),
-      name: String(entry.name ?? '').trim() || 'Workspace',
-      mode: parseWorkspaceMode(entry.mode),
-      createdBy: String(entry.createdBy ?? '').trim() || DEFAULT_WORKSPACE_CREATED_BY,
-      createdAt: normalizeTimestamp(entry.createdAt),
-      updatedAt: normalizeTimestamp(entry.updatedAt)
-    }));
-  if (workspaces.length === 0) return null;
-
-  const accounts = accountsRaw
-    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
-    .map((entry) => ({
-      accountId: normalizeRequired(String(entry.accountId ?? ''), 'accountId'),
-      email: String(entry.email ?? '').trim() || 'unknown@ashfox.local',
-      displayName: String(entry.displayName ?? '').trim() || 'User',
-      systemRoles: parseSystemRoles(entry.systemRoles),
-      localLoginId:
-        typeof entry.localLoginId === 'string' && entry.localLoginId.trim().length > 0 ? entry.localLoginId.trim().toLowerCase() : null,
-      passwordHash:
-        typeof entry.passwordHash === 'string' && entry.passwordHash.trim().length > 0 ? entry.passwordHash.trim() : null,
-      githubUserId:
-        typeof entry.githubUserId === 'string' && entry.githubUserId.trim().length > 0 ? entry.githubUserId.trim() : null,
-      githubLogin: typeof entry.githubLogin === 'string' && entry.githubLogin.trim().length > 0 ? entry.githubLogin.trim() : null,
-      createdAt: normalizeTimestamp(entry.createdAt),
-      updatedAt: normalizeTimestamp(entry.updatedAt)
-    }));
-
-  const members = membersRaw
-    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
-    .map((entry) => ({
-      workspaceId: normalizeRequired(String(entry.workspaceId ?? ''), 'workspaceId'),
-      accountId: normalizeRequired(String(entry.accountId ?? ''), 'accountId'),
-      roleIds: uniqueStrings(parseJsonStringArray(entry.roleIds)),
-      joinedAt: normalizeTimestamp(entry.joinedAt)
-    }));
-
-  const roles = rolesRaw
-    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
-    .map((entry) => ({
-      workspaceId: normalizeRequired(String(entry.workspaceId ?? ''), 'workspaceId'),
-      roleId: normalizeRequired(String(entry.roleId ?? ''), 'roleId'),
-      name: String(entry.name ?? '').trim() || 'Role',
-      builtin: parseWorkspaceBuiltinRole(entry.builtin),
-      permissions: parseWorkspacePermissionArray(entry.permissions),
-      createdAt: normalizeTimestamp(entry.createdAt),
-      updatedAt: normalizeTimestamp(entry.updatedAt)
-    }));
-
-  const folderAcl = folderAclRaw
-    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
-    .map((entry) => ({
-      workspaceId: normalizeRequired(String(entry.workspaceId ?? ''), 'workspaceId'),
-      folderId: fromAclFolderKey(toAclFolderKey(typeof entry.folderId === 'string' ? entry.folderId : null)),
-      roleId: normalizeRequired(String(entry.roleId ?? ''), 'roleId'),
-      read: parseWorkspaceAclEffect(entry.read),
-      write: parseWorkspaceAclEffect(entry.write),
-      updatedAt: normalizeTimestamp(entry.updatedAt)
-    }));
-
-  const workspaceKeys = new Set(workspaces.map((workspace) => workspace.workspaceId));
-  return {
-    version: 1,
-    workspaces,
-    accounts,
-    members: members.filter((member) => workspaceKeys.has(member.workspaceId)),
-    roles: roles.filter((role) => workspaceKeys.has(role.workspaceId)),
-    folderAcl: folderAcl.filter((acl) => workspaceKeys.has(acl.workspaceId))
-  };
-};
-
-const dedupeByKey = <T>(entries: readonly T[], keyOf: (entry: T) => string): T[] => {
-  const deduped = new Map<string, T>();
-  for (const entry of entries) {
-    deduped.set(keyOf(entry), entry);
-  }
-  return Array.from(deduped.values());
-};
-
-const cloneWorkspaceState = (state: WorkspaceStateDocument): WorkspaceStateDocument =>
-  JSON.parse(JSON.stringify(state)) as WorkspaceStateDocument;
-
 export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRepository {
   private readonly config: AppwriteDatabaseConfig;
   private readonly transport: ReturnType<typeof createAppwriteTransport<AppwriteDatabaseConfig>>;
   private readonly documentsPath: string;
+  private readonly workspaceStateStore: AppwriteWorkspaceStateStore | null;
+  private readonly workspaceStateShadowRead: boolean;
+  private readonly workspaceStateDocumentsPath: string | null;
+  private workspaceStateMismatchLogged = false;
   private readonly lockTtlMs: number;
   private readonly lockTimeoutMs: number;
   private readonly lockRetryMs: number;
@@ -256,19 +110,78 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
     this.lockRetryMs = resolvePositiveInt(options.lockRetryMs, DEFAULT_LOCK_RETRY_MS);
     this.sleepImpl = options.sleepImpl ?? sleep;
     this.documentsPath = `/databases/${encodeURIComponent(this.config.databaseId)}/collections/${encodeURIComponent(this.config.collectionId)}/documents`;
+    this.workspaceStateShadowRead = this.config.workspaceStateShadowRead === true;
+    if (this.config.workspaceStateEnabled === true) {
+      const workspaceCollectionId = String(this.config.workspaceStateCollectionId ?? '').trim() || 'ashfox_workspace_state';
+      this.workspaceStateDocumentsPath = `/databases/${encodeURIComponent(this.config.databaseId)}/collections/${encodeURIComponent(workspaceCollectionId)}/documents`;
+      this.workspaceStateStore = new AppwriteWorkspaceStateStore({
+        readDocument: async (documentId) =>
+          this.readDocumentFromCollection(this.workspaceStateDocumentsPath as string, documentId, 'read workspace-state'),
+        upsertDocument: async (documentId, data) =>
+          this.upsertDocumentInCollection(
+            this.workspaceStateDocumentsPath as string,
+            documentId,
+            data,
+            'create workspace-state',
+            'update workspace-state'
+          )
+      });
+    } else {
+      this.workspaceStateDocumentsPath = null;
+      this.workspaceStateStore = null;
+    }
   }
 
   private toDocumentPath(documentId: string): string {
     return `${this.documentsPath}/${encodeURIComponent(documentId)}`;
   }
 
-  private async readDocument(documentId: string, action: string): Promise<AppwriteProjectDocument | null> {
-    const response = await this.request('GET', this.toDocumentPath(documentId));
+  private toDocumentPathForCollection(collectionPath: string, documentId: string): string {
+    return `${collectionPath}/${encodeURIComponent(documentId)}`;
+  }
+
+  private async readDocumentFromCollection(
+    collectionPath: string,
+    documentId: string,
+    action: string
+  ): Promise<AppwriteProjectDocument | null> {
+    const response = await this.request('GET', this.toDocumentPathForCollection(collectionPath, documentId));
     if (response.status === 404) return null;
     if (!response.ok) {
       throw await this.transport.toError(response, action);
     }
     return (await response.json()) as AppwriteProjectDocument;
+  }
+
+  private async readDocument(documentId: string, action: string): Promise<AppwriteProjectDocument | null> {
+    return this.readDocumentFromCollection(this.documentsPath, documentId, action);
+  }
+
+  private async upsertDocumentInCollection(
+    collectionPath: string,
+    documentId: string,
+    data: Record<string, unknown>,
+    createAction: string,
+    updateAction: string
+  ): Promise<void> {
+    const createResponse = await this.request('POST', collectionPath, {
+      json: {
+        documentId,
+        data
+      }
+    });
+    if (createResponse.ok) return;
+    if (createResponse.status !== 409) {
+      throw await this.transport.toError(createResponse, createAction);
+    }
+    const updateResponse = await this.request('PATCH', this.toDocumentPathForCollection(collectionPath, documentId), {
+      json: {
+        data
+      }
+    });
+    if (!updateResponse.ok) {
+      throw await this.transport.toError(updateResponse, updateAction);
+    }
   }
 
   private async deleteDocument(documentId: string, action: string): Promise<void> {
@@ -356,9 +269,24 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
     record: PersistedProjectRecord | null;
     state: WorkspaceStateDocument;
   }> {
+    if (this.workspaceStateStore) {
+      const storeRecord = await this.workspaceStateStore.read();
+      const normalizedStoreState = normalizeWorkspaceState(storeRecord?.state);
+      if (normalizedStoreState) {
+        if (this.workspaceStateShadowRead) {
+          await this.shadowReadLegacyWorkspaceState(normalizedStoreState);
+        }
+        return {
+          record: this.toWorkspaceStateRecord(normalizedStoreState, null),
+          state: normalizedStoreState
+        };
+      }
+    }
+
     const record = await this.find(WORKSPACE_STATE_SCOPE);
     const normalized = normalizeWorkspaceState(record?.state);
     if (normalized) {
+      await this.writeWorkspaceState(normalized);
       return { record, state: normalized };
     }
     const seeded = createDefaultWorkspaceState();
@@ -369,7 +297,33 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
       await this.saveIfRevision(nextRecord, null);
     }
     const latestRecord = await this.find(WORKSPACE_STATE_SCOPE);
+    await this.writeWorkspaceState(seeded);
     return { record: latestRecord ?? nextRecord, state: seeded };
+  }
+
+  private async writeWorkspaceState(state: WorkspaceStateDocument): Promise<void> {
+    if (!this.workspaceStateStore) return;
+    await this.workspaceStateStore.write(state);
+  }
+
+  private async shadowReadLegacyWorkspaceState(storeState: WorkspaceStateDocument): Promise<void> {
+    if (!this.workspaceStateShadowRead || this.workspaceStateMismatchLogged) {
+      return;
+    }
+    const legacyRecord = await this.find(WORKSPACE_STATE_SCOPE);
+    const legacyState = normalizeWorkspaceState(legacyRecord?.state);
+    if (!legacyState) return;
+    const legacyRevision = toWorkspaceStateRevision(legacyState);
+    const storeRevision = toWorkspaceStateRevision(storeState);
+    if (legacyRevision !== storeRevision) {
+      this.workspaceStateMismatchLogged = true;
+      console.warn('ashfox appwrite workspace-state mismatch detected', {
+        legacyRevision,
+        storeRevision,
+        legacyCollectionId: this.config.collectionId,
+        workspaceStateCollectionPath: this.workspaceStateDocumentsPath
+      });
+    }
   }
 
   private async mutateWorkspaceState(mutator: (state: WorkspaceStateDocument) => void): Promise<WorkspaceStateDocument> {
@@ -382,10 +336,15 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
       nextState.accounts = dedupeByKey(nextState.accounts, (account) => account.accountId);
       nextState.members = dedupeByKey(nextState.members, (member) => `${member.workspaceId}::${member.accountId}`);
       nextState.roles = dedupeByKey(nextState.roles, (role) => `${role.workspaceId}::${role.roleId}`);
-      nextState.folderAcl = dedupeByKey(nextState.folderAcl, (acl) => `${acl.workspaceId}::${toAclFolderKey(acl.folderId)}::${acl.roleId}`);
+      nextState.folderAcl = dedupeByKey(
+        nextState.folderAcl,
+        (acl) => `${acl.workspaceId}::${acl.ruleId}`
+      );
+      nextState.apiKeys = dedupeByKey(nextState.apiKeys, (apiKey) => `${apiKey.workspaceId}::${apiKey.keyId}`);
       const nextRecord = this.toWorkspaceStateRecord(nextState, record);
       const saved = await this.saveIfRevision(nextRecord, record?.revision ?? null);
       if (saved) {
+        await this.writeWorkspaceState(nextState);
         return nextState;
       }
     }
@@ -394,6 +353,11 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
 
   private ensureWorkspaceBuiltinRoles(state: WorkspaceStateDocument, workspaceId: string): void {
     ensureBuiltinWorkspaceRoles(state.roles, workspaceId);
+    ensureDefaultWorkspaceFolderAcl(state.folderAcl, workspaceId);
+    const workspace = state.workspaces.find((entry) => entry.workspaceId === workspaceId);
+    if (workspace) {
+      ensureWorkspaceDefaultMemberRole(workspace, state.roles);
+    }
   }
 
   async find(scope: ProjectRepositoryScope): Promise<PersistedProjectRecord | null> {
@@ -416,6 +380,56 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
       createdAt: normalizeTimestamp(document.createdAt ?? document.$createdAt),
       updatedAt: normalizeTimestamp(document.updatedAt ?? document.$updatedAt)
     };
+  }
+
+  async listByScopePrefix(scope: ProjectRepositoryScope): Promise<PersistedProjectRecord[]> {
+    const normalizedScope = {
+      tenantId: normalizeRequired(scope.tenantId, 'tenantId'),
+      projectId: normalizeRequired(scope.projectId, 'projectId')
+    };
+    const records: PersistedProjectRecord[] = [];
+    const pageSize = 100;
+    let offset = 0;
+
+    while (true) {
+      const query = new URLSearchParams({
+        limit: String(pageSize),
+        offset: String(offset)
+      }).toString();
+      const response = await this.request('GET', `${this.documentsPath}?${query}`);
+      if (!response.ok) {
+        throw await this.transport.toError(response, 'list documents');
+      }
+      const payload = (await response.json()) as AppwriteListDocumentsResponse;
+      const documents = Array.isArray(payload.documents) ? (payload.documents as AppwriteProjectDocument[]) : [];
+      for (const document of documents) {
+        if (document.tenantId !== normalizedScope.tenantId) {
+          continue;
+        }
+        if (typeof document.projectId !== 'string' || !document.projectId.startsWith(normalizedScope.projectId)) {
+          continue;
+        }
+        const revision = normalizeRequired(String(document.revision ?? ''), 'revision');
+        records.push({
+          scope: {
+            tenantId: document.tenantId,
+            projectId: document.projectId
+          },
+          revision,
+          state: parseState(document.stateJson),
+          createdAt: normalizeTimestamp(document.createdAt ?? document.$createdAt),
+          updatedAt: normalizeTimestamp(document.updatedAt ?? document.$updatedAt)
+        });
+      }
+      const total = typeof payload.total === 'number' && Number.isFinite(payload.total) ? payload.total : offset + documents.length;
+      offset += documents.length;
+      if (documents.length === 0 || offset >= total) {
+        break;
+      }
+    }
+
+    records.sort((left, right) => left.scope.projectId.localeCompare(right.scope.projectId));
+    return records;
   }
 
   async save(record: PersistedProjectRecord): Promise<void> {
@@ -528,6 +542,117 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
     return found ? { ...found, systemRoles: [...found.systemRoles] } : null;
   }
 
+  async listAccounts(input?: {
+    query?: string;
+    limit?: number;
+    excludeAccountIds?: readonly string[];
+  }): Promise<AccountRecord[]> {
+    const normalizedQuery = typeof input?.query === 'string' ? input.query.trim().toLowerCase() : '';
+    const requestedLimit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.trunc(input.limit) : 25;
+    const limit = Math.min(Math.max(requestedLimit, 1), 100);
+    const excludeAccountIds = new Set(
+      (input?.excludeAccountIds ?? [])
+        .map((accountId) => String(accountId ?? '').trim())
+        .filter((accountId) => accountId.length > 0)
+    );
+
+    const { state } = await this.readWorkspaceStateContainer();
+    const filtered = state.accounts.filter((account) => {
+      if (excludeAccountIds.has(account.accountId)) {
+        return false;
+      }
+      if (!normalizedQuery) {
+        return true;
+      }
+      const haystacks = [
+        account.accountId,
+        account.displayName,
+        account.email,
+        account.localLoginId ?? '',
+        account.githubLogin ?? ''
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystacks.includes(normalizedQuery);
+    });
+    return filtered
+      .sort((left, right) => left.displayName.localeCompare(right.displayName) || left.accountId.localeCompare(right.accountId))
+      .slice(0, limit)
+      .map((account) => ({
+        ...account,
+        systemRoles: [...account.systemRoles]
+      }));
+  }
+
+  async searchServiceUsers(input?: ServiceUsersSearchInput): Promise<ServiceUsersSearchResult> {
+    const normalizedQuery = normalizeServiceSearchToken(input?.q);
+    const normalizedWorkspaceId = String(input?.workspaceId ?? '').trim();
+    const field = input?.field ?? 'any';
+    const match = input?.match ?? 'contains';
+    const limit = normalizeServiceSearchLimit(input?.limit);
+    const offset = normalizeServiceSearchCursorOffset(input?.cursor);
+    const matchToken = (candidate: string): boolean => {
+      if (!normalizedQuery) {
+        return true;
+      }
+      const normalizedCandidate = candidate.toLowerCase();
+      if (match === 'exact') {
+        return normalizedCandidate === normalizedQuery;
+      }
+      if (match === 'prefix') {
+        return normalizedCandidate.startsWith(normalizedQuery);
+      }
+      return normalizedCandidate.includes(normalizedQuery);
+    };
+
+    const { state } = await this.readWorkspaceStateContainer();
+    const workspaceMemberIds =
+      normalizedWorkspaceId.length > 0
+        ? new Set(
+            state.members.filter((member) => member.workspaceId === normalizedWorkspaceId).map((member) => member.accountId)
+          )
+        : null;
+
+    const filtered = state.accounts.filter((account) => {
+      if (workspaceMemberIds && !workspaceMemberIds.has(account.accountId)) {
+        return false;
+      }
+      const candidates = {
+        accountId: account.accountId,
+        displayName: account.displayName,
+        email: account.email,
+        localLoginId: account.localLoginId ?? '',
+        githubLogin: account.githubLogin ?? ''
+      };
+      if (!normalizedQuery) {
+        return true;
+      }
+      if (field === 'any') {
+        return Object.values(candidates).some((candidate) => matchToken(candidate));
+      }
+      return matchToken(candidates[field]);
+    });
+    const sorted = filtered.sort(
+      (left, right) => left.displayName.localeCompare(right.displayName) || left.accountId.localeCompare(right.accountId)
+    );
+    const total = sorted.length;
+    const window = sorted.slice(offset, offset + limit).map((account) => ({
+      ...account,
+      systemRoles: [...account.systemRoles]
+    }));
+    const nextOffset = offset + window.length;
+    return {
+      users: window,
+      total,
+      nextCursor: nextOffset < total ? String(nextOffset) : null
+    };
+  }
+
+  async countAccountsBySystemRole(role: 'system_admin' | 'cs_admin'): Promise<number> {
+    const { state } = await this.readWorkspaceStateContainer();
+    return state.accounts.filter((account) => account.systemRoles.includes(role)).length;
+  }
+
   async upsertAccount(record: AccountRecord): Promise<void> {
     await this.mutateWorkspaceState((state) => {
       const now = new Date().toISOString();
@@ -583,18 +708,122 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
     });
   }
 
-  async listWorkspaces(accountId: string): Promise<WorkspaceRecord[]> {
+  async updateAccountSystemRoles(
+    accountId: string,
+    systemRoles: Array<'system_admin' | 'cs_admin'>,
+    updatedAt: string
+  ): Promise<AccountRecord | null> {
     const normalizedAccountId = String(accountId ?? '').trim();
-    const { state } = await this.readWorkspaceStateContainer();
     if (!normalizedAccountId) {
-      return state.workspaces.map((workspace) => ({ ...workspace }));
+      return null;
     }
+    const normalizedSystemRoles = parseSystemRoles(systemRoles);
+    const normalizedUpdatedAt = normalizeTimestamp(updatedAt);
+    let updatedRecord: AccountRecord | null = null;
+    await this.mutateWorkspaceState((state) => {
+      const index = state.accounts.findIndex((account) => account.accountId === normalizedAccountId);
+      if (index < 0) {
+        updatedRecord = null;
+        return;
+      }
+      const nextAccount: AccountRecord = {
+        ...state.accounts[index],
+        systemRoles: normalizedSystemRoles,
+        updatedAt: normalizedUpdatedAt
+      };
+      state.accounts[index] = nextAccount;
+      updatedRecord = {
+        ...nextAccount,
+        systemRoles: [...nextAccount.systemRoles]
+      };
+    });
+    return updatedRecord;
+  }
+
+  async listAllWorkspaces(): Promise<WorkspaceRecord[]> {
+    const { state } = await this.readWorkspaceStateContainer();
+    return state.workspaces.map((workspace) => ({ ...workspace }));
+  }
+
+  async listAccountWorkspaces(accountId: string): Promise<WorkspaceRecord[]> {
+    const normalizedAccountId = normalizeRequiredAccountId(accountId, 'listAccountWorkspaces.accountId');
+    const { state } = await this.readWorkspaceStateContainer();
     const memberWorkspaceIds = new Set(
       state.members.filter((member) => member.accountId === normalizedAccountId).map((member) => member.workspaceId)
     );
     return state.workspaces
       .filter((workspace) => memberWorkspaceIds.has(workspace.workspaceId))
       .map((workspace) => ({ ...workspace }));
+  }
+
+  async searchServiceWorkspaces(input?: ServiceWorkspacesSearchInput): Promise<ServiceWorkspacesSearchResult> {
+    const normalizedQuery = normalizeServiceSearchToken(input?.q);
+    const normalizedMemberAccountId = String(input?.memberAccountId ?? '').trim().toLowerCase();
+    const field = input?.field ?? 'any';
+    const match = input?.match ?? 'contains';
+    const limit = normalizeServiceSearchLimit(input?.limit);
+    const offset = normalizeServiceSearchCursorOffset(input?.cursor);
+    const matchToken = (candidate: string): boolean => {
+      if (!normalizedQuery) {
+        return true;
+      }
+      const normalizedCandidate = candidate.toLowerCase();
+      if (match === 'exact') {
+        return normalizedCandidate === normalizedQuery;
+      }
+      if (match === 'prefix') {
+        return normalizedCandidate.startsWith(normalizedQuery);
+      }
+      return normalizedCandidate.includes(normalizedQuery);
+    };
+
+    const { state } = await this.readWorkspaceStateContainer();
+    const memberMap = new Map<string, string[]>();
+    for (const member of state.members) {
+      const existing = memberMap.get(member.workspaceId);
+      if (existing) {
+        existing.push(member.accountId);
+      } else {
+        memberMap.set(member.workspaceId, [member.accountId]);
+      }
+    }
+
+    const filtered = state.workspaces.filter((workspace) => {
+      const memberAccountIds = memberMap.get(workspace.workspaceId) ?? [];
+      if (normalizedMemberAccountId.length > 0 && !memberAccountIds.some((accountId) => accountId.toLowerCase() === normalizedMemberAccountId)) {
+        return false;
+      }
+      if (!normalizedQuery) {
+        return true;
+      }
+      const candidates = {
+        workspaceId: workspace.workspaceId,
+        name: workspace.name,
+        createdBy: workspace.createdBy
+      };
+      if (field === 'memberAccountId') {
+        return memberAccountIds.some((accountId) => matchToken(accountId));
+      }
+      if (field === 'any') {
+        return (
+          Object.values(candidates).some((candidate) => matchToken(candidate)) ||
+          memberAccountIds.some((accountId) => matchToken(accountId))
+        );
+      }
+      return matchToken(candidates[field]);
+    });
+
+    const sorted = filtered.sort(
+      (left, right) => normalizeTimestamp(left.createdAt).localeCompare(normalizeTimestamp(right.createdAt)) || left.workspaceId.localeCompare(right.workspaceId)
+    );
+    const total = sorted.length;
+    const window = sorted.slice(offset, offset + limit).map((workspace) => ({ ...workspace }));
+    const nextOffset = offset + window.length;
+    return {
+      workspaces: window,
+      total,
+      nextCursor: nextOffset < total ? String(nextOffset) : null
+    };
   }
 
   async getWorkspace(workspaceId: string): Promise<WorkspaceRecord | null> {
@@ -610,7 +839,7 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
         workspaceId: normalizeRequired(record.workspaceId, 'workspaceId'),
         tenantId: normalizeRequired(record.tenantId, 'tenantId'),
         name: record.name.trim() || 'Workspace',
-        mode: parseWorkspaceMode(record.mode),
+        defaultMemberRoleId: normalizeDefaultMemberRoleId(record.defaultMemberRoleId),
         createdBy: record.createdBy.trim() || DEFAULT_WORKSPACE_CREATED_BY,
         createdAt: normalizeTimestamp(record.createdAt),
         updatedAt: normalizeTimestamp(record.updatedAt)
@@ -639,17 +868,13 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
       state.roles = state.roles.filter((role) => role.workspaceId !== workspaceId);
       state.members = state.members.filter((member) => member.workspaceId !== workspaceId);
       state.folderAcl = state.folderAcl.filter((acl) => acl.workspaceId !== workspaceId);
+      state.apiKeys = state.apiKeys.filter((apiKey) => apiKey.workspaceId !== workspaceId);
     });
   }
 
   async listWorkspaceRoles(workspaceId: string): Promise<WorkspaceRoleStorageRecord[]> {
     const { state } = await this.readWorkspaceStateContainer();
-    return state.roles
-      .filter((role) => role.workspaceId === workspaceId)
-      .map((role) => ({
-        ...role,
-        permissions: [...role.permissions]
-      }));
+    return state.roles.filter((role) => role.workspaceId === workspaceId).map((role) => ({ ...role }));
   }
 
   async upsertWorkspaceRole(record: WorkspaceRoleStorageRecord): Promise<void> {
@@ -659,7 +884,6 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
         roleId: normalizeRequired(record.roleId, 'roleId'),
         name: record.name.trim() || 'Role',
         builtin: parseWorkspaceBuiltinRole(record.builtin),
-        permissions: parseWorkspacePermissionArray(record.permissions),
         createdAt: normalizeTimestamp(record.createdAt),
         updatedAt: normalizeTimestamp(record.updatedAt)
       };
@@ -688,7 +912,17 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
           roleIds: member.roleIds.filter((existingRoleId) => existingRoleId !== roleId)
         };
       });
-      state.folderAcl = state.folderAcl.filter((acl) => !(acl.workspaceId === workspaceId && acl.roleId === roleId));
+      state.folderAcl = state.folderAcl
+        .map((acl) => {
+          if (acl.workspaceId !== workspaceId) {
+            return acl;
+          }
+          return {
+            ...acl,
+            roleIds: acl.roleIds.filter((existingRoleId) => existingRoleId !== roleId)
+          };
+        })
+        .filter((acl) => acl.roleIds.length > 0);
     });
   }
 
@@ -738,17 +972,31 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
 
   async upsertWorkspaceFolderAcl(record: WorkspaceFolderAclRecord): Promise<void> {
     await this.mutateWorkspaceState((state) => {
+      const storageKey = toAclStorageFolderKey(record.scope, record.folderId);
+      const parsedKey = fromAclStorageFolderKey(storageKey);
+      const read = parseWorkspaceAclEffect(record.read);
+      const write = parseWorkspaceAclEffect(record.write);
+      const locked = record.locked === true;
+      const roleIds = normalizeAclRoleIds(record.roleIds);
+      if (roleIds.length === 0) {
+        return;
+      }
       const normalized: WorkspaceFolderAclRecord = {
         workspaceId: normalizeRequired(record.workspaceId, 'workspaceId'),
-        folderId: fromAclFolderKey(toAclFolderKey(record.folderId)),
-        roleId: normalizeRequired(record.roleId, 'roleId'),
-        read: parseWorkspaceAclEffect(record.read),
-        write: parseWorkspaceAclEffect(record.write),
+        ruleId:
+          typeof record.ruleId === 'string' && record.ruleId.trim().length > 0
+            ? record.ruleId.trim()
+            : toAclTemplateRuleId(parsedKey.scope, storageKey, read, write, locked),
+        scope: parsedKey.scope,
+        folderId: parsedKey.folderId,
+        roleIds,
+        read,
+        write,
+        locked,
         updatedAt: normalizeTimestamp(record.updatedAt)
       };
-      const folderKey = toAclFolderKey(normalized.folderId);
       const index = state.folderAcl.findIndex(
-        (acl) => acl.workspaceId === normalized.workspaceId && toAclFolderKey(acl.folderId) === folderKey && acl.roleId === normalized.roleId
+        (acl) => acl.workspaceId === normalized.workspaceId && acl.ruleId === normalized.ruleId
       );
       if (index >= 0) {
         state.folderAcl[index] = normalized;
@@ -761,9 +1009,94 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
   async removeWorkspaceFolderAcl(workspaceId: string, folderId: string | null, roleId: string): Promise<void> {
     await this.mutateWorkspaceState((state) => {
       const folderKey = toAclFolderKey(folderId);
-      state.folderAcl = state.folderAcl.filter(
-        (acl) => !(acl.workspaceId === workspaceId && toAclFolderKey(acl.folderId) === folderKey && acl.roleId === roleId)
+      state.folderAcl = state.folderAcl
+        .map((acl) => {
+          if (!(acl.workspaceId === workspaceId && toAclStorageFolderKey(acl.scope, acl.folderId) === folderKey)) {
+            return acl;
+          }
+          return {
+            ...acl,
+            roleIds: acl.roleIds.filter((existingRoleId) => existingRoleId !== roleId)
+          };
+        })
+        .filter((acl) => acl.roleIds.length > 0);
+    });
+  }
+
+  async listWorkspaceApiKeys(workspaceId: string): Promise<WorkspaceApiKeyRecord[]> {
+    const { state } = await this.readWorkspaceStateContainer();
+    return state.apiKeys
+      .filter((apiKey) => apiKey.workspaceId === workspaceId)
+      .map((apiKey) => ({ ...apiKey }));
+  }
+
+  async createWorkspaceApiKey(record: WorkspaceApiKeyRecord): Promise<void> {
+    await this.mutateWorkspaceState((state) => {
+      const now = new Date().toISOString();
+      const normalized: WorkspaceApiKeyRecord = {
+        workspaceId: normalizeRequired(record.workspaceId, 'workspaceId'),
+        keyId: normalizeRequired(record.keyId, 'keyId'),
+        name: record.name.trim() || 'API key',
+        keyPrefix: normalizeRequired(record.keyPrefix, 'keyPrefix'),
+        keyHash: normalizeRequired(record.keyHash, 'keyHash'),
+        createdBy: normalizeRequired(record.createdBy, 'createdBy'),
+        createdAt: normalizeTimestamp(record.createdAt),
+        updatedAt: normalizeTimestamp(record.updatedAt || now),
+        lastUsedAt: normalizeOptionalTimestamp(record.lastUsedAt),
+        expiresAt: normalizeOptionalTimestamp(record.expiresAt),
+        revokedAt: normalizeOptionalTimestamp(record.revokedAt)
+      };
+      const index = state.apiKeys.findIndex(
+        (apiKey) => apiKey.workspaceId === normalized.workspaceId && apiKey.keyId === normalized.keyId
       );
+      if (index >= 0) {
+        state.apiKeys[index] = normalized;
+      } else {
+        state.apiKeys.push(normalized);
+      }
+    });
+  }
+
+  async revokeWorkspaceApiKey(workspaceId: string, keyId: string, revokedAt: string): Promise<void> {
+    await this.mutateWorkspaceState((state) => {
+      const normalizedRevokedAt = normalizeTimestamp(revokedAt);
+      state.apiKeys = state.apiKeys.map((apiKey) => {
+        if (apiKey.workspaceId !== workspaceId || apiKey.keyId !== keyId) {
+          return apiKey;
+        }
+        return {
+          ...apiKey,
+          revokedAt: normalizedRevokedAt,
+          updatedAt: normalizedRevokedAt
+        };
+      });
+    });
+  }
+
+  async updateWorkspaceApiKeyLastUsed(workspaceId: string, keyId: string, lastUsedAt: string): Promise<void> {
+    await this.mutateWorkspaceState((state) => {
+      const normalizedLastUsedAt = normalizeTimestamp(lastUsedAt);
+      state.apiKeys = state.apiKeys.map((apiKey) => {
+        if (apiKey.workspaceId !== workspaceId || apiKey.keyId !== keyId) {
+          return apiKey;
+        }
+        return {
+          ...apiKey,
+          lastUsedAt: normalizedLastUsedAt,
+          updatedAt: normalizedLastUsedAt
+        };
+      });
+    });
+  }
+
+  async getServiceSettings(): Promise<ServiceSettingsRecord | null> {
+    const { state } = await this.readWorkspaceStateContainer();
+    return normalizeServiceSettings(state.serviceSettings, createDefaultServiceSettings());
+  }
+
+  async upsertServiceSettings(record: ServiceSettingsRecord): Promise<void> {
+    await this.mutateWorkspaceState((state) => {
+      state.serviceSettings = normalizeServiceSettings(record, state.serviceSettings ?? createDefaultServiceSettings());
     });
   }
 }

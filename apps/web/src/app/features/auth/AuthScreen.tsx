@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Github, LockKeyhole, UserRound } from 'lucide-react';
+import { ErrorNotice } from '../shared/ErrorNotice';
 import styles from './AuthScreen.module.css';
 
 type AuthScreenProps = {
@@ -11,8 +12,9 @@ type AuthScreenProps = {
 };
 
 export function AuthScreen({ githubEnabled, busy, errorMessage, onLogin, onGitHubLogin }: AuthScreenProps) {
-  const [loginId, setLoginId] = useState('admin');
-  const [password, setPassword] = useState('admin');
+  const [loginId, setLoginId] = useState('');
+  const [password, setPassword] = useState('');
+  const showGithubLogin = githubEnabled;
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -29,7 +31,7 @@ export function AuthScreen({ githubEnabled, busy, errorMessage, onLogin, onGitHu
             <p className={styles.authSubtitle}>Sign in to continue</p>
           </div>
         </div>
-        {githubEnabled ? (
+        {showGithubLogin ? (
           <button
             className={styles.authGitHubButton}
             type="button"
@@ -40,13 +42,13 @@ export function AuthScreen({ githubEnabled, busy, errorMessage, onLogin, onGitHu
             <Github className={styles.authGitHubIcon} />
             <span>Continue with GitHub</span>
           </button>
-        ) : (
-          <p className={styles.authHintMuted}>GitHub 로그인이 현재 비활성화되어 있습니다.</p>
-        )}
+        ) : null}
 
-        <div className={styles.authDivider} role="presentation">
-          <span>or use local account</span>
-        </div>
+        {showGithubLogin ? (
+          <div className={styles.authDivider} role="presentation">
+            <span>or use local account</span>
+          </div>
+        ) : null}
 
         <form className={styles.authForm} onSubmit={(event) => void submit(event)}>
           <label className={styles.authField}>
@@ -86,8 +88,7 @@ export function AuthScreen({ githubEnabled, busy, errorMessage, onLogin, onGitHu
             </button>
           </div>
         </form>
-        {errorMessage ? <p className={styles.authError}>{errorMessage}</p> : null}
-        <p className={styles.authHint}>초기 시스템 관리자 계정: admin / admin</p>
+        {errorMessage ? <ErrorNotice message={errorMessage} channel="blocking" className={styles.authErrorNotice} /> : null}
       </section>
     </main>
   );

@@ -27,72 +27,68 @@ const env = {
   VITE_ASHFOX_GATEWAY_API_BASE_URL: gatewayApiBaseUrl
 };
 
-const processes = [
-  {
-    name: 'gateway',
+const processes = {
+  gateway: {
     cmd: 'npm',
     args: ['run', 'dev:gateway']
   },
-  {
-    name: 'worker',
+  worker: {
     cmd: 'npm',
     args: ['run', 'dev:worker']
   },
-  {
-    name: 'web',
+  web: {
     cmd: 'npm',
     args: ['--workspace', '@ashfox/web', 'run', 'dev']
   }
-];
+};
+
+const sleep = async (ms) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const healthUrl = new URL('/api/health', env.ASHFOX_GATEWAY_PROXY_TARGET).toString();
+const gatewayReadyTimeoutMs = Number.parseInt(env.ASHFOX_DEV_GATEWAY_READY_TIMEOUT_MS || '20000', 10);
+const gatewayReadyPollMs = Number.parseInt(env.ASHFOX_DEV_GATEWAY_READY_POLL_MS || '300', 10);
 
 console.log(`[dev] sqlite path: ${resolvedSqlitePath}`);
 console.log(`[dev] web gateway api base: ${gatewayApiBaseUrl}`);
-console.log('[dev] starting: gateway, worker, web');
+console.log('[dev] starting: gateway -> (wait health) -> worker, web');
 
 let shuttingDown = false;
 let requestedStop = false;
 let firstNonZeroExitCode = 0;
+const children = new Map();
 
-const children = processes.map((processDef) =>
-  spawn(processDef.cmd, processDef.args, {
-    cwd: rootDir,
-    env,
-    stdio: 'inherit'
-  })
-);
+const maybeExit = () => {
+  if (children.size === 0) {
+    process.exit(requestedStop ? 0 : firstNonZeroExitCode);
+  }
+};
 
 const stopAll = (signal = 'SIGTERM') => {
   if (shuttingDown) return;
   shuttingDown = true;
-  for (const child of children) {
+  for (const child of children.values()) {
     if (!child.killed) {
       child.kill(signal);
     }
   }
   setTimeout(() => {
-    for (const child of children) {
+    for (const child of children.values()) {
       if (!child.killed) {
         child.kill('SIGKILL');
       }
     }
+    maybeExit();
   }, 3000).unref();
+  maybeExit();
 };
 
-process.on('SIGINT', () => {
-  requestedStop = true;
-  stopAll('SIGINT');
-});
-
-process.on('SIGTERM', () => {
-  requestedStop = true;
-  stopAll('SIGTERM');
-});
-
-let remaining = children.length;
-for (const [index, child] of children.entries()) {
-  const name = processes[index].name;
+const registerChild = (name, child) => {
+  children.set(name, child);
   child.on('exit', (code, signal) => {
-    remaining -= 1;
+    children.delete(name);
     if (!requestedStop && !shuttingDown) {
       if (code !== 0) {
         firstNonZeroExitCode = code ?? 1;
@@ -105,8 +101,78 @@ for (const [index, child] of children.entries()) {
       firstNonZeroExitCode = code;
     }
 
-    if (remaining === 0) {
-      process.exit(requestedStop ? 0 : firstNonZeroExitCode);
-    }
+    maybeExit();
   });
-}
+};
+
+const spawnManaged = (name) => {
+  const processDef = processes[name];
+  const child = spawn(processDef.cmd, processDef.args, {
+    cwd: rootDir,
+    env,
+    stdio: 'inherit'
+  });
+  registerChild(name, child);
+  return child;
+};
+
+const waitForGatewayReady = async (gatewayChild) => {
+  const timeoutMs = Number.isFinite(gatewayReadyTimeoutMs) && gatewayReadyTimeoutMs > 0 ? gatewayReadyTimeoutMs : 20000;
+  const pollMs = Number.isFinite(gatewayReadyPollMs) && gatewayReadyPollMs > 0 ? gatewayReadyPollMs : 300;
+  const startedAt = Date.now();
+  console.log(`[dev] waiting for gateway health: ${healthUrl}`);
+
+  while (Date.now() - startedAt < timeoutMs) {
+    if (gatewayChild.exitCode !== null) {
+      return false;
+    }
+    try {
+      const response = await fetch(healthUrl, {
+        method: 'GET',
+        cache: 'no-store'
+      });
+      if (response.ok) {
+        console.log('[dev] gateway health check passed');
+        return true;
+      }
+    } catch {
+      // keep polling until timeout
+    }
+    await sleep(pollMs);
+  }
+  return false;
+};
+
+process.on('SIGINT', () => {
+  requestedStop = true;
+  stopAll('SIGINT');
+});
+
+process.on('SIGTERM', () => {
+  requestedStop = true;
+  stopAll('SIGTERM');
+});
+
+const bootstrap = async () => {
+  const gatewayChild = spawnManaged('gateway');
+  const gatewayReady = await waitForGatewayReady(gatewayChild);
+  if (!gatewayReady) {
+    if (firstNonZeroExitCode === 0) {
+      firstNonZeroExitCode = 1;
+    }
+    console.error(`[dev] gateway did not become healthy within timeout (${healthUrl})`);
+    stopAll('SIGTERM');
+    return;
+  }
+  spawnManaged('worker');
+  spawnManaged('web');
+};
+
+void bootstrap().catch((error) => {
+  if (firstNonZeroExitCode === 0) {
+    firstNonZeroExitCode = 1;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[dev] bootstrap failed: ${message}`);
+  stopAll('SIGTERM');
+});

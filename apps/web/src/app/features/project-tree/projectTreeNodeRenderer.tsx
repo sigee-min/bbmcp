@@ -93,11 +93,14 @@ export const renderProjectTreeNode = (node: ProjectTreeNode, context: TreeNodeRe
         <div
           className={cn(
             styles.treeRow,
+            styles.dashboardListRow,
             styles.treeFolderRow,
             isInsertBefore && styles.treeRowInsertBefore,
             isInsertInside && styles.treeRowInsertInside,
             isInsertAfter && styles.treeRowInsertAfter
           )}
+          data-dashboard-list-row="true"
+          data-dashboard-list-context="tree-folder"
           style={{ paddingInlineStart: `${0.3 + (node.depth - 1) * 0.72}rem` }}
           draggable={!context.mutationBusy}
           onDragStart={(event) => {
@@ -143,12 +146,12 @@ export const renderProjectTreeNode = (node: ProjectTreeNode, context: TreeNodeRe
             {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
 
-          <div className={styles.treeMainLabel}>
+          <div className={cn(styles.treeMainLabel, styles.dashboardListRowMain)}>
             {isCollapsed ? <Folder className={styles.treeFolderIcon} /> : <FolderOpen className={styles.treeFolderIcon} />}
             <span className={styles.treeItemName}>{node.name}</span>
           </div>
 
-          <div className={styles.treeRowActions}>
+          <div className={cn(styles.treeRowActions, styles.dashboardListRowActions)}>
             <div data-tree-menu-root="true" className={styles.treeMenuRoot}>
               <button
                 type="button"
@@ -256,11 +259,14 @@ export const renderProjectTreeNode = (node: ProjectTreeNode, context: TreeNodeRe
       key={node.projectId}
       className={cn(
         styles.treeRow,
+        styles.dashboardListRow,
         styles.treeProjectRow,
         selected && styles.treeProjectRowActive,
         isInsertBefore && styles.treeRowInsertBefore,
         isInsertAfter && styles.treeRowInsertAfter
       )}
+      data-dashboard-list-row="true"
+      data-dashboard-list-context="tree-project"
       style={{ paddingInlineStart: `${0.3 + (node.depth - 1) * 0.72}rem` }}
       draggable={!context.mutationBusy}
       onDragStart={(event) => {
@@ -294,7 +300,7 @@ export const renderProjectTreeNode = (node: ProjectTreeNode, context: TreeNodeRe
     >
       <button
         type="button"
-        className={styles.treeProjectButton}
+        className={cn(styles.treeProjectButton, styles.dashboardListRowMain)}
         onClick={() => context.onSelectProject(node.projectId)}
         aria-pressed={selected}
         disabled={context.mutationBusy}
@@ -303,7 +309,7 @@ export const renderProjectTreeNode = (node: ProjectTreeNode, context: TreeNodeRe
         <span className={styles.treeItemName}>{node.name}</span>
       </button>
 
-      <div className={styles.treeRowActions}>
+      <div className={cn(styles.treeRowActions, styles.dashboardListRowActions)}>
         <div data-tree-menu-root="true" className={styles.treeMenuRoot}>
           <button
             type="button"

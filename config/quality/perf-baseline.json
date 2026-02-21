@@ -1,0 +1,97 @@
+{
+  "baselineId": "persistence-benchmark",
+  "generatedAt": "2026-02-20T02:44:59.228Z",
+  "runtime": {
+    "node": "v24.13.1",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "benchmarkConfig": {
+    "iterations": 160,
+    "warmup": 20,
+    "projectCount": 300,
+    "workspaceCount": 80
+  },
+  "metrics": {
+    "project_find": {
+      "count": 160,
+      "meanMs": 0.002,
+      "p50Ms": 0.002,
+      "p95Ms": 0.003,
+      "p99Ms": 0.003,
+      "maxMs": 0.009,
+      "minMs": 0.002
+    },
+    "project_list_by_scope_prefix": {
+      "count": 160,
+      "meanMs": 0.047,
+      "p50Ms": 0.045,
+      "p95Ms": 0.067,
+      "p99Ms": 0.074,
+      "maxMs": 0.076,
+      "minMs": 0.043
+    },
+    "project_save_if_revision": {
+      "count": 160,
+      "meanMs": 0.008,
+      "p50Ms": 0.007,
+      "p95Ms": 0.016,
+      "p99Ms": 0.018,
+      "maxMs": 0.025,
+      "minMs": 0.007
+    },
+    "workspace_list_for_account": {
+      "count": 160,
+      "meanMs": 0.051,
+      "p50Ms": 0.049,
+      "p95Ms": 0.072,
+      "p99Ms": 0.076,
+      "maxMs": 0.08,
+      "minMs": 0.048
+    },
+    "account_lookup_local_login": {
+      "count": 160,
+      "meanMs": 0.002,
+      "p50Ms": 0.002,
+      "p95Ms": 0.002,
+      "p99Ms": 0.002,
+      "maxMs": 0.002,
+      "minMs": 0.001
+    },
+    "workspace_acl_lookup": {
+      "count": 160,
+      "meanMs": 0.002,
+      "p50Ms": 0.002,
+      "p95Ms": 0.003,
+      "p99Ms": 0.003,
+      "maxMs": 0.003,
+      "minMs": 0.002
+    }
+  },
+  "thresholds": {
+    "project_find": {
+      "p95MsMax": 0.253,
+      "meanMsMax": 0.152
+    },
+    "project_list_by_scope_prefix": {
+      "p95MsMax": 0.317,
+      "meanMsMax": 0.197
+    },
+    "project_save_if_revision": {
+      "p95MsMax": 0.266,
+      "meanMsMax": 0.158
+    },
+    "workspace_list_for_account": {
+      "p95MsMax": 0.322,
+      "meanMsMax": 0.201
+    },
+    "account_lookup_local_login": {
+      "p95MsMax": 0.252,
+      "meanMsMax": 0.152
+    },
+    "workspace_acl_lookup": {
+      "p95MsMax": 0.253,
+      "meanMsMax": 0.152
+    }
+  }
+}

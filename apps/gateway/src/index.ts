@@ -12,6 +12,7 @@ import { API_CORS_HEADERS, GLOBAL_CORS_OPTIONS, MAX_BODY_BYTES } from './constan
 import { GatewayExceptionFilter } from './filters/gateway-exception.filter';
 import { GatewayRuntimeService } from './services/gateway-runtime.service';
 import { AuthService } from './services/auth.service';
+import { ServiceManagementService } from './services/service-management.service';
 
 const toLoggableError = (error: unknown): Record<string, unknown> => {
   if (error instanceof Error) {
@@ -133,7 +134,9 @@ const bootstrap = async (): Promise<void> => {
   );
   const runtime = app.get(GatewayRuntimeService);
   const auth = app.get(AuthService);
+  const serviceManagement = app.get(ServiceManagementService);
   await auth.ensureBootstrapAdmin();
+  await serviceManagement.bootstrapRuntimeSettings();
   await registerApiAuthHook(app, auth);
   app.useGlobalFilters(new GatewayExceptionFilter(runtime.logger));
   await registerWebUiHosting(app, runtime);

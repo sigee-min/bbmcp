@@ -20,7 +20,10 @@ const DEFAULT_TENANT_ID = 'default-tenant';
 const nowIso = (): string => new Date().toISOString();
 
 type NativePipelineWorkerStorePort = Pick<NativePipelineQueueStorePort, 'claimNextJob' | 'completeJob' | 'failJob'> & {
-  getProject?: (projectId: string) => Promise<NativeProjectSnapshot | null>;
+  claimNextJob: (workerId: string, workspaceId?: string) => Promise<NativeJob | null>;
+  completeJob: (jobId: string, result?: NativeJobResult, workspaceId?: string) => Promise<NativeJob | null>;
+  failJob: (jobId: string, error: string, workspaceId?: string) => Promise<NativeJob | null>;
+  getProject?: (projectId: string, workspaceId?: string) => Promise<NativeProjectSnapshot | null>;
 };
 
 type ProcessNativeJobArgs = {
@@ -29,6 +32,7 @@ type ProcessNativeJobArgs = {
   enabled: boolean;
   backend?: BackendPort;
   store?: NativePipelineWorkerStorePort;
+  workspaceIdsResolver?: () => Promise<readonly string[]>;
   processor?: NativeJobProcessor;
 };
 
@@ -381,29 +385,63 @@ const defaultProcessors: Record<SupportedNativeJobKind, NativeJobProcessor> = {
   'texture.preflight': handleTexturePreflightJob
 };
 
+const normalizeWorkspaceIds = (workspaceIds: readonly string[]): string[] => {
+  const deduped = new Set<string>();
+  for (const workspaceId of workspaceIds) {
+    if (typeof workspaceId !== 'string') {
+      continue;
+    }
+    const normalized = workspaceId.trim();
+    if (normalized.length === 0) {
+      continue;
+    }
+    deduped.add(normalized);
+  }
+  return Array.from(deduped.values());
+};
+
 export const processOneNativeJob = async ({
   workerId,
   logger,
   enabled,
   backend,
   store: injectedStore,
+  workspaceIdsResolver,
   processor
 }: ProcessNativeJobArgs): Promise<void> => {
   if (!enabled) return;
 
   const store = injectedStore ?? getNativePipelineStore();
-  const job = await store.claimNextJob(workerId);
+  const resolvedWorkspaceIds =
+    typeof workspaceIdsResolver === 'function' ? normalizeWorkspaceIds(await workspaceIdsResolver()) : [];
+  if (typeof workspaceIdsResolver === 'function' && resolvedWorkspaceIds.length === 0) {
+    return;
+  }
+  const claimWorkspaceCandidates: Array<string | undefined> =
+    resolvedWorkspaceIds.length > 0 ? resolvedWorkspaceIds : [undefined];
+  let claimedWorkspaceId: string | undefined;
+  let job: NativeJob | null = null;
+  for (const workspaceId of claimWorkspaceCandidates) {
+    const claimed = await store.claimNextJob(workerId, workspaceId);
+    if (!claimed) {
+      continue;
+    }
+    claimedWorkspaceId = workspaceId;
+    job = claimed;
+    break;
+  }
   if (!job) return;
   const getProjectSnapshot =
     typeof store.getProject === 'function'
-      ? async (projectId: string): Promise<NativeProjectSnapshot | null> => store.getProject!(projectId)
+      ? async (projectId: string): Promise<NativeProjectSnapshot | null> => store.getProject!(projectId, claimedWorkspaceId)
       : undefined;
 
   logger.info('ashfox worker claimed native job', {
     workerId,
     jobId: job.id,
     projectId: job.projectId,
-    kind: job.kind
+    kind: job.kind,
+    ...(claimedWorkspaceId ? { workspaceId: claimedWorkspaceId } : {})
   });
 
   try {
@@ -414,23 +452,25 @@ export const processOneNativeJob = async ({
       logger,
       getProjectSnapshot
     });
-    await store.completeJob(job.id, result);
+    await store.completeJob(job.id, result, claimedWorkspaceId);
     logger.info('ashfox worker completed native job', {
       workerId,
       jobId: job.id,
       projectId: job.projectId,
-      kind: result.kind
+      kind: result.kind,
+      ...(claimedWorkspaceId ? { workspaceId: claimedWorkspaceId } : {})
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     try {
-      await store.failJob(job.id, message);
+      await store.failJob(job.id, message, claimedWorkspaceId);
     } catch (failError) {
       const failMessage = failError instanceof Error ? failError.message : String(failError);
       logger.error('ashfox worker failed to mark native job failure', {
         workerId,
         jobId: job.id,
         projectId: job.projectId,
+        ...(claimedWorkspaceId ? { workspaceId: claimedWorkspaceId } : {}),
         message: failMessage
       });
     }
@@ -438,6 +478,7 @@ export const processOneNativeJob = async ({
       workerId,
       jobId: job.id,
       projectId: job.projectId,
+      ...(claimedWorkspaceId ? { workspaceId: claimedWorkspaceId } : {}),
       message
     });
   }

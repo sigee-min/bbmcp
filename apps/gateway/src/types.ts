@@ -19,6 +19,7 @@ export interface GatewayAuthConfig {
   tokenTtlSec: number;
   cookieName: string;
   cookieSecure: boolean;
+  githubEnabled?: boolean;
   githubClientId?: string;
   githubClientSecret?: string;
   githubCallbackUrl?: string;

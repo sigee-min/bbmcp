@@ -78,12 +78,6 @@
   width: 1rem;
 }
 
-.authHintMuted {
-  margin: 0;
-  font-size: 0.7rem;
-  color: hsl(var(--muted-foreground));
-}
-
 .authDivider {
   position: relative;
   margin: 0.82rem 0 0.7rem;
@@ -194,10 +188,8 @@
   background: hsl(var(--muted));
 }
 
-.authError {
-  margin: 0.54rem 0 0;
-  font-size: 0.72rem;
-  color: hsl(var(--destructive));
+.authErrorNotice {
+  margin-top: 0.56rem;
 }
 
 .authHint {

@@ -7,8 +7,6 @@ import type {
   NativeTreeChildRef
 } from './types';
 
-const DEFAULT_WORKSPACE_ID = 'ws_default';
-
 export interface NativePipelineState {
   readonly workspaceId: string;
   readonly projects: Map<string, NativeProjectSnapshot>;
@@ -23,19 +21,25 @@ export interface NativePipelineState {
   nextSeq: number;
 }
 
-export const createNativePipelineState = (workspaceId: string = DEFAULT_WORKSPACE_ID): NativePipelineState => ({
-  workspaceId,
-  projects: new Map<string, NativeProjectSnapshot>(),
-  folders: new Map<string, NativeProjectFolder>(),
-  rootChildren: [],
-  jobs: new Map<string, NativeJob>(),
-  queuedJobIds: [],
-  projectLocks: new Map<string, NativeProjectLock>(),
-  projectEvents: new Map<string, NativeProjectEvent[]>(),
-  nextJobId: 1,
-  nextEntityNonce: 1,
-  nextSeq: 1
-});
+export const createNativePipelineState = (workspaceId: string): NativePipelineState => {
+  const normalizedWorkspaceId = workspaceId.trim();
+  if (normalizedWorkspaceId.length === 0) {
+    throw new Error('workspaceId is required');
+  }
+  return {
+    workspaceId: normalizedWorkspaceId,
+    projects: new Map<string, NativeProjectSnapshot>(),
+    folders: new Map<string, NativeProjectFolder>(),
+    rootChildren: [],
+    jobs: new Map<string, NativeJob>(),
+    queuedJobIds: [],
+    projectLocks: new Map<string, NativeProjectLock>(),
+    projectEvents: new Map<string, NativeProjectEvent[]>(),
+    nextJobId: 1,
+    nextEntityNonce: 1,
+    nextSeq: 1
+  };
+};
 
 export const resetNativePipelineState = (state: NativePipelineState): void => {
   state.projects.clear();

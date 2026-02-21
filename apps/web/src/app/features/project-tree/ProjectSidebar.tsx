@@ -6,7 +6,8 @@ import {
   Monitor,
   Moon,
   RefreshCw,
-  Settings2,
+  Settings,
+  SlidersHorizontal,
   Sun
 } from 'lucide-react';
 import {
@@ -20,6 +21,7 @@ import {
   type SetStateAction
 } from 'react';
 
+import { AdaptiveMenu } from '../../_components/AdaptiveMenu';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import type { ProjectTreeSnapshot, StreamStatus, WorkspaceSummary } from '../../../lib/dashboardModel';
@@ -36,6 +38,7 @@ import {
   toTreeLookup
 } from './projectTreeDnd';
 import { renderProjectTreeNode, type TreeMenuState } from './projectTreeNodeRenderer';
+import { ErrorNotice } from '../shared/ErrorNotice';
 
 const THEME_OPTIONS: { mode: ThemeMode; label: string; Icon: typeof Sun }[] = [
   { mode: 'light', label: 'Light', Icon: Sun },
@@ -65,16 +68,22 @@ export interface ProjectSidebarProps extends SidebarMutationHandlers {
   projectTree: ProjectTreeSnapshot;
   selectedProjectId: string | null;
   streamStatus: StreamStatus;
+  projectListLoading: boolean;
+  projectListError: string | null;
   workspaces: readonly WorkspaceSummary[];
   selectedWorkspaceId: string;
   workspaceLoading: boolean;
   workspaceError: string | null;
-  canManageWorkspace: boolean;
   mutationBusy: boolean;
   mutationError: string | null;
   onRetryProjectLoad: () => void;
+  canCreateWorkspace: boolean;
+  canManageService: boolean;
+  onOpenWorkspaceCreate: () => void;
+  onOpenServiceManagement: () => void;
   onOpenWorkspaceSettings: () => void;
   onOpenAccountSecurity: () => void;
+  onLogout: () => void | Promise<void>;
   onSelectWorkspace: (workspaceId: string) => void;
   onSelectProject: (projectId: string) => void;
   themeMode: ThemeMode;
@@ -85,16 +94,22 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   projectTree,
   selectedProjectId,
   streamStatus,
+  projectListLoading,
+  projectListError,
   workspaces,
   selectedWorkspaceId,
   workspaceLoading,
   workspaceError,
-  canManageWorkspace,
   mutationBusy,
   mutationError,
   onRetryProjectLoad,
+  canCreateWorkspace,
+  canManageService,
+  onOpenWorkspaceCreate,
+  onOpenServiceManagement,
   onOpenWorkspaceSettings,
   onOpenAccountSecurity,
+  onLogout,
   onSelectWorkspace,
   onSelectProject,
   onThemeModeChange,
@@ -113,8 +128,11 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   const [dropInsertion, setDropInsertion] = useState<TreeInsertionTarget | null>(null);
   const dragEntityRef = useRef<DragEntity>(null);
   const themeMenuRef = useRef<HTMLDivElement | null>(null);
+  const themeTriggerRef = useRef<HTMLButtonElement | null>(null);
   const workspaceMenuRef = useRef<HTMLDivElement | null>(null);
+  const workspaceTriggerRef = useRef<HTMLButtonElement | null>(null);
   const settingsMenuRef = useRef<HTMLDivElement | null>(null);
+  const settingsTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const themeMenuOpen = menuState.kind === 'theme';
   const workspaceMenuOpen = menuState.kind === 'workspace';
@@ -130,6 +148,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     () => workspaces.find((workspace) => workspace.workspaceId === selectedWorkspaceId) ?? null,
     [selectedWorkspaceId, workspaces]
   );
+  const isTreeEmpty = projectTree.roots.length === 0;
 
   const closeMenus = useCallback(() => {
     setMenuState({ kind: 'none' });
@@ -335,7 +354,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
               void applyDropInsertion(target);
             }}
           >
-            {projectTree.roots.length > 0 ? (
+            {!isTreeEmpty ? (
               projectTree.roots.map((node) =>
                 renderProjectTreeNode(node, {
                   selectedProjectId,
@@ -360,33 +379,123 @@ export const ProjectSidebar = memo(function ProjectSidebar({
                   onDeleteProject
                 })
               )
+            ) : projectListLoading ? (
+              <div className={styles.treeLoadingState} aria-live="polite" aria-label="프로젝트 목록 불러오는 중">
+                <div className={styles.treeLoadingLine} />
+                <div className={styles.treeLoadingLine} />
+                <div className={styles.treeLoadingLine} />
+                <div className={styles.treeLoadingLine} />
+              </div>
+            ) : projectListError ? (
+              <div className={styles.treeLoadErrorState}>
+                <p className={styles.treeEmptyText}>{projectListError}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={onRetryProjectLoad}
+                  className={styles.treeRetryButton}
+                  aria-label="프로젝트 목록 다시 시도"
+                  title="다시 시도"
+                  disabled={mutationBusy}
+                >
+                  <RefreshCw className={cn('h-3.5 w-3.5', mutationBusy && 'animate-spin')} />
+                  다시 시도
+                </Button>
+              </div>
             ) : (
-              <p className={cn(styles.treeEmptyText, styles.emptyCenteredMessage)}>
-                프로젝트/폴더가 없습니다. 새 항목을 만들어 주세요.
-              </p>
+              <div className={styles.treeEmptyState} data-sidebar-empty-state="true">
+                <p className={styles.treeEmptyText}>프로젝트/폴더가 없습니다.</p>
+                <p className={styles.treeEmptyHint}>첫 항목을 생성하거나 목록을 새로고침해 주세요.</p>
+                <div className={styles.treeEmptyActions}>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="secondary"
+                    onClick={() => {
+                      void onCreateProject(null);
+                    }}
+                    className={styles.treeEmptyActionButton}
+                    aria-label="빈 워크스페이스에서 프로젝트 생성"
+                    title="프로젝트 생성"
+                    disabled={mutationBusy}
+                  >
+                    <FilePlus2 className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="secondary"
+                    onClick={() => {
+                      void onCreateFolder(null);
+                    }}
+                    className={styles.treeEmptyActionButton}
+                    aria-label="빈 워크스페이스에서 폴더 생성"
+                    title="폴더 생성"
+                    disabled={mutationBusy}
+                  >
+                    <FolderPlus className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={onRetryProjectLoad}
+                    className={styles.treeEmptyActionButton}
+                    aria-label="빈 워크스페이스 새로고침"
+                    title="새로고침"
+                    disabled={mutationBusy}
+                  >
+                    <RefreshCw className={cn('h-3.5 w-3.5', mutationBusy && 'animate-spin')} />
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
 
-          {mutationError ? <p className={styles.sidebarErrorText}>{mutationError}</p> : null}
+          {mutationError ? (
+            <ErrorNotice message={mutationError} channel="inline" size="sm" className={styles.sidebarErrorNotice} />
+          ) : null}
 
           <div className={styles.workspaceSelectorWrap}>
             <p className={styles.workspaceSelectorLabel}>Workspace</p>
-            <div ref={workspaceMenuRef} className={styles.workspaceSelector}>
+            <div className={styles.workspaceSelectorControls}>
               <button
                 type="button"
-                className={styles.workspaceSelectorButton}
-                aria-haspopup="menu"
-                aria-expanded={workspaceMenuOpen}
-                disabled={workspaceLoading || workspaces.length === 0}
-                onClick={() => toggleMenu('workspace')}
+                className={styles.workspaceSettingsQuickButton}
+                aria-label="현재 워크스페이스 설정"
+                title="워크스페이스 설정"
+                onClick={() => {
+                  closeMenus();
+                  onOpenWorkspaceSettings();
+                }}
               >
-                <span className={styles.workspaceSelectorName}>
-                  {selectedWorkspace?.name ?? (workspaceLoading ? '워크스페이스 불러오는 중…' : '워크스페이스 없음')}
-                </span>
-                <ChevronDown className={cn('h-3.5 w-3.5', styles.themeChevron, workspaceMenuOpen && styles.themeChevronOpen)} />
+                <SlidersHorizontal className="h-3.5 w-3.5" />
               </button>
-              {workspaceMenuOpen ? (
-                <div role="menu" aria-label="워크스페이스 목록" className={styles.workspaceSelectorMenu}>
+              <div ref={workspaceMenuRef} className={styles.workspaceSelector}>
+                <button
+                  ref={workspaceTriggerRef}
+                  type="button"
+                  className={styles.workspaceSelectorButton}
+                  aria-haspopup="menu"
+                  aria-expanded={workspaceMenuOpen}
+                  disabled={workspaceLoading || workspaces.length === 0}
+                  onClick={() => toggleMenu('workspace')}
+                >
+                  <span className={styles.workspaceSelectorName}>
+                    {selectedWorkspace?.name ?? (workspaceLoading ? '워크스페이스 불러오는 중…' : '워크스페이스 없음')}
+                  </span>
+                  <ChevronDown
+                    className={cn('h-3.5 w-3.5', styles.themeChevron, workspaceMenuOpen && styles.themeChevronOpen)}
+                  />
+                </button>
+                <AdaptiveMenu
+                  open={workspaceMenuOpen}
+                  anchorRef={workspaceTriggerRef}
+                  ariaLabel="워크스페이스 목록"
+                  className={styles.workspaceSelectorMenu}
+                  matchAnchorWidth
+                >
                   {workspaces.map((workspace) => {
                     const isActive = workspace.workspaceId === selectedWorkspaceId;
                     return (
@@ -402,60 +511,90 @@ export const ProjectSidebar = memo(function ProjectSidebar({
                         }}
                       >
                         <span className={styles.workspaceSelectorItemName}>{workspace.name}</span>
-                        <span className={styles.workspaceSelectorItemMode}>{workspace.mode}</span>
                       </button>
                     );
                   })}
-                </div>
-              ) : null}
+                </AdaptiveMenu>
+              </div>
             </div>
-            {workspaceError ? <p className={styles.sidebarErrorText}>{workspaceError}</p> : null}
+            {workspaceError ? (
+              <ErrorNotice message={workspaceError} channel="inline" size="sm" className={styles.sidebarErrorNotice} />
+            ) : null}
           </div>
 
           <div className={styles.sidebarFooter}>
             <div ref={settingsMenuRef} className={styles.themeDropdown}>
               <button
+                ref={settingsTriggerRef}
                 type="button"
                 aria-haspopup="menu"
                 aria-expanded={settingsMenuOpen}
                 aria-label="사이드바 설정"
                 onClick={() => toggleMenu('settings')}
-                className={cn(styles.themeTrigger, styles.themeTriggerFooter)}
+                className={cn(styles.themeTrigger, styles.themeTriggerFooter, styles.sidebarSettingsTrigger)}
               >
-                <Settings2 className="h-3.5 w-3.5" />
+                <Settings className="h-3.5 w-3.5" />
               </button>
-              {settingsMenuOpen ? (
-                <div role="menu" aria-label="사이드바 설정 메뉴" className={styles.themeMenu}>
+              <AdaptiveMenu
+                open={settingsMenuOpen}
+                anchorRef={settingsTriggerRef}
+                ariaLabel="사이드바 설정 메뉴"
+                className={styles.themeMenu}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.themeMenuItem}
+                  onClick={() => {
+                    onOpenAccountSecurity();
+                    closeMenus();
+                  }}
+                >
+                  계정 보안
+                </button>
+                {canManageService ? (
                   <button
                     type="button"
                     role="menuitem"
                     className={styles.themeMenuItem}
                     onClick={() => {
-                      onOpenAccountSecurity();
+                      onOpenServiceManagement();
                       closeMenus();
                     }}
                   >
-                    계정 보안
+                    서비스 관리
                   </button>
-                  {canManageWorkspace ? (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={styles.themeMenuItem}
-                      onClick={() => {
-                        onOpenWorkspaceSettings();
-                        closeMenus();
-                      }}
-                    >
-                      워크스페이스 관리
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
+                ) : null}
+                {canCreateWorkspace ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={styles.themeMenuItem}
+                    onClick={() => {
+                      onOpenWorkspaceCreate();
+                      closeMenus();
+                    }}
+                  >
+                    워크스페이스 생성
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={cn(styles.themeMenuItem, styles.themeMenuItemDanger)}
+                  onClick={() => {
+                    closeMenus();
+                    void onLogout();
+                  }}
+                >
+                  로그아웃
+                </button>
+              </AdaptiveMenu>
             </div>
             <div className={styles.sidebarFooterActions}>
               <div ref={themeMenuRef} className={styles.themeDropdown}>
                 <button
+                  ref={themeTriggerRef}
                   type="button"
                   aria-haspopup="menu"
                   aria-expanded={themeMenuOpen}
@@ -466,30 +605,28 @@ export const ProjectSidebar = memo(function ProjectSidebar({
                   <selectedTheme.Icon className="h-3.5 w-3.5" />
                   <ChevronDown className={cn('h-3.5 w-3.5', styles.themeChevron, themeMenuOpen && styles.themeChevronOpen)} />
                 </button>
-                {themeMenuOpen ? (
-                  <div role="menu" aria-label="테마 설정" className={styles.themeMenu}>
-                    {THEME_OPTIONS.map(({ mode, label, Icon }) => {
-                      const isActive = mode === themeMode;
-                      return (
-                        <button
-                          key={mode}
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked={isActive}
-                          className={cn(styles.themeMenuItem, isActive && styles.themeMenuItemActive)}
-                          onClick={() => {
-                            onThemeModeChange(mode);
-                            closeMenus();
-                          }}
-                        >
-                          <Icon className="h-4 w-4" />
-                          <span className="flex-1 text-left">{label}</span>
-                          {isActive ? <Check className="h-4 w-4" /> : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : null}
+                <AdaptiveMenu open={themeMenuOpen} anchorRef={themeTriggerRef} ariaLabel="테마 설정" className={styles.themeMenu}>
+                  {THEME_OPTIONS.map(({ mode, label, Icon }) => {
+                    const isActive = mode === themeMode;
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={isActive}
+                        className={cn(styles.themeMenuItem, isActive && styles.themeMenuItemActive)}
+                        onClick={() => {
+                          onThemeModeChange(mode);
+                          closeMenus();
+                        }}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span className="flex-1 text-left">{label}</span>
+                        {isActive ? <Check className="h-4 w-4" /> : null}
+                      </button>
+                    );
+                  })}
+                </AdaptiveMenu>
               </div>
             </div>
           </div>

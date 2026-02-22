@@ -15,10 +15,12 @@ Establish stable MCP connectivity from non-Blockbench clients.
 - MCP endpoint is reachable from your client/network environment.
 
 ## Quick Start
-1. Issue a personal API key from your workspace settings dialog.
+1. Issue the key that matches your scope.
+   - Workspace modeling calls: workspace API key
+   - Service operations automation: service API key
 2. Connect your MCP client with `/mcp` plus `Authorization: Bearer <API_KEY>`.
 3. Execute handshake and capability discovery (`system.list_capabilities`).
-4. Run one read-only project call to verify workspace/permission auto-binding.
+4. Run one read-only call to verify automatic scope binding.
 
 ## Detailed Steps
 1. Issue a workspace API key and store the raw secret safely.
@@ -28,6 +30,12 @@ Establish stable MCP connectivity from non-Blockbench clients.
 3. Validate the session flow with `initialize`, `tools/list`, and `system.list_capabilities`.
 4. Run a read-only tool call and confirm workspace scope is resolved automatically.
 5. Validate error mapping and retry behavior in client logs.
+
+## Keyspace Isolation Model
+- Workspace API keys can only see workspace tools in `tools/list`.
+- Service API keys can only see service-management tools in `tools/list`.
+- Guessing a tool from the other keyspace always returns `unknown_tool` and does not reveal tool existence.
+- Reusing an existing MCP session with a different API key is blocked with `401`.
 
 ## Failure and Recovery
 - Connection failure: verify endpoint path, service status, and firewall/permission settings.

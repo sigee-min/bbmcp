@@ -11,6 +11,7 @@ import { API_CORS_HEADERS } from '../constants';
 import type { CreateFolderDto } from '../dto/create-folder.dto';
 import type { CreateProjectDto } from '../dto/create-project.dto';
 import type { CreateWorkspaceDto } from '../dto/create-workspace.dto';
+import type { CreateServiceApiKeyDto } from '../dto/create-service-api-key.dto';
 import type { CreateWorkspaceApiKeyDto } from '../dto/create-workspace-api-key.dto';
 import type { ListProjectsQueryDto } from '../dto/list-projects-query.dto';
 import type { MoveEntityDto } from '../dto/move-entity.dto';
@@ -21,6 +22,7 @@ import type { StreamQueryDto } from '../dto/stream-query.dto';
 import type { SubmitJobDto } from '../dto/submit-job.dto';
 import type { DeleteWorkspaceAclRuleDto } from '../dto/delete-workspace-acl-rule.dto';
 import type { RevokeWorkspaceApiKeyDto } from '../dto/revoke-workspace-api-key.dto';
+import type { RevokeServiceApiKeyDto } from '../dto/revoke-service-api-key.dto';
 import type { SetServiceAccountRolesDto } from '../dto/set-service-account-roles.dto';
 import type { SetWorkspaceDefaultMemberRoleDto } from '../dto/set-workspace-default-member-role.dto';
 import type { UpsertServiceGithubAuthSettingsDto } from '../dto/upsert-service-github-auth-settings.dto';
@@ -219,6 +221,18 @@ export class GatewayDashboardService {
 
   async listServiceUserWorkspaces(request: FastifyRequest, accountId: string): Promise<ResponsePlan> {
     return this.serviceManagement.listServiceUserWorkspaces(request, accountId);
+  }
+
+  async listServiceApiKeys(request: FastifyRequest): Promise<ResponsePlan> {
+    return this.serviceManagement.listServiceApiKeys(request);
+  }
+
+  async createServiceApiKey(request: FastifyRequest, body: CreateServiceApiKeyDto): Promise<ResponsePlan> {
+    return this.serviceManagement.createServiceApiKey(request, body);
+  }
+
+  async revokeServiceApiKey(request: FastifyRequest, body: RevokeServiceApiKeyDto): Promise<ResponsePlan> {
+    return this.serviceManagement.revokeServiceApiKey(request, body);
   }
 
   async setServiceUserRoles(

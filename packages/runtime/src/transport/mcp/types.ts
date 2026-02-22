@@ -1,4 +1,5 @@
 import type { JsonSchema } from '@ashfox/contracts/mcpSchemas/types';
+import type { ToolRegistry } from './tools';
 export type { JsonSchema };
 
 export type McpToolDefinition = {
@@ -16,10 +17,11 @@ export type HttpRequest = {
 };
 
 export type McpRequestPrincipal = {
+  keySpace?: 'workspace' | 'service';
+  keyId?: string;
   accountId?: string;
   workspaceId?: string;
   systemRoles?: string[];
-  apiKeyId?: string;
 };
 
 export type SseConnection = {
@@ -79,6 +81,10 @@ export type McpServerConfig = {
   instructions?: string;
   supportedProtocols?: string[];
   sessionTtlMs?: number;
+  resolveToolRegistry?: (input: {
+    defaultRegistry: ToolRegistry;
+    requestHeaders: Record<string, string>;
+    principal?: McpRequestPrincipal;
+    sessionId?: string;
+  }) => ToolRegistry | Promise<ToolRegistry>;
 };
-
-

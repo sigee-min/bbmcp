@@ -44,6 +44,8 @@ registerAsync(
 
     const renamedAlphaNested = await store.renameProject(alphaNestedProject.projectId, 'Nested Project V2', wsAlpha);
     assert.equal(renamedAlphaNested?.name, 'Nested Project V2');
+    const blockedCrossWorkspaceRename = await store.renameProject(alphaNestedProject.projectId, 'Blocked Rename', wsBeta);
+    assert.equal(blockedCrossWorkspaceRename, null);
 
     const movedToRoot = await store.moveProject(
       {
@@ -54,9 +56,21 @@ registerAsync(
       }
     );
     assert.equal(movedToRoot?.parentFolderId, null);
+    const blockedCrossWorkspaceMove = await store.moveProject({
+      workspaceId: wsBeta,
+      projectId: alphaNestedProject.projectId,
+      parentFolderId: null
+    });
+    assert.equal(blockedCrossWorkspaceMove, null);
 
     const renamedFolder = await store.renameFolder(alphaNestedFolder.folderId, 'Nested Folder V2', wsAlpha);
     assert.equal(renamedFolder?.name, 'Nested Folder V2');
+    const blockedCrossWorkspaceFolderRename = await store.renameFolder(alphaNestedFolder.folderId, 'Blocked Folder Rename', wsBeta);
+    assert.equal(blockedCrossWorkspaceFolderRename, null);
+    const blockedCrossWorkspaceProjectDelete = await store.deleteProject(alphaNestedProject.projectId, wsBeta);
+    assert.equal(blockedCrossWorkspaceProjectDelete, false);
+    const blockedCrossWorkspaceFolderDelete = await store.deleteFolder(alphaNestedFolder.folderId, wsBeta);
+    assert.equal(blockedCrossWorkspaceFolderDelete, false);
 
     const deletedFolder = await store.deleteFolder(alphaRootFolder.folderId, wsAlpha);
     assert.equal(deletedFolder, true);

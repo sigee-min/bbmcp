@@ -16,12 +16,14 @@ import { writePlan } from '../planWriter';
 import { CreateFolderDto } from '../dto/create-folder.dto';
 import { CreateProjectDto } from '../dto/create-project.dto';
 import { CreateWorkspaceDto } from '../dto/create-workspace.dto';
+import { CreateServiceApiKeyDto } from '../dto/create-service-api-key.dto';
 import { CreateWorkspaceApiKeyDto } from '../dto/create-workspace-api-key.dto';
 import { DeleteWorkspaceAclRuleDto } from '../dto/delete-workspace-acl-rule.dto';
 import { ListProjectsQueryDto } from '../dto/list-projects-query.dto';
 import { MoveEntityDto } from '../dto/move-entity.dto';
 import { RenameEntityDto } from '../dto/rename-entity.dto';
 import { RevokeWorkspaceApiKeyDto } from '../dto/revoke-workspace-api-key.dto';
+import { RevokeServiceApiKeyDto } from '../dto/revoke-service-api-key.dto';
 import { SetServiceAccountRolesDto } from '../dto/set-service-account-roles.dto';
 import { ServiceUsersQueryDto } from '../dto/service-users-query.dto';
 import { ServiceWorkspacesQueryDto } from '../dto/service-workspaces-query.dto';
@@ -291,6 +293,35 @@ export class DashboardController {
     const plan = await this.dashboard.listServiceUserWorkspaces(request, accountId);
     writePlan(reply, plan);
     this.runtime.metrics.recordMcpRequest('GET', plan.status);
+  }
+
+  @Get('service/api-keys')
+  async listServiceApiKeys(@Req() request: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const plan = await this.dashboard.listServiceApiKeys(request);
+    writePlan(reply, plan);
+    this.runtime.metrics.recordMcpRequest('GET', plan.status);
+  }
+
+  @Post('service/api-keys')
+  async createServiceApiKey(
+    @Req() request: FastifyRequest,
+    @Body() body: CreateServiceApiKeyDto,
+    @Res() reply: FastifyReply
+  ): Promise<void> {
+    const plan = await this.dashboard.createServiceApiKey(request, body);
+    writePlan(reply, plan);
+    this.runtime.metrics.recordMcpRequest('POST', plan.status);
+  }
+
+  @Delete('service/api-keys')
+  async revokeServiceApiKey(
+    @Req() request: FastifyRequest,
+    @Body() body: RevokeServiceApiKeyDto,
+    @Res() reply: FastifyReply
+  ): Promise<void> {
+    const plan = await this.dashboard.revokeServiceApiKey(request, body);
+    writePlan(reply, plan);
+    this.runtime.metrics.recordMcpRequest('DELETE', plan.status);
   }
 
   @Put('service/users/:accountId/system-roles')

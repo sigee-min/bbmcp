@@ -1,6 +1,7 @@
 import type {
   AccountRecord,
   ProjectRepositoryScope,
+  ServiceApiKeyRecord,
   ServiceSettingsRecord,
   WorkspaceApiKeyRecord,
   WorkspaceFolderAclRecord,
@@ -53,6 +54,7 @@ export type WorkspaceStateDocument = {
   roles: WorkspaceRoleStorageRecord[];
   folderAcl: WorkspaceFolderAclRecord[];
   apiKeys: WorkspaceApiKeyRecord[];
+  serviceApiKeys: ServiceApiKeyRecord[];
   serviceSettings: ServiceSettingsRecord;
 };
 
@@ -112,6 +114,7 @@ export const createDefaultWorkspaceState = (): WorkspaceStateDocument => {
     roles: [...seed.roles],
     folderAcl: [...seed.folderAcl],
     apiKeys: [],
+    serviceApiKeys: [],
     serviceSettings: createDefaultServiceSettings(now, seed.systemAccount.accountId)
   };
 };
@@ -159,6 +162,7 @@ export const normalizeWorkspaceState = (value: unknown): WorkspaceStateDocument 
   const rolesRaw = Array.isArray(record.roles) ? record.roles : [];
   const folderAclRaw = Array.isArray(record.folderAcl) ? record.folderAcl : [];
   const apiKeysRaw = Array.isArray(record.apiKeys) ? record.apiKeys : [];
+  const serviceApiKeysRaw = Array.isArray(record.serviceApiKeys) ? record.serviceApiKeys : [];
 
   const workspaces = workspacesRaw
     .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
@@ -257,6 +261,21 @@ export const normalizeWorkspaceState = (value: unknown): WorkspaceStateDocument 
       revokedAt: normalizeOptionalTimestamp(entry.revokedAt)
     }));
 
+  const serviceApiKeys = serviceApiKeysRaw
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+    .map((entry) => ({
+      keyId: normalizeRequired(String(entry.keyId ?? ''), 'keyId'),
+      name: String(entry.name ?? '').trim() || 'API key',
+      keyPrefix: normalizeRequired(String(entry.keyPrefix ?? ''), 'keyPrefix'),
+      keyHash: normalizeRequired(String(entry.keyHash ?? ''), 'keyHash'),
+      createdBy: normalizeRequired(String(entry.createdBy ?? ''), 'createdBy'),
+      createdAt: normalizeTimestamp(entry.createdAt),
+      updatedAt: normalizeTimestamp(entry.updatedAt),
+      lastUsedAt: normalizeOptionalTimestamp(entry.lastUsedAt),
+      expiresAt: normalizeOptionalTimestamp(entry.expiresAt),
+      revokedAt: normalizeOptionalTimestamp(entry.revokedAt)
+    }));
+
   const workspaceKeys = new Set(workspaces.map((workspace) => workspace.workspaceId));
   const normalizedRoles = roles.filter((role) => workspaceKeys.has(role.workspaceId));
   const normalizedFolderAcl = folderAcl.filter((acl) => workspaceKeys.has(acl.workspaceId));
@@ -273,6 +292,7 @@ export const normalizeWorkspaceState = (value: unknown): WorkspaceStateDocument 
     roles: normalizedRoles,
     folderAcl: normalizedFolderAcl,
     apiKeys: apiKeys.filter((apiKey) => workspaceKeys.has(apiKey.workspaceId)),
+    serviceApiKeys,
     serviceSettings
   };
 };

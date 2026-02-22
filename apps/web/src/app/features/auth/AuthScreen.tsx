@@ -1,20 +1,65 @@
-import { useState, type FormEvent } from 'react';
-import { Github, LockKeyhole, UserRound } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Check, ChevronDown, Github, LockKeyhole, Monitor, Moon, Sun, UserRound } from 'lucide-react';
+import type { ResolvedTheme, ThemeMode } from '../../../lib/theme';
+import { AdaptiveMenu } from '../../_components/AdaptiveMenu';
+import { useDismissibleMenu } from '../../_hooks/useDismissibleMenu';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import styles from './AuthScreen.module.css';
+
+const THEME_OPTIONS: { mode: ThemeMode; label: string; Icon: typeof Sun }[] = [
+  { mode: 'light', label: 'Light', Icon: Sun },
+  { mode: 'dark', label: 'Dark', Icon: Moon },
+  { mode: 'system', label: 'System', Icon: Monitor }
+];
 
 type AuthScreenProps = {
   githubEnabled: boolean;
   busy: boolean;
   errorMessage: string | null;
+  themeMode: ThemeMode;
+  resolvedTheme: ResolvedTheme;
+  onThemeModeChange: (mode: ThemeMode) => void;
   onLogin: (loginId: string, password: string) => Promise<void>;
   onGitHubLogin: () => void;
 };
 
-export function AuthScreen({ githubEnabled, busy, errorMessage, onLogin, onGitHubLogin }: AuthScreenProps) {
+export function AuthScreen({
+  githubEnabled,
+  busy,
+  errorMessage,
+  themeMode,
+  resolvedTheme,
+  onThemeModeChange,
+  onLogin,
+  onGitHubLogin
+}: AuthScreenProps) {
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const themeMenuRef = useRef<HTMLDivElement | null>(null);
+  const themeTriggerRef = useRef<HTMLButtonElement | null>(null);
   const showGithubLogin = githubEnabled;
+  const selectedTheme = useMemo(
+    () => THEME_OPTIONS.find((option) => option.mode === themeMode) ?? THEME_OPTIONS[2],
+    [themeMode]
+  );
+  const brandLogoSrc = resolvedTheme === 'dark' ? '/logo_fullbackground_dark.png' : '/logo_fullbackground_light.png';
+  const resolvedThemeLabel = themeMode === 'system' ? `System (${resolvedTheme})` : selectedTheme.label;
+
+  const closeThemeMenu = useCallback(() => {
+    setThemeMenuOpen(false);
+  }, []);
+
+  const containsThemeMenuTarget = useCallback(
+    (target: EventTarget | null) => target instanceof Node && Boolean(themeMenuRef.current?.contains(target)),
+    []
+  );
+
+  useDismissibleMenu({
+    open: themeMenuOpen,
+    containsTarget: containsThemeMenuTarget,
+    onDismiss: closeThemeMenu
+  });
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -24,32 +69,20 @@ export function AuthScreen({ githubEnabled, busy, errorMessage, onLogin, onGitHu
   return (
     <main className={styles.authShell}>
       <section className={styles.authCard} aria-label="로그인">
-        <div className={styles.authTitleRow}>
-          <img src="/logo_fullbackground.png" alt="Ashfox" className={styles.authLogo} />
-          <div className={styles.authTitleBlock}>
-            <h1 className={styles.authTitle}>Ashfox</h1>
-            <p className={styles.authSubtitle}>Sign in to continue</p>
+        <header className={styles.authBrandHeader}>
+          <img src={brandLogoSrc} alt="Ashfox 로고" className={styles.authBrandLogo} />
+          <div className={styles.authBrandText}>
+            <span className={styles.authBrandName}>Ashfox</span>
+            <p className={styles.authBrandDescription}>팀 워크플로우에 로우폴리 에셋 개발 플로우를 간편하게 통합하세요.</p>
           </div>
-        </div>
-        {showGithubLogin ? (
-          <button
-            className={styles.authGitHubButton}
-            type="button"
-            onClick={onGitHubLogin}
-            disabled={busy}
-            aria-label="GitHub로 로그인"
-          >
-            <Github className={styles.authGitHubIcon} />
-            <span>Continue with GitHub</span>
-          </button>
-        ) : null}
+        </header>
 
-        {showGithubLogin ? (
-          <div className={styles.authDivider} role="presentation">
-            <span>or use local account</span>
-          </div>
-        ) : null}
-
+        <h2 className={styles.authSectionLabel}>
+          <span className={styles.authSectionLabelRow}>
+            <UserRound className={styles.authSectionLabelIcon} />
+            <span>로그인</span>
+          </span>
+        </h2>
         <form className={styles.authForm} onSubmit={(event) => void submit(event)}>
           <label className={styles.authField}>
             <span className={styles.authFieldLabel}>Login ID</span>
@@ -88,7 +121,79 @@ export function AuthScreen({ githubEnabled, busy, errorMessage, onLogin, onGitHu
             </button>
           </div>
         </form>
+
+        <div className={styles.authDivider} role="presentation">
+          <span>or continue with GitHub</span>
+        </div>
+
+        <h2 className={styles.authSectionLabel}>
+          <span className={styles.authSectionLabelRow}>
+            <Github className={styles.authSectionLabelIcon} />
+            <span>GitHub 로그인</span>
+          </span>
+        </h2>
+        {showGithubLogin ? (
+          <button
+            className={styles.authGitHubButton}
+            type="button"
+            onClick={onGitHubLogin}
+            disabled={busy}
+            aria-label="GitHub로 로그인"
+          >
+            <Github className={styles.authGitHubIcon} />
+            <span>Continue with GitHub</span>
+          </button>
+        ) : (
+          <p className={styles.authProviderDisabled}>현재 GitHub 로그인이 비활성화되었습니다.</p>
+        )}
+
         {errorMessage ? <ErrorNotice message={errorMessage} channel="blocking" className={styles.authErrorNotice} /> : null}
+
+        <div className={styles.authThemeDock}>
+          <div ref={themeMenuRef} className={styles.authThemeDropdown}>
+            <button
+              ref={themeTriggerRef}
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={themeMenuOpen}
+              aria-label={`테마 선택: ${resolvedThemeLabel}`}
+              onClick={() => setThemeMenuOpen((open) => !open)}
+              className={styles.authThemeTrigger}
+            >
+              <selectedTheme.Icon className={styles.authThemeTriggerIcon} />
+              <ChevronDown
+                className={`${styles.authThemeChevron} ${themeMenuOpen ? styles.authThemeChevronOpen : ''}`}
+              />
+            </button>
+            <AdaptiveMenu
+              open={themeMenuOpen}
+              anchorRef={themeTriggerRef}
+              ariaLabel="테마 설정"
+              className={styles.authThemeMenu}
+            >
+              {THEME_OPTIONS.map(({ mode, label, Icon }) => {
+                const isActive = mode === themeMode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={isActive}
+                    className={`${styles.authThemeMenuItem} ${isActive ? styles.authThemeMenuItemActive : ''}`}
+                    onClick={() => {
+                      onThemeModeChange(mode);
+                      closeThemeMenu();
+                    }}
+                  >
+                    <Icon className={styles.authThemeMenuItemIcon} />
+                    <span className={styles.authThemeMenuItemLabel}>{label}</span>
+                    {isActive ? <Check className={styles.authThemeMenuItemIcon} /> : null}
+                  </button>
+                );
+              })}
+            </AdaptiveMenu>
+          </div>
+        </div>
       </section>
     </main>
   );

@@ -144,6 +144,14 @@ export const listWorkspaceAclRules = async (
   workspaceId: string
 ): Promise<ResponsePlan> => {
   const actor = dependencies.resolveActor(request);
+  return listWorkspaceAclRulesByActor(dependencies, actor, workspaceId);
+};
+
+export const listWorkspaceAclRulesByActor = async (
+  dependencies: WorkspaceAclServiceDependencies,
+  actor: GatewayActorContext,
+  workspaceId: string
+): Promise<ResponsePlan> => {
   const workspace = await dependencies.getWorkspace(workspaceId);
   if (!workspace) {
     return workspaceNotFoundPlan(workspaceId);
@@ -166,6 +174,15 @@ export const upsertWorkspaceAclRule = async (
   body: UpsertWorkspaceAclRuleDto
 ): Promise<ResponsePlan> => {
   const actor = dependencies.resolveActor(request);
+  return upsertWorkspaceAclRuleByActor(dependencies, actor, workspaceId, body);
+};
+
+export const upsertWorkspaceAclRuleByActor = async (
+  dependencies: WorkspaceAclServiceDependencies,
+  actor: GatewayActorContext,
+  workspaceId: string,
+  body: UpsertWorkspaceAclRuleDto
+): Promise<ResponsePlan> => {
   const authorization = await dependencies.authorizeWorkspaceMutation(workspaceId, actor, 'workspace.manage');
   if ('kind' in authorization) {
     return authorization;
@@ -257,6 +274,15 @@ export const deleteWorkspaceAclRule = async (
   body: DeleteWorkspaceAclRuleDto
 ): Promise<ResponsePlan> => {
   const actor = dependencies.resolveActor(request);
+  return deleteWorkspaceAclRuleByActor(dependencies, actor, workspaceId, body);
+};
+
+export const deleteWorkspaceAclRuleByActor = async (
+  dependencies: WorkspaceAclServiceDependencies,
+  actor: GatewayActorContext,
+  workspaceId: string,
+  body: DeleteWorkspaceAclRuleDto
+): Promise<ResponsePlan> => {
   const authorization = await dependencies.authorizeWorkspaceMutation(workspaceId, actor, 'workspace.manage');
   if ('kind' in authorization) {
     return authorization;

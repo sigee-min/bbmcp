@@ -2,13 +2,16 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import {
   isAutoProvisionedWorkspaceId,
+  normalizeSystemRoles,
   normalizeWorkspaceRoleName,
   WORKSPACE_ADMIN_ROLE_NAME,
   WORKSPACE_MEMBER_ROLE_NAME,
+  type WorkspaceApiKeyRecord,
   type WorkspaceFolderAclRecord,
   type WorkspaceRecord,
   type WorkspaceRoleStorageRecord
 } from '@ashfox/backend-core';
+import type { NativeProjectTreeNode } from '@ashfox/native-pipeline/types';
 import type { ResponsePlan } from '@ashfox/runtime/transport/mcp/types';
 import type { FastifyRequest } from 'fastify';
 import type { CreateWorkspaceDto } from '../dto/create-workspace.dto';
@@ -32,19 +35,30 @@ import { GatewayRuntimeService } from './gateway-runtime.service';
 import { WorkspacePolicyService } from '../security/workspace-policy.service';
 import {
   deleteWorkspaceRole as deleteWorkspaceRoleCore,
+  deleteWorkspaceRoleByActor as deleteWorkspaceRoleByActorCore,
   listWorkspaceRoles as listWorkspaceRolesCore,
+  listWorkspaceRolesByActor as listWorkspaceRolesByActorCore,
   setWorkspaceDefaultMemberRole as setWorkspaceDefaultMemberRoleCore,
+  setWorkspaceDefaultMemberRoleByActor as setWorkspaceDefaultMemberRoleByActorCore,
+  upsertWorkspaceRoleByActor as upsertWorkspaceRoleByActorCore,
   upsertWorkspaceRole as upsertWorkspaceRoleCore
 } from './workspace-admin-role.service';
 import {
   deleteWorkspaceMember as deleteWorkspaceMemberCore,
+  deleteWorkspaceMemberByActor as deleteWorkspaceMemberByActorCore,
   listWorkspaceMemberCandidates as listWorkspaceMemberCandidatesCore,
+  listWorkspaceMemberCandidatesByActor as listWorkspaceMemberCandidatesByActorCore,
   listWorkspaceMembers as listWorkspaceMembersCore,
+  listWorkspaceMembersByActor as listWorkspaceMembersByActorCore,
+  upsertWorkspaceMemberByActor as upsertWorkspaceMemberByActorCore,
   upsertWorkspaceMember as upsertWorkspaceMemberCore
 } from './workspace-admin-member.service';
 import {
   deleteWorkspaceAclRule as deleteWorkspaceAclRuleCore,
+  deleteWorkspaceAclRuleByActor as deleteWorkspaceAclRuleByActorCore,
   listWorkspaceAclRules as listWorkspaceAclRulesCore,
+  listWorkspaceAclRulesByActor as listWorkspaceAclRulesByActorCore,
+  upsertWorkspaceAclRuleByActor as upsertWorkspaceAclRuleByActorCore,
   upsertWorkspaceAclRule as upsertWorkspaceAclRuleCore
 } from './workspace-admin-acl.service';
 import {
@@ -56,6 +70,42 @@ import {
 const DEFAULT_WORKSPACE_ADMIN_ROLE_ID = 'role_workspace_admin';
 const DEFAULT_WORKSPACE_USER_ROLE_ID = 'role_user';
 
+type WorkspaceTreeMetrics = {
+  folders: number;
+  projects: number;
+  maxDepth: number;
+};
+
+const countWorkspaceTreeMetrics = (nodes: readonly NativeProjectTreeNode[]): WorkspaceTreeMetrics => {
+  let folders = 0;
+  let projects = 0;
+  let maxDepth = 0;
+
+  const visit = (items: readonly NativeProjectTreeNode[]) => {
+    for (const node of items) {
+      if (node.depth > maxDepth) {
+        maxDepth = node.depth;
+      }
+      if (node.kind === 'folder') {
+        folders += 1;
+        visit(node.children);
+      } else {
+        projects += 1;
+      }
+    }
+  };
+
+  visit(nodes);
+  return {
+    folders,
+    projects,
+    maxDepth
+  };
+};
+
+const countActiveWorkspaceApiKeys = (records: readonly WorkspaceApiKeyRecord[]): number =>
+  records.reduce((count, record) => count + (record.revokedAt ? 0 : 1), 0);
+
 @Injectable()
 export class WorkspaceAdminService {
   constructor(
@@ -65,6 +115,14 @@ export class WorkspaceAdminService {
 
   private resolveActor(request: FastifyRequest): GatewayActorContext {
     return resolveActorContext(request.headers as Record<string, unknown>);
+  }
+
+  private normalizeActor(actor: GatewayActorContext): GatewayActorContext {
+    const accountId = String(actor.accountId ?? '').trim() || 'anonymous';
+    return {
+      accountId,
+      systemRoles: normalizeSystemRoles(actor.systemRoles)
+    };
   }
 
   private async generateWorkspaceId(actor: GatewayActorContext, name: string, now: string): Promise<string> {
@@ -385,8 +443,65 @@ export class WorkspaceAdminService {
     });
   }
 
+  async getWorkspaceMetricsByActor(actorInput: GatewayActorContext, workspaceId: string): Promise<ResponsePlan> {
+    const actor = this.normalizeActor(actorInput);
+    const authorization = await this.authorizeWorkspaceMutation(workspaceId, actor, 'workspace.manage');
+    if ('kind' in authorization) {
+      return authorization;
+    }
+
+    const [roles, members, aclRules, apiKeys, workspacePayload] = await Promise.all([
+      this.runtime.persistence.workspaceRepository.listWorkspaceRoles(workspaceId),
+      this.runtime.persistence.workspaceRepository.listWorkspaceMembers(workspaceId),
+      this.listAclRulePayloads(workspaceId),
+      this.runtime.persistence.workspaceRepository.listWorkspaceApiKeys(workspaceId),
+      this.toWorkspacePayload(authorization.workspace, actor)
+    ]);
+
+    let treeMetrics: WorkspaceTreeMetrics & { available: boolean } = {
+      available: false,
+      folders: 0,
+      projects: 0,
+      maxDepth: 0
+    };
+    try {
+      const tree = await this.runtime.dashboardStore.getProjectTree(undefined, workspaceId);
+      const counters = countWorkspaceTreeMetrics(tree.roots);
+      treeMetrics = {
+        available: true,
+        ...counters
+      };
+    } catch (error) {
+      this.runtime.logger.warn('failed to read workspace tree metrics', {
+        workspaceId,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+
+    return jsonPlan(200, {
+      ok: true,
+      workspace: workspacePayload,
+      metrics: {
+        roleCount: roles.length,
+        memberCount: members.length,
+        aclRuleCount: aclRules.length,
+        apiKeyCount: apiKeys.length,
+        activeApiKeyCount: countActiveWorkspaceApiKeys(apiKeys),
+        tree: treeMetrics
+      }
+    });
+  }
+
   async listWorkspaceRoles(request: FastifyRequest, workspaceId: string): Promise<ResponsePlan> {
     return listWorkspaceRolesCore(this.buildRoleServiceDependencies(), request, workspaceId);
+  }
+
+  async listWorkspaceRolesByActor(actorInput: GatewayActorContext, workspaceId: string): Promise<ResponsePlan> {
+    return listWorkspaceRolesByActorCore(
+      this.buildRoleServiceDependencies(),
+      this.normalizeActor(actorInput),
+      workspaceId
+    );
   }
 
   async upsertWorkspaceRole(
@@ -397,8 +512,34 @@ export class WorkspaceAdminService {
     return upsertWorkspaceRoleCore(this.buildRoleServiceDependencies(), request, workspaceId, body);
   }
 
+  async upsertWorkspaceRoleByActor(
+    actorInput: GatewayActorContext,
+    workspaceId: string,
+    body: UpsertWorkspaceRoleDto
+  ): Promise<ResponsePlan> {
+    return upsertWorkspaceRoleByActorCore(
+      this.buildRoleServiceDependencies(),
+      this.normalizeActor(actorInput),
+      workspaceId,
+      body
+    );
+  }
+
   async deleteWorkspaceRole(request: FastifyRequest, workspaceId: string, roleId: string): Promise<ResponsePlan> {
     return deleteWorkspaceRoleCore(this.buildRoleServiceDependencies(), request, workspaceId, roleId);
+  }
+
+  async deleteWorkspaceRoleByActor(
+    actorInput: GatewayActorContext,
+    workspaceId: string,
+    roleId: string
+  ): Promise<ResponsePlan> {
+    return deleteWorkspaceRoleByActorCore(
+      this.buildRoleServiceDependencies(),
+      this.normalizeActor(actorInput),
+      workspaceId,
+      roleId
+    );
   }
 
   async setWorkspaceDefaultMemberRole(
@@ -409,8 +550,29 @@ export class WorkspaceAdminService {
     return setWorkspaceDefaultMemberRoleCore(this.buildRoleServiceDependencies(), request, workspaceId, body);
   }
 
+  async setWorkspaceDefaultMemberRoleByActor(
+    actorInput: GatewayActorContext,
+    workspaceId: string,
+    body: SetWorkspaceDefaultMemberRoleDto
+  ): Promise<ResponsePlan> {
+    return setWorkspaceDefaultMemberRoleByActorCore(
+      this.buildRoleServiceDependencies(),
+      this.normalizeActor(actorInput),
+      workspaceId,
+      body
+    );
+  }
+
   async listWorkspaceMembers(request: FastifyRequest, workspaceId: string): Promise<ResponsePlan> {
     return listWorkspaceMembersCore(this.buildMemberServiceDependencies(), request, workspaceId);
+  }
+
+  async listWorkspaceMembersByActor(actorInput: GatewayActorContext, workspaceId: string): Promise<ResponsePlan> {
+    return listWorkspaceMembersByActorCore(
+      this.buildMemberServiceDependencies(),
+      this.normalizeActor(actorInput),
+      workspaceId
+    );
   }
 
   async listWorkspaceMemberCandidates(
@@ -421,6 +583,19 @@ export class WorkspaceAdminService {
     return listWorkspaceMemberCandidatesCore(this.buildMemberServiceDependencies(), request, workspaceId, query);
   }
 
+  async listWorkspaceMemberCandidatesByActor(
+    actorInput: GatewayActorContext,
+    workspaceId: string,
+    query: WorkspaceMemberCandidatesQueryDto
+  ): Promise<ResponsePlan> {
+    return listWorkspaceMemberCandidatesByActorCore(
+      this.buildMemberServiceDependencies(),
+      this.normalizeActor(actorInput),
+      workspaceId,
+      query
+    );
+  }
+
   async upsertWorkspaceMember(
     request: FastifyRequest,
     workspaceId: string,
@@ -429,12 +604,46 @@ export class WorkspaceAdminService {
     return upsertWorkspaceMemberCore(this.buildMemberServiceDependencies(), request, workspaceId, body);
   }
 
+  async upsertWorkspaceMemberByActor(
+    actorInput: GatewayActorContext,
+    workspaceId: string,
+    body: UpsertWorkspaceMemberDto
+  ): Promise<ResponsePlan> {
+    return upsertWorkspaceMemberByActorCore(
+      this.buildMemberServiceDependencies(),
+      this.normalizeActor(actorInput),
+      workspaceId,
+      body
+    );
+  }
+
   async deleteWorkspaceMember(request: FastifyRequest, workspaceId: string, accountId: string): Promise<ResponsePlan> {
     return deleteWorkspaceMemberCore(this.buildMemberServiceDependencies(), request, workspaceId, accountId);
   }
 
+  async deleteWorkspaceMemberByActor(
+    actorInput: GatewayActorContext,
+    workspaceId: string,
+    accountId: string
+  ): Promise<ResponsePlan> {
+    return deleteWorkspaceMemberByActorCore(
+      this.buildMemberServiceDependencies(),
+      this.normalizeActor(actorInput),
+      workspaceId,
+      accountId
+    );
+  }
+
   async listWorkspaceAclRules(request: FastifyRequest, workspaceId: string): Promise<ResponsePlan> {
     return listWorkspaceAclRulesCore(this.buildAclServiceDependencies(), request, workspaceId);
+  }
+
+  async listWorkspaceAclRulesByActor(actorInput: GatewayActorContext, workspaceId: string): Promise<ResponsePlan> {
+    return listWorkspaceAclRulesByActorCore(
+      this.buildAclServiceDependencies(),
+      this.normalizeActor(actorInput),
+      workspaceId
+    );
   }
 
   async upsertWorkspaceAclRule(
@@ -445,12 +654,38 @@ export class WorkspaceAdminService {
     return upsertWorkspaceAclRuleCore(this.buildAclServiceDependencies(), request, workspaceId, body);
   }
 
+  async upsertWorkspaceAclRuleByActor(
+    actorInput: GatewayActorContext,
+    workspaceId: string,
+    body: UpsertWorkspaceAclRuleDto
+  ): Promise<ResponsePlan> {
+    return upsertWorkspaceAclRuleByActorCore(
+      this.buildAclServiceDependencies(),
+      this.normalizeActor(actorInput),
+      workspaceId,
+      body
+    );
+  }
+
   async deleteWorkspaceAclRule(
     request: FastifyRequest,
     workspaceId: string,
     body: DeleteWorkspaceAclRuleDto
   ): Promise<ResponsePlan> {
     return deleteWorkspaceAclRuleCore(this.buildAclServiceDependencies(), request, workspaceId, body);
+  }
+
+  async deleteWorkspaceAclRuleByActor(
+    actorInput: GatewayActorContext,
+    workspaceId: string,
+    body: DeleteWorkspaceAclRuleDto
+  ): Promise<ResponsePlan> {
+    return deleteWorkspaceAclRuleByActorCore(
+      this.buildAclServiceDependencies(),
+      this.normalizeActor(actorInput),
+      workspaceId,
+      body
+    );
   }
 
   async listWorkspaceApiKeys(request: FastifyRequest, workspaceId: string): Promise<ResponsePlan> {

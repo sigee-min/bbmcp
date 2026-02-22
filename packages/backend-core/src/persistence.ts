@@ -154,6 +154,19 @@ export interface WorkspaceApiKeyRecord {
   revokedAt: string | null;
 }
 
+export interface ServiceApiKeyRecord {
+  keyId: string;
+  name: string;
+  keyPrefix: string;
+  keyHash: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+}
+
 export interface PersistedProjectRecord {
   scope: ProjectRepositoryScope;
   revision: string;
@@ -198,6 +211,11 @@ export interface WorkspaceRepository {
   createWorkspaceApiKey(record: WorkspaceApiKeyRecord): Promise<void>;
   revokeWorkspaceApiKey(workspaceId: string, keyId: string, revokedAt: string): Promise<void>;
   updateWorkspaceApiKeyLastUsed(workspaceId: string, keyId: string, lastUsedAt: string): Promise<void>;
+  listServiceApiKeys(accountId: string): Promise<ServiceApiKeyRecord[]>;
+  findServiceApiKeyByHash(keyHash: string): Promise<ServiceApiKeyRecord | null>;
+  createServiceApiKey(record: ServiceApiKeyRecord): Promise<void>;
+  revokeServiceApiKey(accountId: string, keyId: string, revokedAt: string): Promise<void>;
+  updateServiceApiKeyLastUsed(accountId: string, keyId: string, lastUsedAt: string): Promise<void>;
   getServiceSettings(): Promise<ServiceSettingsRecord | null>;
   upsertServiceSettings(record: ServiceSettingsRecord): Promise<void>;
 }

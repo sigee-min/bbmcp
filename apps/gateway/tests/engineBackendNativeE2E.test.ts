@@ -14,6 +14,7 @@ import {
   type PersistencePorts,
   type ProjectRepository,
   type ProjectRepositoryScope,
+  type ServiceApiKeyRecord,
   type ServiceSettingsRecord,
   type WorkspaceApiKeyRecord,
   type WorkspaceFolderAclRecord,
@@ -28,8 +29,6 @@ import {
 import type { NativeJobResult } from '@ashfox/native-pipeline/types';
 import { NativePipelineStore } from '@ashfox/native-pipeline/testing';
 import type { ToolName, ToolPayloadMap, ToolResponse, ToolResultMap } from '@ashfox/contracts/types/internal';
-import type { Logger } from '@ashfox/runtime/logging';
-import type { FastifyRequest } from 'fastify';
 import { processOneNativeJob } from '../../worker/src/nativeJobProcessor';
 import { GatewayDispatcher } from '../src/core/gateway-dispatcher';
 import { WorkspacePolicyService } from '../src/security/workspace-policy.service';
@@ -37,6 +36,7 @@ import { WorkspaceAdminService } from '../src/services/workspace-admin.service';
 import { ProjectTreeCommandService } from '../src/services/project-tree-command.service';
 import type { GatewayRuntimeService } from '../src/services/gateway-runtime.service';
 import { registerAsync } from './helpers';
+import { createNoopLogger, isRecord, parseJsonPlanBody, toRequest } from './helpers/nativePipelineHarness';
 
 type SessionState = {
   textures?: Array<{ id?: string; name: string; width?: number; height?: number }>;
@@ -47,21 +47,6 @@ const DEFAULT_TENANT = 'default-tenant';
 const DEFAULT_WORKSPACE_ID = toAutoProvisionedWorkspaceId('admin');
 const PNG_1X1_TRANSPARENT =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5+r5kAAAAASUVORK5CYII=';
-
-const createNoopLogger = (): Logger => ({
-  log: () => {},
-  debug: () => {},
-  info: () => {},
-  warn: () => {},
-  error: () => {}
-});
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-
-const toRequest = (headers: Record<string, string>): FastifyRequest => ({ headers } as unknown as FastifyRequest);
-
-const parseJsonPlanBody = <T>(body: unknown): T => JSON.parse(typeof body === 'string' ? body : '{}') as T;
 
 class InMemoryProjectRepository implements ProjectRepository {
   private readonly records = new Map<string, PersistedProjectRecord>();
@@ -146,6 +131,7 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
   private readonly members = new Map<string, WorkspaceMemberRecord>();
   private readonly folderAcl = new Map<string, WorkspaceFolderAclRecord>();
   private readonly apiKeys = new Map<string, WorkspaceApiKeyRecord>();
+  private readonly serviceApiKeys = new Map<string, ServiceApiKeyRecord>();
   private serviceSettings: ServiceSettingsRecord | null = null;
 
   constructor() {
@@ -590,6 +576,47 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
     });
   }
 
+  async listServiceApiKeys(accountId: string): Promise<ServiceApiKeyRecord[]> {
+    return Array.from(this.serviceApiKeys.values())
+      .filter((apiKey) => apiKey.createdBy === accountId)
+      .map((apiKey) => ({ ...apiKey }));
+  }
+
+  async findServiceApiKeyByHash(keyHash: string): Promise<ServiceApiKeyRecord | null> {
+    const normalizedKeyHash = keyHash.trim();
+    if (!normalizedKeyHash) {
+      return null;
+    }
+    const found = Array.from(this.serviceApiKeys.values()).find((apiKey) => apiKey.keyHash === normalizedKeyHash);
+    return found ? { ...found } : null;
+  }
+
+  async createServiceApiKey(record: ServiceApiKeyRecord): Promise<void> {
+    this.serviceApiKeys.set(this.toServiceApiKeyKey(record.createdBy, record.keyId), { ...record });
+  }
+
+  async revokeServiceApiKey(accountId: string, keyId: string, revokedAt: string): Promise<void> {
+    const key = this.toServiceApiKeyKey(accountId, keyId);
+    const found = this.serviceApiKeys.get(key);
+    if (!found) return;
+    this.serviceApiKeys.set(key, {
+      ...found,
+      revokedAt,
+      updatedAt: revokedAt
+    });
+  }
+
+  async updateServiceApiKeyLastUsed(accountId: string, keyId: string, lastUsedAt: string): Promise<void> {
+    const key = this.toServiceApiKeyKey(accountId, keyId);
+    const found = this.serviceApiKeys.get(key);
+    if (!found) return;
+    this.serviceApiKeys.set(key, {
+      ...found,
+      lastUsedAt,
+      updatedAt: lastUsedAt
+    });
+  }
+
   async getServiceSettings(): Promise<ServiceSettingsRecord | null> {
     if (!this.serviceSettings) {
       return null;
@@ -620,6 +647,10 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
 
   private toApiKeyKey(workspaceId: string, keyId: string): string {
     return `${workspaceId}:${keyId}`;
+  }
+
+  private toServiceApiKeyKey(accountId: string, keyId: string): string {
+    return `${accountId}:${keyId}`;
   }
 }
 

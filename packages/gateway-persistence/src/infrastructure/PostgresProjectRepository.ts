@@ -8,6 +8,7 @@ import type {
   ServiceUsersSearchResult,
   ServiceWorkspacesSearchInput,
   ServiceWorkspacesSearchResult,
+  ServiceApiKeyRecord,
   ServiceSettingsRecord,
   WorkspaceApiKeyRecord,
   WorkspaceFolderAclRecord,
@@ -144,6 +145,20 @@ type WorkspaceApiKeyRow = {
   revoked_at: Date | string | null;
 };
 
+type ServiceApiKeyRow = {
+  account_id: string;
+  key_id: string;
+  name: string;
+  key_prefix: string;
+  key_hash: string;
+  created_by: string;
+  created_at: Date | string;
+  updated_at: Date | string;
+  last_used_at: Date | string | null;
+  expires_at: Date | string | null;
+  revoked_at: Date | string | null;
+};
+
 type ServiceSettingsRow = {
   id: string;
   settings_json: unknown;
@@ -190,6 +205,7 @@ export class PostgresProjectRepository extends SqlWorkspaceRepositoryBase implem
   private readonly workspaceAclTableSql: string;
   private readonly workspaceAccessMetaTableSql: string;
   private readonly workspaceApiKeysTableSql: string;
+  private readonly serviceApiKeysTableSql: string;
   private readonly serviceSettingsTableSql: string;
   private readonly projectStateStore: PostgresProjectStateStore;
   private readonly workspaceAccountStore: PostgresWorkspaceAccountStore;
@@ -211,6 +227,7 @@ export class PostgresProjectRepository extends SqlWorkspaceRepositoryBase implem
     this.workspaceAclTableSql = `${this.schemaSql}.${quoteSqlIdentifier('ashfox_workspace_folder_acl', 'table')}`;
     this.workspaceAccessMetaTableSql = `${this.schemaSql}.${quoteSqlIdentifier('ashfox_workspace_access_meta', 'table')}`;
     this.workspaceApiKeysTableSql = `${this.schemaSql}.${quoteSqlIdentifier('ashfox_workspace_api_keys', 'table')}`;
+    this.serviceApiKeysTableSql = `${this.schemaSql}.${quoteSqlIdentifier('ashfox_service_api_keys', 'table')}`;
     this.serviceSettingsTableSql = `${this.schemaSql}.${quoteSqlIdentifier('ashfox_service_settings', 'table')}`;
     this.projectStateStore = new PostgresProjectStateStore({
       ensureInitialized: async () => this.ensureInitialized(),
@@ -286,6 +303,7 @@ export class PostgresProjectRepository extends SqlWorkspaceRepositoryBase implem
       workspaceAclTableSql: this.workspaceAclTableSql,
       workspaceAccessMetaTableSql: this.workspaceAccessMetaTableSql,
       workspaceApiKeysTableSql: this.workspaceApiKeysTableSql,
+      serviceApiKeysTableSql: this.serviceApiKeysTableSql,
       serviceSettingsTableSql: this.serviceSettingsTableSql
     });
     for (const migration of migrations) {
@@ -1216,6 +1234,169 @@ export class PostgresProjectRepository extends SqlWorkspaceRepositoryBase implem
           AND key_id = $3
       `,
       [normalizedLastUsedAt, workspaceId, keyId]
+    );
+  }
+
+  async listServiceApiKeys(accountId: string): Promise<ServiceApiKeyRecord[]> {
+    await this.ensureInitialized();
+    const normalizedAccountId = accountId.trim();
+    if (!normalizedAccountId) {
+      return [];
+    }
+    const pool = this.getPool();
+    const result = await pool.query<ServiceApiKeyRow>(
+      `
+        SELECT
+          account_id,
+          key_id,
+          name,
+          key_prefix,
+          key_hash,
+          created_by,
+          created_at,
+          updated_at,
+          last_used_at,
+          expires_at,
+          revoked_at
+        FROM ${this.serviceApiKeysTableSql}
+        WHERE account_id = $1
+        ORDER BY created_at DESC, key_id ASC
+      `,
+      [normalizedAccountId]
+    );
+    return result.rows.map((row) => ({
+      keyId: row.key_id,
+      name: row.name,
+      keyPrefix: row.key_prefix,
+      keyHash: row.key_hash,
+      createdBy: row.created_by,
+      createdAt: normalizeTimestamp(row.created_at),
+      updatedAt: normalizeTimestamp(row.updated_at),
+      lastUsedAt: row.last_used_at ? normalizeTimestamp(row.last_used_at) : null,
+      expiresAt: row.expires_at ? normalizeTimestamp(row.expires_at) : null,
+      revokedAt: row.revoked_at ? normalizeTimestamp(row.revoked_at) : null
+    }));
+  }
+
+  async findServiceApiKeyByHash(keyHash: string): Promise<ServiceApiKeyRecord | null> {
+    await this.ensureInitialized();
+    const normalizedKeyHash = keyHash.trim();
+    if (!normalizedKeyHash) {
+      return null;
+    }
+    const pool = this.getPool();
+    const result = await pool.query<ServiceApiKeyRow>(
+      `
+        SELECT
+          account_id,
+          key_id,
+          name,
+          key_prefix,
+          key_hash,
+          created_by,
+          created_at,
+          updated_at,
+          last_used_at,
+          expires_at,
+          revoked_at
+        FROM ${this.serviceApiKeysTableSql}
+        WHERE key_hash = $1
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `,
+      [normalizedKeyHash]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+    return {
+      keyId: row.key_id,
+      name: row.name,
+      keyPrefix: row.key_prefix,
+      keyHash: row.key_hash,
+      createdBy: row.created_by,
+      createdAt: normalizeTimestamp(row.created_at),
+      updatedAt: normalizeTimestamp(row.updated_at),
+      lastUsedAt: row.last_used_at ? normalizeTimestamp(row.last_used_at) : null,
+      expiresAt: row.expires_at ? normalizeTimestamp(row.expires_at) : null,
+      revokedAt: row.revoked_at ? normalizeTimestamp(row.revoked_at) : null
+    };
+  }
+
+  async createServiceApiKey(record: ServiceApiKeyRecord): Promise<void> {
+    await this.ensureInitialized();
+    const pool = this.getPool();
+    await pool.query(
+      `
+        INSERT INTO ${this.serviceApiKeysTableSql} (
+          account_id,
+          key_id,
+          name,
+          key_prefix,
+          key_hash,
+          created_by,
+          created_at,
+          updated_at,
+          last_used_at,
+          expires_at,
+          revoked_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz, $8::timestamptz, $9::timestamptz, $10::timestamptz, $11::timestamptz)
+      `,
+      [
+        record.createdBy,
+        record.keyId,
+        record.name,
+        record.keyPrefix,
+        record.keyHash,
+        record.createdBy,
+        normalizeTimestamp(record.createdAt),
+        normalizeTimestamp(record.updatedAt),
+        record.lastUsedAt ? normalizeTimestamp(record.lastUsedAt) : null,
+        record.expiresAt ? normalizeTimestamp(record.expiresAt) : null,
+        record.revokedAt ? normalizeTimestamp(record.revokedAt) : null
+      ]
+    );
+  }
+
+  async revokeServiceApiKey(accountId: string, keyId: string, revokedAt: string): Promise<void> {
+    await this.ensureInitialized();
+    const normalizedAccountId = accountId.trim();
+    if (!normalizedAccountId) {
+      return;
+    }
+    const pool = this.getPool();
+    const normalizedRevokedAt = normalizeTimestamp(revokedAt);
+    await pool.query(
+      `
+        UPDATE ${this.serviceApiKeysTableSql}
+        SET revoked_at = $1::timestamptz,
+            updated_at = $1::timestamptz
+        WHERE account_id = $2
+          AND key_id = $3
+      `,
+      [normalizedRevokedAt, normalizedAccountId, keyId]
+    );
+  }
+
+  async updateServiceApiKeyLastUsed(accountId: string, keyId: string, lastUsedAt: string): Promise<void> {
+    await this.ensureInitialized();
+    const normalizedAccountId = accountId.trim();
+    if (!normalizedAccountId) {
+      return;
+    }
+    const pool = this.getPool();
+    const normalizedLastUsedAt = normalizeTimestamp(lastUsedAt);
+    await pool.query(
+      `
+        UPDATE ${this.serviceApiKeysTableSql}
+        SET last_used_at = $1::timestamptz,
+            updated_at = $1::timestamptz
+        WHERE account_id = $2
+          AND key_id = $3
+      `,
+      [normalizedLastUsedAt, normalizedAccountId, keyId]
     );
   }
 

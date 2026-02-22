@@ -126,6 +126,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   const [menuState, setMenuState] = useState<SidebarMenuState>({ kind: 'none' });
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
   const [dropInsertion, setDropInsertion] = useState<TreeInsertionTarget | null>(null);
+  const [prefersDarkScheme, setPrefersDarkScheme] = useState(false);
   const dragEntityRef = useRef<DragEntity>(null);
   const themeMenuRef = useRef<HTMLDivElement | null>(null);
   const themeTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -149,6 +150,30 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     [selectedWorkspaceId, workspaces]
   );
   const isTreeEmpty = projectTree.roots.length === 0;
+  const resolvedTheme = themeMode === 'system' ? (prefersDarkScheme ? 'dark' : 'light') : themeMode;
+  const brandLogoSrc =
+    resolvedTheme === 'dark' ? '/logo_fullbackground_dark.png' : '/logo_fullbackground_light.png';
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    setPrefersDarkScheme(mediaQuery.matches);
+    const handleChange = (event: MediaQueryListEvent) => {
+      setPrefersDarkScheme(event.matches);
+    };
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => {
+        mediaQuery.removeEventListener('change', handleChange);
+      };
+    }
+    mediaQuery.addListener(handleChange);
+    return () => {
+      mediaQuery.removeListener(handleChange);
+    };
+  }, []);
 
   const closeMenus = useCallback(() => {
     setMenuState({ kind: 'none' });
@@ -263,7 +288,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
           <div className={styles.sidebarTopRow}>
             <div className={styles.sidebarBrand}>
               <div className={cn('relative shrink-0 overflow-hidden border border-border/70 bg-background/80', styles.logoFrame)}>
-                <img alt="Ashfox" src="/logo_fullbackground.png" width={40} height={40} className="h-full w-full object-contain" />
+                <img alt="Ashfox" src={brandLogoSrc} width={40} height={40} className="h-full w-full object-contain" />
               </div>
               <div className="min-w-0">
                 <CardTitle className={styles.sidebarTitle}>Ashfox</CardTitle>

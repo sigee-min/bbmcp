@@ -138,6 +138,12 @@ const parseAliasWorkspaceTarget = (specifier) => {
   return workspaceBySlug.get(match[1]) ?? null;
 };
 
+const isGatewayServiceMcpSpecifier = (specifier) =>
+  typeof specifier === 'string' &&
+  (specifier.includes('apps/gateway/src/mcp/serviceTool') ||
+    specifier.includes('@ashfox/gateway/src/mcp/serviceTool') ||
+    specifier.includes('@ashfox/gateway/mcp/serviceTool'));
+
 const collectViolations = () => {
   const files = collectSourceFiles();
   const violations = [];
@@ -148,6 +154,22 @@ const collectViolations = () => {
 
     const entries = resolveModuleSpecifiers(filePath);
     for (const entry of entries) {
+      if (sourceWorkspace !== 'apps/gateway' && isGatewayServiceMcpSpecifier(entry.specifier)) {
+        const relFile = relFromRepo(filePath);
+        const allowKey = `${relFile}::${entry.specifier}`;
+        if (!importAllowlist.has(allowKey)) {
+          violations.push({
+            file: relFile,
+            line: entry.line,
+            sourceWorkspace,
+            targetWorkspace: 'apps/gateway',
+            specifier: entry.specifier,
+            reason: 'service_mcp_tools_gateway_scope_only'
+          });
+          continue;
+        }
+      }
+
       if (
         sourceWorkspace === 'apps/gateway' &&
         (entry.specifier === '@ashfox/backend-blockbench' ||

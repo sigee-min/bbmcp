@@ -9,6 +9,7 @@ import type {
   ServiceUsersSearchResult,
   ServiceWorkspacesSearchInput,
   ServiceWorkspacesSearchResult,
+  ServiceApiKeyRecord,
   ServiceSettingsRecord,
   WorkspaceApiKeyRecord,
   WorkspaceFolderAclRecord,
@@ -123,6 +124,20 @@ type SqliteWorkspaceApiKeyRow = {
   revoked_at: string | null;
 };
 
+type SqliteServiceApiKeyRow = {
+  account_id: string;
+  key_id: string;
+  name: string;
+  key_prefix: string;
+  key_hash: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
+};
+
 type SqliteWorkspaceListRow = SqliteWorkspaceRow & {
   member_account_id: string | null;
 };
@@ -194,6 +209,7 @@ export class SqliteProjectRepository extends SqlWorkspaceRepositoryBase implemen
   private readonly workspaceAclTableSql: string;
   private readonly workspaceAccessMetaTableSql: string;
   private readonly workspaceApiKeysTableSql: string;
+  private readonly serviceApiKeysTableSql: string;
   private readonly serviceSettingsTableSql: string;
   private readonly projectStateStore: SqliteProjectStateStore;
   private readonly workspaceAccountStore: SqliteWorkspaceAccountStore;
@@ -213,6 +229,7 @@ export class SqliteProjectRepository extends SqlWorkspaceRepositoryBase implemen
     this.workspaceAclTableSql = quoteSqlIdentifier('ashfox_workspace_folder_acl', 'table');
     this.workspaceAccessMetaTableSql = quoteSqlIdentifier('ashfox_workspace_access_meta', 'table');
     this.workspaceApiKeysTableSql = quoteSqlIdentifier('ashfox_workspace_api_keys', 'table');
+    this.serviceApiKeysTableSql = quoteSqlIdentifier('ashfox_service_api_keys', 'table');
     this.serviceSettingsTableSql = quoteSqlIdentifier('ashfox_service_settings', 'table');
     this.projectStateStore = new SqliteProjectStateStore({
       getDatabase: async () => this.ensureInitialized(),
@@ -281,6 +298,7 @@ export class SqliteProjectRepository extends SqlWorkspaceRepositoryBase implemen
           workspaceAclTableSql: this.workspaceAclTableSql,
           workspaceAccessMetaTableSql: this.workspaceAccessMetaTableSql,
           workspaceApiKeysTableSql: this.workspaceApiKeysTableSql,
+          serviceApiKeysTableSql: this.serviceApiKeysTableSql,
           serviceSettingsTableSql: this.serviceSettingsTableSql,
           migrationsTableSql: this.migrationsTableSql,
           migrationsPragmaTableIdentifier: quoteSqlIdentifier(this.migrationsTableName, 'table')
@@ -1141,6 +1159,156 @@ export class SqliteProjectRepository extends SqlWorkspaceRepositoryBase implemen
           AND key_id = ?
       `
     ).run(ensureIso(lastUsedAt), ensureIso(lastUsedAt), workspaceId, keyId);
+  }
+
+  async listServiceApiKeys(accountId: string): Promise<ServiceApiKeyRecord[]> {
+    const normalizedAccountId = accountId.trim();
+    if (!normalizedAccountId) {
+      return [];
+    }
+    const db = await this.ensureInitialized();
+    const rows = db.prepare(
+      `
+        SELECT
+          account_id,
+          key_id,
+          name,
+          key_prefix,
+          key_hash,
+          created_by,
+          created_at,
+          updated_at,
+          last_used_at,
+          expires_at,
+          revoked_at
+        FROM ${this.serviceApiKeysTableSql}
+        WHERE account_id = ?
+        ORDER BY created_at DESC, key_id ASC
+      `
+    ).all(normalizedAccountId) as SqliteServiceApiKeyRow[];
+    return rows.map((row) => ({
+      keyId: row.key_id,
+      name: row.name,
+      keyPrefix: row.key_prefix,
+      keyHash: row.key_hash,
+      createdBy: row.created_by,
+      createdAt: ensureIso(row.created_at),
+      updatedAt: ensureIso(row.updated_at),
+      lastUsedAt: row.last_used_at ? ensureIso(row.last_used_at) : null,
+      expiresAt: row.expires_at ? ensureIso(row.expires_at) : null,
+      revokedAt: row.revoked_at ? ensureIso(row.revoked_at) : null
+    }));
+  }
+
+  async findServiceApiKeyByHash(keyHash: string): Promise<ServiceApiKeyRecord | null> {
+    const normalizedKeyHash = keyHash.trim();
+    if (!normalizedKeyHash) {
+      return null;
+    }
+    const db = await this.ensureInitialized();
+    const row = db.prepare(
+      `
+        SELECT
+          account_id,
+          key_id,
+          name,
+          key_prefix,
+          key_hash,
+          created_by,
+          created_at,
+          updated_at,
+          last_used_at,
+          expires_at,
+          revoked_at
+        FROM ${this.serviceApiKeysTableSql}
+        WHERE key_hash = ?
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `
+    ).get(normalizedKeyHash) as SqliteServiceApiKeyRow | undefined;
+    if (!row) {
+      return null;
+    }
+    return {
+      keyId: row.key_id,
+      name: row.name,
+      keyPrefix: row.key_prefix,
+      keyHash: row.key_hash,
+      createdBy: row.created_by,
+      createdAt: ensureIso(row.created_at),
+      updatedAt: ensureIso(row.updated_at),
+      lastUsedAt: row.last_used_at ? ensureIso(row.last_used_at) : null,
+      expiresAt: row.expires_at ? ensureIso(row.expires_at) : null,
+      revokedAt: row.revoked_at ? ensureIso(row.revoked_at) : null
+    };
+  }
+
+  async createServiceApiKey(record: ServiceApiKeyRecord): Promise<void> {
+    const db = await this.ensureInitialized();
+    db.prepare(
+      `
+        INSERT INTO ${this.serviceApiKeysTableSql} (
+          account_id,
+          key_id,
+          name,
+          key_prefix,
+          key_hash,
+          created_by,
+          created_at,
+          updated_at,
+          last_used_at,
+          expires_at,
+          revoked_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    ).run(
+      record.createdBy,
+      record.keyId,
+      record.name,
+      record.keyPrefix,
+      record.keyHash,
+      record.createdBy,
+      ensureIso(record.createdAt),
+      ensureIso(record.updatedAt),
+      record.lastUsedAt ? ensureIso(record.lastUsedAt) : null,
+      record.expiresAt ? ensureIso(record.expiresAt) : null,
+      record.revokedAt ? ensureIso(record.revokedAt) : null
+    );
+  }
+
+  async revokeServiceApiKey(accountId: string, keyId: string, revokedAt: string): Promise<void> {
+    const normalizedAccountId = accountId.trim();
+    if (!normalizedAccountId) {
+      return;
+    }
+    const db = await this.ensureInitialized();
+    db.prepare(
+      `
+        UPDATE ${this.serviceApiKeysTableSql}
+        SET revoked_at = ?,
+            updated_at = ?
+        WHERE account_id = ?
+          AND key_id = ?
+      `
+    ).run(ensureIso(revokedAt), ensureIso(revokedAt), normalizedAccountId, keyId);
+  }
+
+  async updateServiceApiKeyLastUsed(accountId: string, keyId: string, lastUsedAt: string): Promise<void> {
+    const normalizedAccountId = accountId.trim();
+    if (!normalizedAccountId) {
+      return;
+    }
+    const db = await this.ensureInitialized();
+    db.prepare(
+      `
+        UPDATE ${this.serviceApiKeysTableSql}
+        SET last_used_at = ?,
+            updated_at = ?
+        WHERE account_id = ?
+          AND key_id = ?
+      `
+    ).run(ensureIso(lastUsedAt), ensureIso(lastUsedAt), normalizedAccountId, keyId);
   }
 
   async close(): Promise<void> {

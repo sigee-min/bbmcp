@@ -11,6 +11,7 @@ import type {
   ServiceUsersSearchResult,
   ServiceWorkspacesSearchInput,
   ServiceWorkspacesSearchResult,
+  ServiceApiKeyRecord,
   ServiceSettingsRecord,
   WorkspaceApiKeyRecord,
   WorkspaceFolderAclRecord,
@@ -191,6 +192,26 @@ export class UnsupportedWorkspaceRepository implements WorkspaceRepository {
   }
 
   async updateWorkspaceApiKeyLastUsed(_workspaceId: string, _keyId: string, _lastUsedAt: string): Promise<void> {
+    throw this.error;
+  }
+
+  async listServiceApiKeys(_accountId: string): Promise<ServiceApiKeyRecord[]> {
+    throw this.error;
+  }
+
+  async findServiceApiKeyByHash(_keyHash: string): Promise<ServiceApiKeyRecord | null> {
+    throw this.error;
+  }
+
+  async createServiceApiKey(_record: ServiceApiKeyRecord): Promise<void> {
+    throw this.error;
+  }
+
+  async revokeServiceApiKey(_accountId: string, _keyId: string, _revokedAt: string): Promise<void> {
+    throw this.error;
+  }
+
+  async updateServiceApiKeyLastUsed(_accountId: string, _keyId: string, _lastUsedAt: string): Promise<void> {
     throw this.error;
   }
 

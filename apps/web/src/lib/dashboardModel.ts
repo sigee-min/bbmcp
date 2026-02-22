@@ -171,6 +171,18 @@ export interface ServiceSettingsView {
   githubAuth: ServiceGithubAuthSettingsView;
 }
 
+export interface ServiceApiKeyRecord {
+  keyId: string;
+  name: string;
+  keyPrefix: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+}
+
 export type HierarchyKind = 'bone' | 'cube';
 export type ActiveJobStatus = 'queued' | 'running' | 'completed' | 'failed' | null;
 export type ProjectLockMode = 'mcp';

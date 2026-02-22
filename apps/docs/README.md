@@ -27,6 +27,12 @@ Output directory: `out/`
 Docs icons and brand images are served from the repository root `images/` directory.
 `apps/docs/public` is a symlink to `../../images`.
 
+Current favicon contract:
+
+- use `/favicons/*` URL paths (mapped from `images/favicons/*`)
+- use light/dark split assets (`*-light`, `*-dark`) for theme-aware icon metadata
+- do not commit or reference root-level `/favicon*` files
+
 From repo root:
 
 ```bash
@@ -39,6 +45,8 @@ If shared public links or generated brand assets drift, hygiene gate fails:
 ```bash
 npm run verify:repo-hygiene
 ```
+
+Hygiene gate also fails when `images/favicons/` is missing or root `images/favicon*` files exist.
 
 ## Environment Variables
 

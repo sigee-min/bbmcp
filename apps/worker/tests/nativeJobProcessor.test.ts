@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 
-import type { BackendPort } from '@ashfox/backend-core';
 import type { NativeJob, NativeJobResult } from '@ashfox/native-pipeline';
-import type { ToolName, ToolPayloadMap, ToolResponse, ToolResultMap } from '@ashfox/contracts/types/internal';
-import type { Logger } from '@ashfox/runtime/logging';
+import type { ToolPayloadMap, ToolResponse, ToolResultMap } from '@ashfox/contracts/types/internal';
 import { processOneNativeJob } from '../src/nativeJobProcessor';
+import { createBackendStub, createNoopLogger } from './helpers/backendStub';
 
 type NativePipelineStorePort = NonNullable<Parameters<typeof processOneNativeJob>[0]['store']>;
 
@@ -13,37 +12,8 @@ type MutableJob = NativeJob & {
   error?: string;
 };
 
-const createLogger = (): Logger => ({
-  log: () => {},
-  debug: () => {},
-  info: () => {},
-  warn: () => {},
-  error: () => {}
-});
-
-const createBackend = (
-  handler: <TName extends ToolName>(
-    name: TName,
-    payload: ToolPayloadMap[TName]
-  ) => Promise<ToolResponse<ToolResultMap[TName]>> | ToolResponse<ToolResultMap[TName]>
-): BackendPort => ({
-  kind: 'engine',
-  getHealth: async () => ({
-    kind: 'engine',
-    availability: 'ready',
-    version: 'test',
-    details: {
-      persistence: {
-        database: { provider: 'memory', ready: true },
-        storage: { provider: 'memory', ready: true }
-      }
-    }
-  }),
-  handleTool: async (name, payload) => handler(name, payload)
-});
-
 module.exports = async () => {
-  const logger = createLogger();
+  const logger = createNoopLogger();
 
   {
     let claimed = false;
@@ -120,7 +90,7 @@ module.exports = async () => {
     };
 
     const backendCalls: string[] = [];
-    const backend = createBackend(async (name, payload) => {
+    const backend = createBackendStub(async (name, payload) => {
       backendCalls.push(name);
       if (name === 'ensure_project') {
         return {
@@ -217,7 +187,7 @@ module.exports = async () => {
     });
 
     assert.equal(completeCalled, true);
-    assert.deepEqual(backendCalls, ['ensure_project', 'export', 'get_project_state']);
+    assert.deepEqual(backendCalls, ['list_capabilities', 'ensure_project', 'export', 'get_project_state']);
   }
 
   {
@@ -234,7 +204,7 @@ module.exports = async () => {
     };
 
     const backendCalls: string[] = [];
-    const backend = createBackend(async (name, payload) => {
+    const backend = createBackendStub(async (name, payload) => {
       backendCalls.push(name);
       if (name === 'ensure_project') {
         return {
@@ -347,7 +317,7 @@ module.exports = async () => {
     assert.equal(resultSnapshot?.animations?.[0]?.id, 'clip-walk');
     assert.equal(resultSnapshot?.animations?.[0]?.name, 'Walk');
     assert.equal(resultSnapshot?.animations?.[0]?.loop, true);
-    assert.deepEqual(backendCalls, ['ensure_project', 'get_project_state', 'export', 'get_project_state']);
+    assert.deepEqual(backendCalls, ['list_capabilities', 'ensure_project', 'get_project_state', 'export', 'get_project_state']);
   }
 
   {
@@ -415,7 +385,7 @@ module.exports = async () => {
     });
 
     const backendCalls: string[] = [];
-    const backend = createBackend(async (name, payload) => {
+    const backend = createBackendStub(async (name, payload) => {
       backendCalls.push(name);
       if (name === 'ensure_project') {
         return {
@@ -698,7 +668,7 @@ module.exports = async () => {
       createdAt: new Date().toISOString()
     };
 
-    const backend = createBackend(async (name, payload) => {
+    const backend = createBackendStub(async (name, payload) => {
       if (name === 'ensure_project') {
         return {
           ok: true,
@@ -832,6 +802,92 @@ module.exports = async () => {
 
   {
     const claimedJob: MutableJob = {
+      id: 'job-missing-tools',
+      projectId: 'project-missing-tools',
+      kind: 'gltf.convert',
+      payload: { codecId: 'gltf', optimize: true },
+      status: 'running',
+      attemptCount: 1,
+      maxAttempts: 3,
+      leaseMs: 30000,
+      createdAt: new Date().toISOString()
+    };
+    let failedMessage = '';
+    const backend = createBackendStub(async (name) => {
+      if (name === 'list_capabilities') {
+        return {
+          ok: true,
+          data: {
+            pluginVersion: 'test',
+            blockbenchVersion: 'test',
+            authoring: { enabled: true, animations: true },
+            limits: { maxCubes: 4096, maxTextureSize: 1024, maxAnimationSeconds: 120 },
+            toolAvailability: {
+              paint_faces: {
+                available: false,
+                reason: 'disabled_in_profile'
+              }
+            }
+          }
+        } as ToolResponse<ToolResultMap[typeof name]>;
+      }
+      return {
+        ok: false,
+        error: {
+          code: 'invalid_state',
+          message: `unexpected tool: ${name}`
+        }
+      } as ToolResponse<ToolResultMap[typeof name]>;
+    });
+    const store = {
+      claimNextJob: async () => claimedJob,
+      completeJob: async () => {
+        throw new Error('completeJob should not run when required tools are unavailable');
+      },
+      failJob: async (_jobId: string, message: string) => {
+        failedMessage = message;
+        return { ...claimedJob, status: 'failed', error: message };
+      },
+      getProject: async () => ({
+        projectId: claimedJob.projectId,
+        workspaceId: 'ws-test',
+        name: 'project-missing-tools',
+        parentFolderId: null,
+        revision: 1,
+        hasGeometry: true,
+        hierarchy: [{ id: 'bone-root', name: 'root', kind: 'bone', children: [] }],
+        animations: [],
+        stats: { bones: 1, cubes: 1 },
+        textureSources: [],
+        textures: [
+          {
+            textureId: 'tex-main',
+            name: 'main',
+            width: 16,
+            height: 16,
+            faceCount: 1,
+            imageDataUrl: 'data:image/png;base64,AAAA',
+            faces: [],
+            uvEdges: []
+          }
+        ]
+      })
+    } satisfies NativePipelineStorePort;
+
+    await processOneNativeJob({
+      workerId: 'worker-1',
+      logger,
+      enabled: true,
+      backend,
+      store
+    });
+
+    assert.equal(failedMessage.includes('native job required MCP tools unavailable'), true);
+    assert.equal(failedMessage.includes('paint_faces'), true);
+  }
+
+  {
+    const claimedJob: MutableJob = {
       id: 'job-preflight',
       projectId: 'project-c',
       kind: 'texture.preflight',
@@ -847,7 +903,7 @@ module.exports = async () => {
       createdAt: new Date().toISOString()
     };
 
-    const backend = createBackend(async (name) => {
+    const backend = createBackendStub(async (name) => {
       if (name === 'ensure_project') {
         return {
           ok: true,

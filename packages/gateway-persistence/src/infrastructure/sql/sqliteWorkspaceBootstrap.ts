@@ -33,6 +33,7 @@ export type SqliteWorkspaceBootstrapSql = {
   workspaceAclTableSql: string;
   workspaceAccessMetaTableSql: string;
   workspaceApiKeysTableSql: string;
+  serviceApiKeysTableSql: string;
   serviceSettingsTableSql: string;
   migrationsTableSql: string;
   migrationsPragmaTableIdentifier: string;
@@ -180,6 +181,28 @@ const createSqliteMigrationSqlById = (sql: SqliteWorkspaceBootstrapSql): Record<
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
           );
+        `,
+  'create-service-api-keys-table': `
+          CREATE TABLE IF NOT EXISTS ${sql.serviceApiKeysTableSql} (
+            account_id TEXT NOT NULL,
+            key_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            key_prefix TEXT NOT NULL,
+            key_hash TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_used_at TEXT NULL,
+            expires_at TEXT NULL,
+            revoked_at TEXT NULL,
+            PRIMARY KEY (account_id, key_id)
+          );
+          CREATE INDEX IF NOT EXISTS idx_service_api_keys_account
+            ON ${sql.serviceApiKeysTableSql}(account_id, created_at);
+          CREATE INDEX IF NOT EXISTS idx_service_api_keys_account_revoked
+            ON ${sql.serviceApiKeysTableSql}(account_id, revoked_at);
+          CREATE INDEX IF NOT EXISTS idx_service_api_keys_key_hash
+            ON ${sql.serviceApiKeysTableSql}(key_hash);
         `
 });
 

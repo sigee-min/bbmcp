@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import type {
   AccountRecord,
+  ServiceApiKeyRecord,
   WorkspaceApiKeyRecord,
   WorkspaceRecord
 } from '@ashfox/backend-core';
@@ -12,9 +13,11 @@ import { registerAsync } from './helpers';
 
 type WorkspaceRepositoryPort = {
   findWorkspaceApiKeyByHash: (keyHash: string) => Promise<WorkspaceApiKeyRecord | null>;
+  findServiceApiKeyByHash: (keyHash: string) => Promise<ServiceApiKeyRecord | null>;
   getWorkspace: (workspaceId: string) => Promise<WorkspaceRecord | null>;
   getAccount: (accountId: string) => Promise<AccountRecord | null>;
   updateWorkspaceApiKeyLastUsed: (workspaceId: string, keyId: string, lastUsedAt: string) => Promise<void>;
+  updateServiceApiKeyLastUsed: (accountId: string, keyId: string, lastUsedAt: string) => Promise<void>;
 };
 
 const createNoopLogger = (): Logger => ({
@@ -80,9 +83,11 @@ registerAsync(
     {
       const service = createService({
         findWorkspaceApiKeyByHash: async () => null,
+        findServiceApiKeyByHash: async () => null,
         getWorkspace: async () => workspace,
         getAccount: async () => account,
-        updateWorkspaceApiKeyLastUsed: async () => undefined
+        updateWorkspaceApiKeyLastUsed: async () => undefined,
+        updateServiceApiKeyLastUsed: async () => undefined
       });
       const result = await service.authenticate({}, createNoopLogger());
       assert.equal(result.ok, false);
@@ -96,9 +101,11 @@ registerAsync(
     {
       const service = createService({
         findWorkspaceApiKeyByHash: async () => null,
+        findServiceApiKeyByHash: async () => null,
         getWorkspace: async () => workspace,
         getAccount: async () => account,
-        updateWorkspaceApiKeyLastUsed: async () => undefined
+        updateWorkspaceApiKeyLastUsed: async () => undefined,
+        updateServiceApiKeyLastUsed: async () => undefined
       });
       const result = await service.authenticate(
         { authorization: 'Bearer ak_invalid' },
@@ -115,9 +122,11 @@ registerAsync(
     {
       const service = createService({
         findWorkspaceApiKeyByHash: async () => ({ ...keyRecord, revokedAt: now }),
+        findServiceApiKeyByHash: async () => null,
         getWorkspace: async () => workspace,
         getAccount: async () => account,
-        updateWorkspaceApiKeyLastUsed: async () => undefined
+        updateWorkspaceApiKeyLastUsed: async () => undefined,
+        updateServiceApiKeyLastUsed: async () => undefined
       });
       const result = await service.authenticate(
         { authorization: `Bearer ${secret}` },
@@ -136,9 +145,11 @@ registerAsync(
           ...keyRecord,
           expiresAt: new Date(Date.now() - 60_000).toISOString()
         }),
+        findServiceApiKeyByHash: async () => null,
         getWorkspace: async () => workspace,
         getAccount: async () => account,
-        updateWorkspaceApiKeyLastUsed: async () => undefined
+        updateWorkspaceApiKeyLastUsed: async () => undefined,
+        updateServiceApiKeyLastUsed: async () => undefined
       });
       const result = await service.authenticate(
         { authorization: `Bearer ${secret}` },
@@ -156,11 +167,13 @@ registerAsync(
       const service = createService({
         findWorkspaceApiKeyByHash: async (hash) =>
           hash === keyHash ? { ...keyRecord } : null,
+        findServiceApiKeyByHash: async () => null,
         getWorkspace: async () => ({ ...workspace }),
         getAccount: async () => ({ ...account }),
         updateWorkspaceApiKeyLastUsed: async (_workspaceId, keyId) => {
           updatedKeyId = keyId;
-        }
+        },
+        updateServiceApiKeyLastUsed: async () => undefined
       });
       const result = await service.authenticate(
         { authorization: `Bearer ${secret}` },
@@ -168,11 +181,51 @@ registerAsync(
       );
       assert.equal(result.ok, true);
       if (!result.ok) return;
+      assert.equal(result.principal.keySpace, 'workspace');
       assert.equal(result.principal.workspaceId, keyRecord.workspaceId);
       assert.equal(result.principal.accountId, keyRecord.createdBy);
       assert.deepEqual(result.principal.systemRoles, ['system_admin']);
       assert.equal(result.principal.keyId, keyRecord.keyId);
       assert.equal(updatedKeyId, keyRecord.keyId);
+    }
+
+    {
+      const serviceSecret = 'sk_service_token';
+      const serviceKeyHash = createHash('sha256').update(serviceSecret).digest('hex');
+      const serviceKeyRecord: ServiceApiKeyRecord = {
+        keyId: 'skey_alpha',
+        name: 'service alpha',
+        keyPrefix: 'sk_service',
+        keyHash: serviceKeyHash,
+        createdBy: 'account_alpha',
+        createdAt: now,
+        updatedAt: now,
+        lastUsedAt: null,
+        expiresAt: null,
+        revokedAt: null
+      };
+      let updatedServiceKeyId = '';
+      const service = createService({
+        findWorkspaceApiKeyByHash: async () => null,
+        findServiceApiKeyByHash: async (hash) => (hash === serviceKeyHash ? { ...serviceKeyRecord } : null),
+        getWorkspace: async () => ({ ...workspace }),
+        getAccount: async () => ({ ...account }),
+        updateWorkspaceApiKeyLastUsed: async () => undefined,
+        updateServiceApiKeyLastUsed: async (_accountId, keyId) => {
+          updatedServiceKeyId = keyId;
+        }
+      });
+      const result = await service.authenticate(
+        { authorization: `Bearer ${serviceSecret}` },
+        createNoopLogger()
+      );
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(result.principal.keySpace, 'service');
+      assert.equal(result.principal.workspaceId, undefined);
+      assert.equal(result.principal.accountId, serviceKeyRecord.createdBy);
+      assert.equal(result.principal.keyId, serviceKeyRecord.keyId);
+      assert.equal(updatedServiceKeyId, serviceKeyRecord.keyId);
     }
   })()
 );

@@ -388,6 +388,12 @@ module.exports = async () => {
             settings: serviceSettings
           });
         }
+        if (url === '/api/service/api-keys') {
+          return toJsonResponse({
+            ok: true,
+            apiKeys: []
+          });
+        }
         if (url === '/api/service/config/smtp' && method === 'PUT') {
           const body = JSON.parse(String(init.body ?? '{}'));
           serviceSettings = {
@@ -567,6 +573,12 @@ module.exports = async () => {
             }
           });
         }
+        if (url === '/api/service/api-keys') {
+          return toJsonResponse({
+            ok: true,
+            apiKeys: []
+          });
+        }
         throw new Error(`unexpected url: ${url}`);
       },
       EventSourceImpl: MockEventSource
@@ -647,6 +659,12 @@ module.exports = async () => {
             },
             403
           );
+        }
+        if (url === '/api/service/api-keys') {
+          return toJsonResponse({
+            ok: true,
+            apiKeys: []
+          });
         }
         throw new Error(`unexpected url: ${url}`);
       },

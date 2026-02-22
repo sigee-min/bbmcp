@@ -4,6 +4,7 @@ export type McpSession = {
   id: string;
   protocolVersion: string;
   initialized: boolean;
+  principalFingerprint: string | null;
   createdAt: number;
   lastSeenAt: number;
   sseConnections: Set<SseConnection>;
@@ -18,6 +19,7 @@ export class SessionStore {
       id,
       protocolVersion,
       initialized: false,
+      principalFingerprint: null,
       createdAt: now,
       lastSeenAt: now,
       sseConnections: new Set()
@@ -70,6 +72,5 @@ export class SessionStore {
     this.sessions.delete(session.id);
   }
 }
-
 
 

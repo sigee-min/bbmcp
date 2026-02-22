@@ -44,7 +44,12 @@ const readSystemRoles = (principal: McpRequestPrincipal | undefined): string[] |
   normalizeSystemRoles(principal?.systemRoles);
 
 const readApiKeyId = (principal: McpRequestPrincipal | undefined): string | undefined =>
-  principal?.apiKeyId;
+  principal?.keyId;
+
+const readApiKeySpace = (
+  principal: McpRequestPrincipal | undefined
+): 'workspace' | 'service' | undefined =>
+  principal?.keySpace;
 
 const readErrorReason = (details: Record<string, unknown> | undefined): string | null => {
   const candidate = details?.reason;
@@ -131,6 +136,7 @@ export const handleToolCall = async (
       mcpAccountId: readAccountId(ctx.principal),
       mcpSystemRoles: readSystemRoles(ctx.principal),
       mcpWorkspaceId: readWorkspaceId(ctx.principal),
+      mcpApiKeySpace: readApiKeySpace(ctx.principal),
       mcpApiKeyId: readApiKeyId(ctx.principal)
     });
     const durationMs = Math.max(0, Date.now() - startedAt);

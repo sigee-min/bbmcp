@@ -53,6 +53,38 @@ const createToolContext = (projectId: string, workerId: string): BackendToolCont
   }
 });
 
+export const GLTF_CONVERT_REQUIRED_TOOLSET = {
+  base: ['ensure_project', 'export', 'get_project_state'],
+  geometry: ['add_bone', 'add_cube'],
+  animation: ['create_animation_clip', 'set_frame_pose'],
+  texture: ['paint_faces', 'preflight_texture', 'read_texture']
+} as const;
+
+const toRequiredGltfToolList = (
+  snapshot: NativeProjectSnapshot | null
+): readonly ToolName[] => {
+  const tools = new Set<ToolName>(
+    GLTF_CONVERT_REQUIRED_TOOLSET.base as readonly ToolName[]
+  );
+  if (!snapshot?.hasGeometry) {
+    return Array.from(tools.values());
+  }
+  for (const tool of GLTF_CONVERT_REQUIRED_TOOLSET.geometry as readonly ToolName[]) {
+    tools.add(tool);
+  }
+  if (snapshot.animations.length > 0) {
+    for (const tool of GLTF_CONVERT_REQUIRED_TOOLSET.animation as readonly ToolName[]) {
+      tools.add(tool);
+    }
+  }
+  if (snapshot.textures.length > 0) {
+    for (const tool of GLTF_CONVERT_REQUIRED_TOOLSET.texture as readonly ToolName[]) {
+      tools.add(tool);
+    }
+  }
+  return Array.from(tools.values());
+};
+
 const callBackendTool = async <TName extends ToolName>(
   backend: BackendPort,
   context: BackendToolContext,
@@ -83,6 +115,42 @@ const ensureOperationalBackend = async (backend: BackendPort | undefined): Promi
     throw new Error(`Engine backend unavailable (availability=${health.availability}, reason=${reason}).`);
   }
   return backend;
+};
+
+const readCapabilitiesSafely = async (
+  backend: BackendPort,
+  toolContext: BackendToolContext,
+  logger: Logger,
+  job: NativeJob
+): Promise<ToolResultMap['list_capabilities'] | null> => {
+  try {
+    return await callBackendTool(backend, toolContext, 'list_capabilities', {});
+  } catch (error) {
+    logger.debug('ashfox worker capabilities probe skipped', {
+      projectId: job.projectId,
+      jobId: job.id,
+      message: error instanceof Error ? error.message : String(error)
+    });
+    return null;
+  }
+};
+
+const ensureRequiredToolAvailability = (
+  capabilities: ToolResultMap['list_capabilities'] | null,
+  requiredTools: readonly ToolName[],
+  projectId: string,
+  jobId: string
+): void => {
+  if (!capabilities?.toolAvailability) {
+    return;
+  }
+  const unavailable = requiredTools.filter((toolName) => capabilities.toolAvailability?.[toolName]?.available === false);
+  if (unavailable.length === 0) {
+    return;
+  }
+  throw new Error(
+    `native job required MCP tools unavailable (project=${projectId}, job=${jobId}): ${unavailable.join(', ')}`
+  );
 };
 
 const toNonNegativeInteger = (value: unknown, fallback = 0): number => {
@@ -622,6 +690,9 @@ const handleGltfConvertJob: NativeJobProcessor = async (job, context) => {
   const useNativeCodecPath = Boolean(requestedCodecId && requestedCodecId !== 'gltf');
   const exportFormat = useNativeCodecPath ? 'native_codec' : 'gltf';
   const projectSnapshot = context.getProjectSnapshot ? await context.getProjectSnapshot(job.projectId) : null;
+  const requiredGltfTools = toRequiredGltfToolList(projectSnapshot);
+  const capabilities = await readCapabilitiesSafely(backend, toolContext, context.logger, job);
+  ensureRequiredToolAvailability(capabilities, requiredGltfTools, job.projectId, job.id);
   await callBackendTool(backend, toolContext, 'ensure_project', {
     name: job.projectId,
     onMissing: 'create',

@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { FolderKanban, ShieldUser, SlidersHorizontal } from 'lucide-react';
+import { FolderKanban, KeyRound, ShieldUser, SlidersHorizontal } from 'lucide-react';
 
 export const SERVICE_MANAGEMENT_PANELS = [
   {
@@ -13,6 +13,12 @@ export const SERVICE_MANAGEMENT_PANELS = [
     label: '유저',
     description: '시스템 어드민/CS 어드민 역할을 관리합니다.',
     icon: ShieldUser
+  },
+  {
+    id: 'apiKeys',
+    label: 'API 키',
+    description: '서비스 관리 자동화 API 키를 관리합니다.',
+    icon: KeyRound
   },
   {
     id: 'integrations',

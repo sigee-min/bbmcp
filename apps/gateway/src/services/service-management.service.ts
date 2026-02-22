@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import {
   normalizeSystemRoles,
   type AccountRecord,
+  type ServiceApiKeyRecord,
   type ServiceGithubAuthSettingsRecord,
   type ServiceSearchMatchMode,
   type ServiceSettingsRecord,
@@ -16,6 +17,8 @@ import {
 import type { ResponsePlan } from '@ashfox/runtime/transport/mcp/types';
 import type { FastifyRequest } from 'fastify';
 import { DEFAULT_AUTH_GITHUB_SCOPES } from '../constants';
+import type { CreateServiceApiKeyDto } from '../dto/create-service-api-key.dto';
+import type { RevokeServiceApiKeyDto } from '../dto/revoke-service-api-key.dto';
 import type { SetServiceAccountRolesDto } from '../dto/set-service-account-roles.dto';
 import type { ServiceUsersQueryDto } from '../dto/service-users-query.dto';
 import type { ServiceWorkspacesQueryDto } from '../dto/service-workspaces-query.dto';
@@ -23,17 +26,20 @@ import type { UpsertServiceGithubAuthSettingsDto } from '../dto/upsert-service-g
 import type { UpsertServiceSmtpSettingsDto } from '../dto/upsert-service-smtp-settings.dto';
 import { forbiddenPlan, jsonPlan, resolveActorContext } from '../gatewayDashboardHelpers';
 import { WorkspacePolicyService } from '../security/workspace-policy.service';
+import { hashApiKeySecret } from '../security/apiKeySecrets';
 import { GatewayConfigService } from './gateway-config.service';
 import { GatewayRuntimeService } from './gateway-runtime.service';
 
 const MIN_SYSTEM_ADMIN_COUNT = 1;
 const SECRET_ENCRYPTION_VERSION = 'v1';
 const SECRET_ALGORITHM = 'aes-256-gcm';
+const MAX_SERVICE_API_KEYS_PER_ACCOUNT = 10;
 
 type ServiceActor = {
   accountId: string;
   systemRoles: Array<'system_admin' | 'cs_admin'>;
 };
+export type ServiceManagementActor = ServiceActor;
 
 const toNullable = (value: unknown): string | null => {
   if (typeof value !== 'string') {
@@ -45,6 +51,17 @@ const toNullable = (value: unknown): string | null => {
 
 const toServiceActor = (request: FastifyRequest): ServiceActor => resolveActorContext(request.headers as Record<string, unknown>);
 
+const normalizeServiceActor = (actor: ServiceManagementActor): ServiceActor => {
+  const accountId = actor.accountId.trim();
+  const systemRoles = normalizeSystemRoles(actor.systemRoles).filter(
+    (role): role is 'system_admin' | 'cs_admin' => role === 'system_admin' || role === 'cs_admin'
+  );
+  return {
+    accountId,
+    systemRoles
+  };
+};
+
 const hasSystemAdminRole = (roles: readonly string[]): boolean => roles.includes('system_admin');
 const DEFAULT_SERVICE_LIST_LIMIT = 100;
 
@@ -54,6 +71,24 @@ const toOptionalQuery = (value: unknown): string | null => {
   }
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
+};
+
+const normalizeServiceApiKeyExpiresAt = (value: unknown): string | null | 'invalid' => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== 'string') {
+    return 'invalid';
+  }
+  const normalized = value.trim();
+  if (!normalized) {
+    return null;
+  }
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'invalid';
+  }
+  return parsed.toISOString();
 };
 
 const normalizeServiceListLimit = (value: unknown): number => {
@@ -217,6 +252,20 @@ export class ServiceManagementService {
     };
   }
 
+  private toServiceApiKeyPayload(record: ServiceApiKeyRecord) {
+    return {
+      keyId: record.keyId,
+      name: record.name,
+      keyPrefix: record.keyPrefix,
+      createdBy: record.createdBy,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      lastUsedAt: record.lastUsedAt,
+      expiresAt: record.expiresAt,
+      revokedAt: record.revokedAt
+    };
+  }
+
   private applyGithubRuntimeSettings(settings: ServiceSettingsRecord): void {
     const secret = this.decryptSecret(settings.githubAuth.clientSecretEncrypted);
     this.config.applyAuthConfigOverrides({
@@ -257,7 +306,14 @@ export class ServiceManagementService {
   }
 
   async listServiceWorkspaces(request: FastifyRequest, query?: ServiceWorkspacesQueryDto): Promise<ResponsePlan> {
-    const actor = toServiceActor(request);
+    return this.listServiceWorkspacesByActor(toServiceActor(request), query);
+  }
+
+  async listServiceWorkspacesByActor(
+    actorInput: ServiceManagementActor,
+    query?: ServiceWorkspacesQueryDto
+  ): Promise<ResponsePlan> {
+    const actor = normalizeServiceActor(actorInput);
     const denyPlan = this.ensureServiceAccess(actor);
     if (denyPlan) {
       return denyPlan;
@@ -297,7 +353,14 @@ export class ServiceManagementService {
   }
 
   async listServiceUsers(request: FastifyRequest, query?: ServiceUsersQueryDto): Promise<ResponsePlan> {
-    const actor = toServiceActor(request);
+    return this.listServiceUsersByActor(toServiceActor(request), query);
+  }
+
+  async listServiceUsersByActor(
+    actorInput: ServiceManagementActor,
+    query?: ServiceUsersQueryDto
+  ): Promise<ResponsePlan> {
+    const actor = normalizeServiceActor(actorInput);
     const denyPlan = this.ensureServiceAccess(actor);
     if (denyPlan) {
       return denyPlan;
@@ -343,7 +406,14 @@ export class ServiceManagementService {
   }
 
   async listServiceUserWorkspaces(request: FastifyRequest, accountId: string): Promise<ResponsePlan> {
-    const actor = toServiceActor(request);
+    return this.listServiceUserWorkspacesByActor(toServiceActor(request), accountId);
+  }
+
+  async listServiceUserWorkspacesByActor(
+    actorInput: ServiceManagementActor,
+    accountId: string
+  ): Promise<ResponsePlan> {
+    const actor = normalizeServiceActor(actorInput);
     const denyPlan = this.ensureServiceAccess(actor);
     if (denyPlan) {
       return denyPlan;
@@ -403,12 +473,143 @@ export class ServiceManagementService {
     });
   }
 
+  async listServiceApiKeys(request: FastifyRequest): Promise<ResponsePlan> {
+    const actor = toServiceActor(request);
+    const denyPlan = this.ensureServiceAccess(actor);
+    if (denyPlan) {
+      return denyPlan;
+    }
+    const repository = this.runtime.persistence.workspaceRepository;
+    const keys = await repository.listServiceApiKeys(actor.accountId);
+    return jsonPlan(200, {
+      ok: true,
+      actor,
+      apiKeys: keys.map((record) => this.toServiceApiKeyPayload(record))
+    });
+  }
+
+  async createServiceApiKey(request: FastifyRequest, body: CreateServiceApiKeyDto): Promise<ResponsePlan> {
+    const actor = toServiceActor(request);
+    const accessPlan = this.ensureServiceAccess(actor);
+    if (accessPlan) {
+      return accessPlan;
+    }
+    const adminPlan = this.ensureSystemAdmin(actor);
+    if (adminPlan) {
+      return adminPlan;
+    }
+
+    const normalizedName = toNullable(body.name);
+    if (!normalizedName) {
+      return jsonPlan(400, {
+        ok: false,
+        code: 'invalid_payload',
+        message: 'name is required.'
+      });
+    }
+
+    const normalizedExpiresAt = normalizeServiceApiKeyExpiresAt(body.expiresAt);
+    if (normalizedExpiresAt === 'invalid') {
+      return jsonPlan(400, {
+        ok: false,
+        code: 'invalid_payload',
+        message: 'expiresAt must be an ISO-8601 datetime string.'
+      });
+    }
+
+    const repository = this.runtime.persistence.workspaceRepository;
+    const existing = await repository.listServiceApiKeys(actor.accountId);
+    const activeCount = existing.filter((record) => !record.revokedAt).length;
+    if (activeCount >= MAX_SERVICE_API_KEYS_PER_ACCOUNT) {
+      return jsonPlan(409, {
+        ok: false,
+        code: 'service_api_key_limit_exceeded',
+        message: `계정당 서비스 API 키는 최대 ${MAX_SERVICE_API_KEYS_PER_ACCOUNT}개까지 발급할 수 있습니다.`
+      });
+    }
+
+    const now = new Date().toISOString();
+    const secret = `sk_${randomBytes(24).toString('base64url')}`;
+    const keyPrefix = secret.slice(0, Math.min(secret.length, 12));
+    const keyHash = hashApiKeySecret(secret);
+    const keyId = `skey_${randomBytes(8).toString('hex')}`;
+
+    const record: ServiceApiKeyRecord = {
+      keyId,
+      name: normalizedName,
+      keyPrefix,
+      keyHash,
+      createdBy: actor.accountId,
+      createdAt: now,
+      updatedAt: now,
+      lastUsedAt: null,
+      expiresAt: normalizedExpiresAt,
+      revokedAt: null
+    };
+    await repository.createServiceApiKey(record);
+
+    return jsonPlan(201, {
+      ok: true,
+      apiKey: this.toServiceApiKeyPayload(record),
+      secret
+    });
+  }
+
+  async revokeServiceApiKey(request: FastifyRequest, body: RevokeServiceApiKeyDto): Promise<ResponsePlan> {
+    const actor = toServiceActor(request);
+    const accessPlan = this.ensureServiceAccess(actor);
+    if (accessPlan) {
+      return accessPlan;
+    }
+    const adminPlan = this.ensureSystemAdmin(actor);
+    if (adminPlan) {
+      return adminPlan;
+    }
+
+    const normalizedKeyId = toNullable(body.keyId);
+    if (!normalizedKeyId) {
+      return jsonPlan(400, {
+        ok: false,
+        code: 'invalid_payload',
+        message: 'keyId is required.'
+      });
+    }
+
+    const repository = this.runtime.persistence.workspaceRepository;
+    const existing = await repository.listServiceApiKeys(actor.accountId);
+    const target = existing.find((record) => record.keyId === normalizedKeyId);
+    if (!target) {
+      return jsonPlan(404, {
+        ok: false,
+        code: 'service_api_key_not_found',
+        message: 'API 키를 찾을 수 없습니다.'
+      });
+    }
+    if (!target.revokedAt) {
+      const now = new Date().toISOString();
+      await repository.revokeServiceApiKey(actor.accountId, normalizedKeyId, now);
+    }
+    const next = await repository.listServiceApiKeys(actor.accountId);
+    return jsonPlan(200, {
+      ok: true,
+      apiKeys: next.map((record) => this.toServiceApiKeyPayload(record))
+    });
+  }
+
   async setServiceUserRoles(
     request: FastifyRequest,
     accountId: string,
     body: SetServiceAccountRolesDto
   ): Promise<ResponsePlan> {
-    const actor = toServiceActor(request);
+    return this.setServiceUserRolesByActor(toServiceActor(request), accountId, body);
+  }
+
+  async setServiceUserRolesByActor(
+    actorInput: ServiceManagementActor,
+    accountId: string,
+    body: SetServiceAccountRolesDto
+  ): Promise<ResponsePlan> {
+    const actor = normalizeServiceActor(actorInput);
     const accessPlan = this.ensureServiceAccess(actor);
     if (accessPlan) {
       return accessPlan;
@@ -468,7 +669,11 @@ export class ServiceManagementService {
   }
 
   async getServiceConfig(request: FastifyRequest): Promise<ResponsePlan> {
-    const actor = toServiceActor(request);
+    return this.getServiceConfigByActor(toServiceActor(request));
+  }
+
+  async getServiceConfigByActor(actorInput: ServiceManagementActor): Promise<ResponsePlan> {
+    const actor = normalizeServiceActor(actorInput);
     const denyPlan = this.ensureServiceAccess(actor);
     if (denyPlan) {
       return denyPlan;
@@ -489,7 +694,14 @@ export class ServiceManagementService {
     request: FastifyRequest,
     body: UpsertServiceSmtpSettingsDto
   ): Promise<ResponsePlan> {
-    const actor = toServiceActor(request);
+    return this.upsertServiceSmtpSettingsByActor(toServiceActor(request), body);
+  }
+
+  async upsertServiceSmtpSettingsByActor(
+    actorInput: ServiceManagementActor,
+    body: UpsertServiceSmtpSettingsDto
+  ): Promise<ResponsePlan> {
+    const actor = normalizeServiceActor(actorInput);
     const accessPlan = this.ensureServiceAccess(actor);
     if (accessPlan) {
       return accessPlan;
@@ -535,7 +747,14 @@ export class ServiceManagementService {
     request: FastifyRequest,
     body: UpsertServiceGithubAuthSettingsDto
   ): Promise<ResponsePlan> {
-    const actor = toServiceActor(request);
+    return this.upsertServiceGithubAuthSettingsByActor(toServiceActor(request), body);
+  }
+
+  async upsertServiceGithubAuthSettingsByActor(
+    actorInput: ServiceManagementActor,
+    body: UpsertServiceGithubAuthSettingsDto
+  ): Promise<ResponsePlan> {
+    const actor = normalizeServiceActor(actorInput);
     const accessPlan = this.ensureServiceAccess(actor);
     if (accessPlan) {
       return accessPlan;

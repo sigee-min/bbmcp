@@ -205,6 +205,7 @@ module.exports = async () => {
       const { container } = mounted;
       const githubButton = container.querySelector('button[aria-label="GitHub로 로그인"]');
       assert.ok(githubButton);
+      assert.equal(githubButton.disabled, false);
       assert.match(githubButton.textContent ?? '', /Continue with GitHub/);
       const localButton = Array.from(container.querySelectorAll('button')).find((button) =>
         (button.textContent ?? '').includes('로컬 계정 로그인')
@@ -242,6 +243,9 @@ module.exports = async () => {
         (button.textContent ?? '').includes('로컬 계정 로그인')
       );
       assert.ok(localButton);
+      const githubButton = container.querySelector('button[aria-label="GitHub로 로그인"]');
+      assert.equal(githubButton, null);
+      assert.match(container.textContent ?? '', /현재 GitHub 로그인이 비활성화되었습니다\./);
     } finally {
       await mounted.cleanup();
       MockEventSource.reset();
@@ -973,6 +977,18 @@ module.exports = async () => {
             status: 200,
             headers: { 'content-type': 'application/json; charset=utf-8' }
           });
+        }
+        if (url === '/api/service/api-keys') {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              apiKeys: []
+            }),
+            {
+              status: 200,
+              headers: { 'content-type': 'application/json; charset=utf-8' }
+            }
+          );
         }
         throw new Error(`unexpected url: ${url}`);
       },

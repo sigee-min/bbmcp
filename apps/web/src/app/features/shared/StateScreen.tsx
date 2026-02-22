@@ -27,13 +27,16 @@ export function StateScreen({
       <Card className={destructive ? 'w-full border-destructive/40 bg-card/90' : 'w-full border-border/60 bg-card/90'}>
         <CardHeader>
           <CardTitle className="flex items-center gap-3 text-2xl">
-            <img
-              alt="Ashfox"
-              src="/logo_fullbackground.png"
-              width={40}
-              height={40}
-              className="h-10 w-10 rounded-sm border border-border/70 bg-background/80 object-contain"
-            />
+            <picture className="h-10 w-10">
+              <source srcSet="/logo_fullbackground_dark.png" media="(prefers-color-scheme: dark)" />
+              <img
+                alt="Ashfox"
+                src="/logo_fullbackground_light.png"
+                width={40}
+                height={40}
+                className="h-10 w-10 rounded-sm border border-border/70 bg-background/80 object-contain"
+              />
+            </picture>
             <span>{title}</span>
             {loading ? <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" aria-label="Loading" /> : null}
           </CardTitle>

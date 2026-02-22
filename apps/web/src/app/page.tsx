@@ -359,7 +359,7 @@ export default function HomePage() {
     enabled: isAuthenticated && !workspaceLoading && workspaceSelectionReady
   });
   useDashboardStream({ workspaceId: selectedWorkspaceId, state, setState });
-  const { themeMode, setThemeMode } = useThemeMode();
+  const { themeMode, resolvedTheme, setThemeMode } = useThemeMode();
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -607,6 +607,9 @@ export default function HomePage() {
         githubEnabled={githubEnabled}
         busy={authBusy}
         errorMessage={authError}
+        themeMode={themeMode}
+        resolvedTheme={resolvedTheme}
+        onThemeModeChange={handleThemeModeChange}
         onLogin={handleDirectLogin}
         onGitHubLogin={handleGitHubLogin}
       />

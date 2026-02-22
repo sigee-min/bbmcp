@@ -35,12 +35,13 @@ export class GatewayMcpService {
       const plan = await this.runtime.router.handle(payload, {
         log: requestLog,
         principal: {
-          accountId: authResult.principal.accountId,
-          workspaceId: authResult.principal.workspaceId,
-          systemRoles: authResult.principal.systemRoles,
-          apiKeyId: authResult.principal.keyId
-        }
-      });
+          keySpace: authResult.principal.keySpace,
+            keyId: authResult.principal.keyId,
+            accountId: authResult.principal.accountId,
+            workspaceId: authResult.principal.workspaceId,
+            systemRoles: authResult.principal.systemRoles
+          }
+        });
       if (method === 'DELETE') {
         const sessionId = payload.headers['mcp-session-id'];
         if (typeof sessionId === 'string' && sessionId.trim().length > 0) {

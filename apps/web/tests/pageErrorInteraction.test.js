@@ -214,8 +214,11 @@ module.exports = async () => {
       const { container, dom } = mounted;
       const loginIdInput = container.querySelector('input[name="loginId"]');
       const passwordInput = container.querySelector('input[name="password"]');
+      const githubButton = container.querySelector('button[aria-label="GitHub로 로그인"]');
       assert.ok(loginIdInput);
       assert.ok(passwordInput);
+      assert.ok(githubButton);
+      assert.equal(githubButton.disabled, false);
 
       loginIdInput.value = 'admin';
       await dispatchInAct(loginIdInput, new dom.window.Event('input', { bubbles: true }));

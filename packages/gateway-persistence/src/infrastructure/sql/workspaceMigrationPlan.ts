@@ -44,6 +44,11 @@ export const WORKSPACE_MIGRATION_PLAN: readonly WorkspaceMigrationPlanEntry[] = 
     migrationId: 'create-service-settings-table',
     legacyVersion: 8,
     name: 'create_service_settings_table'
+  },
+  {
+    migrationId: 'create-service-api-keys-table',
+    legacyVersion: 9,
+    name: 'create_service_api_keys_table'
   }
 ]);
 

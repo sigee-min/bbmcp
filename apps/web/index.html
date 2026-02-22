@@ -3,14 +3,39 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16" />
-    <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
-    <link rel="apple-touch-icon" href="/favicon-180x180.png" sizes="180x180" />
+    <link id="app-favicon-any" rel="icon" href="/favicons/favicon-light.ico" sizes="any" />
+    <link id="app-favicon-16" rel="icon" href="/favicons/favicon-16x16-light.png" type="image/png" sizes="16x16" />
+    <link id="app-favicon-32" rel="icon" href="/favicons/favicon-32x32-light.png" type="image/png" sizes="32x32" />
+    <link id="app-favicon-180" rel="apple-touch-icon" href="/favicons/favicon-180x180-light.png" sizes="180x180" />
     <title>Ashfox</title>
     <script>
       (() => {
         try {
+          const faviconByTheme = {
+            light: {
+              any: '/favicons/favicon-light.ico',
+              icon16: '/favicons/favicon-16x16-light.png',
+              icon32: '/favicons/favicon-32x32-light.png',
+              icon180: '/favicons/favicon-180x180-light.png'
+            },
+            dark: {
+              any: '/favicons/favicon-dark.ico',
+              icon16: '/favicons/favicon-16x16-dark.png',
+              icon32: '/favicons/favicon-32x32-dark.png',
+              icon180: '/favicons/favicon-180x180-dark.png'
+            }
+          };
+          const applyFavicon = (theme) => {
+            const next = theme === 'dark' ? faviconByTheme.dark : faviconByTheme.light;
+            const any = document.getElementById('app-favicon-any');
+            const icon16 = document.getElementById('app-favicon-16');
+            const icon32 = document.getElementById('app-favicon-32');
+            const icon180 = document.getElementById('app-favicon-180');
+            if (any) any.setAttribute('href', next.any);
+            if (icon16) icon16.setAttribute('href', next.icon16);
+            if (icon32) icon32.setAttribute('href', next.icon32);
+            if (icon180) icon180.setAttribute('href', next.icon180);
+          };
           const storageKey = 'ashfox.theme-mode';
           const mode = localStorage.getItem(storageKey) ?? 'system';
           const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -18,6 +43,12 @@
           const root = document.documentElement;
           root.dataset.themeMode = mode;
           root.dataset.theme = resolved;
+          applyFavicon(resolved);
+          const observer = new MutationObserver(() => {
+            const active = root.dataset.theme === 'dark' ? 'dark' : 'light';
+            applyFavicon(active);
+          });
+          observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
         } catch {}
       })();
     </script>

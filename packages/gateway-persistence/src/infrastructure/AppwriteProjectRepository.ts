@@ -8,6 +8,7 @@ import type {
   ServiceUsersSearchResult,
   ServiceWorkspacesSearchInput,
   ServiceWorkspacesSearchResult,
+  ServiceApiKeyRecord,
   ServiceSettingsRecord,
   WorkspaceApiKeyRecord,
   WorkspaceFolderAclRecord,
@@ -341,6 +342,7 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
         (acl) => `${acl.workspaceId}::${acl.ruleId}`
       );
       nextState.apiKeys = dedupeByKey(nextState.apiKeys, (apiKey) => `${apiKey.workspaceId}::${apiKey.keyId}`);
+      nextState.serviceApiKeys = dedupeByKey(nextState.serviceApiKeys, (apiKey) => `${apiKey.createdBy}::${apiKey.keyId}`);
       const nextRecord = this.toWorkspaceStateRecord(nextState, record);
       const saved = await this.saveIfRevision(nextRecord, record?.revision ?? null);
       if (saved) {
@@ -1088,6 +1090,93 @@ export class AppwriteProjectRepository implements ProjectRepository, WorkspaceRe
       const normalizedLastUsedAt = normalizeTimestamp(lastUsedAt);
       state.apiKeys = state.apiKeys.map((apiKey) => {
         if (apiKey.workspaceId !== workspaceId || apiKey.keyId !== keyId) {
+          return apiKey;
+        }
+        return {
+          ...apiKey,
+          lastUsedAt: normalizedLastUsedAt,
+          updatedAt: normalizedLastUsedAt
+        };
+      });
+    });
+  }
+
+  async listServiceApiKeys(accountId: string): Promise<ServiceApiKeyRecord[]> {
+    const normalizedAccountId = accountId.trim();
+    if (!normalizedAccountId) {
+      return [];
+    }
+    const { state } = await this.readWorkspaceStateContainer();
+    return state.serviceApiKeys
+      .filter((apiKey) => apiKey.createdBy === normalizedAccountId)
+      .map((apiKey) => ({ ...apiKey }));
+  }
+
+  async findServiceApiKeyByHash(keyHash: string): Promise<ServiceApiKeyRecord | null> {
+    const normalizedKeyHash = keyHash.trim();
+    if (!normalizedKeyHash) {
+      return null;
+    }
+    const { state } = await this.readWorkspaceStateContainer();
+    const found = state.serviceApiKeys.find((apiKey) => apiKey.keyHash === normalizedKeyHash);
+    return found ? { ...found } : null;
+  }
+
+  async createServiceApiKey(record: ServiceApiKeyRecord): Promise<void> {
+    await this.mutateWorkspaceState((state) => {
+      const now = new Date().toISOString();
+      const normalized: ServiceApiKeyRecord = {
+        keyId: normalizeRequired(record.keyId, 'keyId'),
+        name: record.name.trim() || 'API key',
+        keyPrefix: normalizeRequired(record.keyPrefix, 'keyPrefix'),
+        keyHash: normalizeRequired(record.keyHash, 'keyHash'),
+        createdBy: normalizeRequired(record.createdBy, 'createdBy'),
+        createdAt: normalizeTimestamp(record.createdAt),
+        updatedAt: normalizeTimestamp(record.updatedAt || now),
+        lastUsedAt: normalizeOptionalTimestamp(record.lastUsedAt),
+        expiresAt: normalizeOptionalTimestamp(record.expiresAt),
+        revokedAt: normalizeOptionalTimestamp(record.revokedAt)
+      };
+      const index = state.serviceApiKeys.findIndex(
+        (apiKey) => apiKey.createdBy === normalized.createdBy && apiKey.keyId === normalized.keyId
+      );
+      if (index >= 0) {
+        state.serviceApiKeys[index] = normalized;
+      } else {
+        state.serviceApiKeys.push(normalized);
+      }
+    });
+  }
+
+  async revokeServiceApiKey(accountId: string, keyId: string, revokedAt: string): Promise<void> {
+    const normalizedAccountId = accountId.trim();
+    if (!normalizedAccountId) {
+      return;
+    }
+    await this.mutateWorkspaceState((state) => {
+      const normalizedRevokedAt = normalizeTimestamp(revokedAt);
+      state.serviceApiKeys = state.serviceApiKeys.map((apiKey) => {
+        if (apiKey.createdBy !== normalizedAccountId || apiKey.keyId !== keyId) {
+          return apiKey;
+        }
+        return {
+          ...apiKey,
+          revokedAt: normalizedRevokedAt,
+          updatedAt: normalizedRevokedAt
+        };
+      });
+    });
+  }
+
+  async updateServiceApiKeyLastUsed(accountId: string, keyId: string, lastUsedAt: string): Promise<void> {
+    const normalizedAccountId = accountId.trim();
+    if (!normalizedAccountId) {
+      return;
+    }
+    await this.mutateWorkspaceState((state) => {
+      const normalizedLastUsedAt = normalizeTimestamp(lastUsedAt);
+      state.serviceApiKeys = state.serviceApiKeys.map((apiKey) => {
+        if (apiKey.createdBy !== normalizedAccountId || apiKey.keyId !== keyId) {
           return apiKey;
         }
         return {

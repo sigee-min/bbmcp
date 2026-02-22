@@ -1,10 +1,11 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { WorkspaceApiKeyRecord, WorkspaceRecord } from '@ashfox/backend-core';
 import type { ResponsePlan } from '@ashfox/runtime/transport/mcp/types';
 import type { FastifyRequest } from 'fastify';
 import type { CreateWorkspaceApiKeyDto } from '../dto/create-workspace-api-key.dto';
 import type { RevokeWorkspaceApiKeyDto } from '../dto/revoke-workspace-api-key.dto';
 import { jsonPlan, workspaceNotFoundPlan, type GatewayActorContext } from '../gatewayDashboardHelpers';
+import { hashApiKeySecret } from '../security/apiKeySecrets';
 
 interface WorkspaceApiKeyServiceDependencies {
   resolveActor: (request: FastifyRequest) => GatewayActorContext;
@@ -146,7 +147,7 @@ export const createWorkspaceApiKey = async (
   const now = new Date().toISOString();
   const secret = generateApiKeySecret();
   const keyPrefix = secret.slice(0, Math.min(secret.length, 12));
-  const keyHash = createHash('sha256').update(secret).digest('hex');
+  const keyHash = hashApiKeySecret(secret);
 
   const record: WorkspaceApiKeyRecord = {
     workspaceId,

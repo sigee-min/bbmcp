@@ -5,6 +5,7 @@ import { cn } from '../../../lib/utils';
 import styles from '../../page.module.css';
 import { ManagementDialogFrame } from '../shared/ManagementDialogFrame';
 import { useErrorChannels } from '../shared/useErrorChannels';
+import { ServiceApiKeysPanel } from './ServiceApiKeysPanel';
 import {
   buildServiceManagementPanelModels,
   type ServiceManagementPanelId
@@ -13,8 +14,10 @@ import { ServiceIntegrationsPanel } from './ServiceIntegrationsPanel';
 import { ServiceUsersPanel } from './ServiceUsersPanel';
 import { ServiceWorkspacesPanel } from './ServiceWorkspacesPanel';
 import {
+  createServiceApiKey,
   loadServiceManagementBundle,
   listServiceUserWorkspaces,
+  revokeServiceApiKey,
   searchServiceUsers,
   searchServiceWorkspaces,
   setServiceUserRoles,
@@ -75,6 +78,7 @@ export function ServiceManagementDialog({
     () => ({
       workspaces: bundle ? `${bundle.workspacesSearch.total}개` : '로딩',
       users: bundle ? `${bundle.usersSearch.total}명` : '로딩',
+      apiKeys: bundle ? `${bundle.apiKeys.length}개` : '로딩',
       integrations: bundle
         ? bundle.canEditConfig && isSystemAdmin
           ? '편집 가능'
@@ -192,6 +196,50 @@ export function ServiceManagementDialog({
     [clearChannelError, reportError, requestHeaders]
   );
 
+  const handleCreateServiceApiKey = useCallback(
+    async (input: { name: string; expiresAt?: string }) => {
+      setMutationBusy(true);
+      clearChannelError('panel');
+      try {
+        const created = await createServiceApiKey(input, requestHeaders);
+        setBundle((prev) => {
+          if (!prev) {
+            return prev;
+          }
+          const nextApiKeys = [created.apiKey, ...prev.apiKeys.filter((entry) => entry.keyId !== created.apiKey.keyId)];
+          return {
+            ...prev,
+            apiKeys: nextApiKeys
+          };
+        });
+        return created;
+      } catch (error) {
+        reportError(error, '서비스 API 키를 발급하지 못했습니다.', 'panel');
+        throw error;
+      } finally {
+        setMutationBusy(false);
+      }
+    },
+    [clearChannelError, reportError, requestHeaders]
+  );
+
+  const handleRevokeServiceApiKey = useCallback(
+    async (keyId: string) => {
+      setMutationBusy(true);
+      clearChannelError('panel');
+      try {
+        const nextApiKeys = await revokeServiceApiKey(keyId, requestHeaders);
+        setBundle((prev) => (prev ? { ...prev, apiKeys: nextApiKeys } : prev));
+      } catch (error) {
+        reportError(error, '서비스 API 키를 폐기하지 못했습니다.', 'panel');
+        throw error;
+      } finally {
+        setMutationBusy(false);
+      }
+    },
+    [clearChannelError, reportError, requestHeaders]
+  );
+
   const handleSaveSmtp = useCallback(
     async (input: {
       enabled: boolean;
@@ -280,6 +328,18 @@ export function ServiceManagementDialog({
       );
     }
 
+    if (activePanel === 'apiKeys') {
+      return (
+        <ServiceApiKeysPanel
+          apiKeys={bundle.apiKeys}
+          busy={loading || mutationBusy}
+          canManageApiKeys={isSystemAdmin}
+          onCreateApiKey={handleCreateServiceApiKey}
+          onRevokeApiKey={handleRevokeServiceApiKey}
+        />
+      );
+    }
+
     return (
       <ServiceIntegrationsPanel
         settings={bundle.settings}
@@ -295,6 +355,8 @@ export function ServiceManagementDialog({
     handleLoadUserWorkspaces,
     handleSearchUsers,
     handleSearchWorkspaces,
+    handleCreateServiceApiKey,
+    handleRevokeServiceApiKey,
     handleSaveGithub,
     handleSaveSmtp,
     handleSetUserRoles,

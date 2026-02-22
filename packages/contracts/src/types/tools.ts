@@ -152,6 +152,7 @@ export interface DispatcherExecutionContext {
   mcpAccountId?: string;
   mcpSystemRoles?: string[];
   mcpWorkspaceId?: string;
+  mcpApiKeySpace?: 'workspace' | 'service';
   mcpApiKeyId?: string;
 }
 

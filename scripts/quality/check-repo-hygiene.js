@@ -1,8 +1,9 @@
 /* eslint-disable no-console */
 
 const { execFileSync } = require('child_process');
-const { existsSync, lstatSync, readlinkSync } = require('fs');
+const { existsSync, lstatSync, readlinkSync, readdirSync } = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 
@@ -30,17 +31,11 @@ const requiredPublicSymlinks = [
   ['apps/docs/public', '../../images']
 ];
 
-const forbiddenLegacyBrandAssets = [
-  'images/logo-32.png',
-  'images/logo-180.png',
-  'images/logo-192.png',
-  'images/logo-256.png',
-  'images/logo-512.png',
-  'images/apple-touch-icon.png',
-  'images/android-chrome-192x192.png',
-  'images/android-chrome-512x512.png',
-  'images/assets/images/ashfox.png'
-];
+const loadBrandAssetsConfig = async () => {
+  const configPath = path.join(repoRoot, 'scripts/assets/brand-assets.config.mjs');
+  const configModule = await import(pathToFileURL(configPath).href);
+  return configModule;
+};
 
 const collectPublicSymlinkViolations = () => {
   const violations = [];
@@ -83,7 +78,7 @@ const collectBrandSyncViolations = () => {
   }
 };
 
-const collectLegacyBrandAssetViolations = () => {
+const collectLegacyBrandAssetViolations = (forbiddenLegacyBrandAssets) => {
   const violations = [];
   for (const relativePath of forbiddenLegacyBrandAssets) {
     const absolutePath = path.join(repoRoot, relativePath);
@@ -97,7 +92,65 @@ const collectLegacyBrandAssetViolations = () => {
   return violations;
 };
 
-const main = () => {
+const collectRootFaviconLayoutViolations = ({
+  brandAssetConfig,
+  isRootFaviconArtifact,
+  getAllowedRootFaviconArtifacts
+}) => {
+  const imagesDir = path.join(repoRoot, brandAssetConfig.imagesRoot);
+  if (!existsSync(imagesDir)) {
+    return [];
+  }
+  const rootFaviconFiles = readdirSync(imagesDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.posix.join(brandAssetConfig.imagesRoot, entry.name))
+    .filter((relativePath) => isRootFaviconArtifact(relativePath));
+
+  if (rootFaviconFiles.length === 0) {
+    return [];
+  }
+
+  const violations = [];
+  const outputDir = brandAssetConfig.favicon.outputDir.replace(/\\/g, '/').replace(/\/+$/, '');
+  if (outputDir !== brandAssetConfig.imagesRoot) {
+    for (const relativePath of rootFaviconFiles) {
+      violations.push({
+        rule: 'root-favicon-layout-forbidden',
+        filePath: relativePath
+      });
+    }
+    return violations;
+  }
+
+  const allowed = new Set(getAllowedRootFaviconArtifacts());
+  for (const relativePath of rootFaviconFiles) {
+    if (allowed.has(relativePath)) {
+      continue;
+    }
+    violations.push({
+      rule: 'root-favicon-layout-unexpected',
+      filePath: relativePath
+    });
+  }
+  return violations;
+};
+
+const collectFaviconDirectoryViolations = ({ brandAssetConfig }) => {
+  const outputDir = brandAssetConfig.favicon.outputDir.replace(/\\/g, '/').replace(/\/+$/, '');
+  const absoluteDir = path.join(repoRoot, outputDir);
+  if (!existsSync(absoluteDir)) {
+    return [{ rule: 'favicon-directory-required', filePath: outputDir }];
+  }
+  return [];
+};
+
+const main = async () => {
+  const {
+    brandAssetConfig,
+    forbiddenLegacyBrandAssets,
+    getAllowedRootFaviconArtifacts,
+    isRootFaviconArtifact
+  } = await loadBrandAssetsConfig();
   const tracked = readTrackedFiles();
   const violations = [];
 
@@ -110,7 +163,15 @@ const main = () => {
   }
 
   violations.push(...collectPublicSymlinkViolations());
-  violations.push(...collectLegacyBrandAssetViolations());
+  violations.push(...collectLegacyBrandAssetViolations(forbiddenLegacyBrandAssets));
+  violations.push(
+    ...collectRootFaviconLayoutViolations({
+      brandAssetConfig,
+      isRootFaviconArtifact,
+      getAllowedRootFaviconArtifacts
+    })
+  );
+  violations.push(...collectFaviconDirectoryViolations({ brandAssetConfig }));
   violations.push(...collectBrandSyncViolations());
 
   if (violations.length > 0) {
@@ -125,4 +186,8 @@ const main = () => {
   console.log('ashfox repo hygiene gate ok');
 };
 
-main();
+main().catch((error) => {
+  const message = error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error);
+  console.error(`ashfox repo hygiene gate failed: ${message}`);
+  process.exitCode = 1;
+});

@@ -9,6 +9,7 @@ import type {
   PersistedProjectRecord,
   ProjectRepository,
   ProjectRepositoryScope,
+  ServiceApiKeyRecord,
   ServiceSettingsRecord,
   WorkspaceApiKeyRecord,
   WorkspaceFolderAclRecord,
@@ -365,6 +366,26 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
   }
 
   async updateWorkspaceApiKeyLastUsed(_workspaceId: string, _keyId: string, _lastUsedAt: string): Promise<void> {
+    // no-op for auth tests
+  }
+
+  async listServiceApiKeys(_accountId: string): Promise<ServiceApiKeyRecord[]> {
+    return [];
+  }
+
+  async findServiceApiKeyByHash(_keyHash: string): Promise<ServiceApiKeyRecord | null> {
+    return null;
+  }
+
+  async createServiceApiKey(_record: ServiceApiKeyRecord): Promise<void> {
+    // no-op for auth tests
+  }
+
+  async revokeServiceApiKey(_accountId: string, _keyId: string, _revokedAt: string): Promise<void> {
+    // no-op for auth tests
+  }
+
+  async updateServiceApiKeyLastUsed(_accountId: string, _keyId: string, _lastUsedAt: string): Promise<void> {
     // no-op for auth tests
   }
 

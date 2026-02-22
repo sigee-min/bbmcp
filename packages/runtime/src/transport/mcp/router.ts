@@ -30,6 +30,25 @@ import {
 } from './routerUtils';
 import { isJsonContentType, parsePostMessage, validateProtocolHeader } from './routerPost';
 
+const asNonEmptyString = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const toPrincipalFingerprint = (principal?: McpRequestPrincipal): string => {
+  if (!principal) {
+    return 'anonymous';
+  }
+  const keySpace = asNonEmptyString(principal.keySpace) ?? 'workspace';
+  const keyId =
+    asNonEmptyString(principal.keyId) ?? asNonEmptyString(principal.accountId) ??
+    'anonymous';
+  return `${keySpace}:${keyId}`;
+};
+
 export class McpRouter {
   private readonly config: McpServerConfig;
   private readonly executor: ToolExecutor;
@@ -122,6 +141,7 @@ export class McpRouter {
 
   private createRpcContext(
     log: Logger,
+    toolRegistry: ToolRegistry,
     requestHeaders?: Record<string, string>,
     principal?: McpRequestPrincipal
   ) {
@@ -130,7 +150,7 @@ export class McpRouter {
       log,
       metrics: this.metrics,
       resources: this.resources,
-      toolRegistry: this.toolRegistry,
+      toolRegistry,
       sessions: this.sessions,
       ...(requestHeaders ? { requestHeaders } : {}),
       ...(principal ? { principal } : {}),
@@ -193,10 +213,26 @@ export class McpRouter {
     if (!sessionResult.ok) {
       return this.jsonResponse(sessionResult.status, sessionResult.error);
     }
+    if (!this.bindSessionPrincipal(sessionResult.session, principal)) {
+      this.sessions.close(sessionResult.session);
+      return this.jsonResponse(401, { error: { code: 'unauthorized', message: MCP_UNAUTHORIZED } });
+    }
     this.sessions.touch(sessionResult.session);
 
+    let toolRegistry: ToolRegistry;
+    try {
+      toolRegistry = await this.resolveToolRegistry(req.headers, principal, sessionResult.session.id);
+    } catch (error) {
+      log.error('failed to resolve mcp tool registry', {
+        message: error instanceof Error ? error.message : String(error)
+      });
+      return this.jsonResponse(500, {
+        error: { code: 'internal_error', message: 'Failed to resolve MCP tool registry.' }
+      });
+    }
+
     const outcome = await handleMessage(
-      this.createRpcContext(log, req.headers, principal),
+      this.createRpcContext(log, toolRegistry, req.headers, principal),
       parsed.message,
       sessionResult.session,
       parsed.id
@@ -225,6 +261,32 @@ export class McpRouter {
     if (now - this.lastPruneAt < SESSION_PRUNE_INTERVAL_MS) return;
     this.lastPruneAt = now;
     this.sessions.pruneStale(this.sessionTtlMs, now);
+  }
+
+  private bindSessionPrincipal(session: { principalFingerprint: string | null }, principal?: McpRequestPrincipal): boolean {
+    const fingerprint = toPrincipalFingerprint(principal);
+    if (!session.principalFingerprint) {
+      session.principalFingerprint = fingerprint;
+      return true;
+    }
+    return session.principalFingerprint === fingerprint;
+  }
+
+  private async resolveToolRegistry(
+    requestHeaders: Record<string, string>,
+    principal?: McpRequestPrincipal,
+    sessionId?: string
+  ): Promise<ToolRegistry> {
+    if (!this.config.resolveToolRegistry) {
+      return this.toolRegistry;
+    }
+    const resolved = await this.config.resolveToolRegistry({
+      defaultRegistry: this.toolRegistry,
+      requestHeaders,
+      principal,
+      ...(sessionId ? { sessionId } : {})
+    });
+    return resolved ?? this.toolRegistry;
   }
 
   private jsonResponse(status: number, body: unknown): ResponsePlan {

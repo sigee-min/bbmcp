@@ -86,6 +86,14 @@ export const listWorkspaceMembers = async (
   workspaceId: string
 ): Promise<ResponsePlan> => {
   const actor = dependencies.resolveActor(request);
+  return listWorkspaceMembersByActor(dependencies, actor, workspaceId);
+};
+
+export const listWorkspaceMembersByActor = async (
+  dependencies: WorkspaceMemberServiceDependencies,
+  actor: GatewayActorContext,
+  workspaceId: string
+): Promise<ResponsePlan> => {
   const workspace = await dependencies.getWorkspace(workspaceId);
   if (!workspace) {
     return workspaceNotFoundPlan(workspaceId);
@@ -108,6 +116,15 @@ export const listWorkspaceMemberCandidates = async (
   query: WorkspaceMemberCandidatesQueryDto
 ): Promise<ResponsePlan> => {
   const actor = dependencies.resolveActor(request);
+  return listWorkspaceMemberCandidatesByActor(dependencies, actor, workspaceId, query);
+};
+
+export const listWorkspaceMemberCandidatesByActor = async (
+  dependencies: WorkspaceMemberServiceDependencies,
+  actor: GatewayActorContext,
+  workspaceId: string,
+  query: WorkspaceMemberCandidatesQueryDto
+): Promise<ResponsePlan> => {
   const authorization = await dependencies.authorizeWorkspaceMutation(workspaceId, actor, 'workspace.manage');
   if ('kind' in authorization) {
     return authorization;
@@ -144,6 +161,15 @@ export const upsertWorkspaceMember = async (
   body: UpsertWorkspaceMemberDto
 ): Promise<ResponsePlan> => {
   const actor = dependencies.resolveActor(request);
+  return upsertWorkspaceMemberByActor(dependencies, actor, workspaceId, body);
+};
+
+export const upsertWorkspaceMemberByActor = async (
+  dependencies: WorkspaceMemberServiceDependencies,
+  actor: GatewayActorContext,
+  workspaceId: string,
+  body: UpsertWorkspaceMemberDto
+): Promise<ResponsePlan> => {
   const authorization = await dependencies.authorizeWorkspaceMutation(workspaceId, actor, 'workspace.manage');
   if ('kind' in authorization) {
     return authorization;
@@ -217,6 +243,15 @@ export const deleteWorkspaceMember = async (
   accountId: string
 ): Promise<ResponsePlan> => {
   const actor = dependencies.resolveActor(request);
+  return deleteWorkspaceMemberByActor(dependencies, actor, workspaceId, accountId);
+};
+
+export const deleteWorkspaceMemberByActor = async (
+  dependencies: WorkspaceMemberServiceDependencies,
+  actor: GatewayActorContext,
+  workspaceId: string,
+  accountId: string
+): Promise<ResponsePlan> => {
   const authorization = await dependencies.authorizeWorkspaceMutation(workspaceId, actor, 'workspace.manage');
   if ('kind' in authorization) {
     return authorization;

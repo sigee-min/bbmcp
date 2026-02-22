@@ -116,7 +116,7 @@ registerAsync(
             accountId: 'principal-account',
             workspaceId: 'principal-workspace',
             systemRoles: ['cs_admin'],
-            apiKeyId: 'principal-key'
+            keyId: 'principal-key'
           }
         }),
         { jsonrpc: '2.0', method: 'tools/call', params: { name: 'demo_tool', arguments: {} } },

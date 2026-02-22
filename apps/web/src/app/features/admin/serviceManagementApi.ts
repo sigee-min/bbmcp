@@ -1,5 +1,6 @@
 import {
   normalizeSystemRoles,
+  type ServiceApiKeyRecord,
   type ServiceManagedAccountRecord,
   type ServiceSearchMeta,
   type ServiceSettingsView,
@@ -63,10 +64,27 @@ interface ServiceUserWorkspacesResponse {
   message?: string;
 }
 
+interface ServiceApiKeysResponse {
+  ok: boolean;
+  apiKeys?: unknown[];
+  code?: string;
+  message?: string;
+}
+
+interface ServiceApiKeyCreateResponse {
+  ok: boolean;
+  apiKey: ServiceApiKeyRecord;
+  secret: string;
+  code?: string;
+  message?: string;
+}
+
 const SERVICE_ERROR_MESSAGES: Record<string, string> = {
   forbidden_service_management: '서비스 관리 접근 권한이 없습니다.',
   forbidden_system_admin_required: '해당 작업은 시스템 어드민 권한이 필요합니다.',
   service_user_not_found: '대상 사용자 계정을 찾을 수 없습니다.',
+  service_api_key_not_found: '요청한 서비스 API 키를 찾을 수 없습니다.',
+  service_api_key_limit_exceeded: '활성 서비스 API 키는 계정당 최대 10개까지 발급할 수 있습니다.',
   system_admin_last_guard: '시스템 어드민은 최소 1명 이상 존재해야 합니다.',
   invalid_payload: '요청 형식이 올바르지 않습니다.'
 };
@@ -202,6 +220,28 @@ const normalizeServiceMembership = (value: unknown): ServiceUserWorkspaceMembers
   };
 };
 
+const normalizeServiceApiKey = (value: unknown): ServiceApiKeyRecord | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const keyId = typeof record.keyId === 'string' ? record.keyId.trim() : '';
+  if (!keyId) {
+    return null;
+  }
+  return {
+    keyId,
+    name: typeof record.name === 'string' && record.name.trim().length > 0 ? record.name.trim() : 'API key',
+    keyPrefix: typeof record.keyPrefix === 'string' ? record.keyPrefix : '',
+    createdBy: typeof record.createdBy === 'string' ? record.createdBy : '',
+    createdAt: typeof record.createdAt === 'string' ? record.createdAt : '',
+    updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : '',
+    lastUsedAt: toNullableString(record.lastUsedAt),
+    expiresAt: toNullableString(record.expiresAt),
+    revokedAt: toNullableString(record.revokedAt)
+  };
+};
+
 const toGuardCount = (value: unknown, fallback: number): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return fallback;
@@ -314,8 +354,14 @@ export interface ServiceManagementBundle {
   users: ServiceManagedAccountRecord[];
   usersSearch: ServiceUsersSearchMeta;
   guards: ServiceUsersGuards;
+  apiKeys: ServiceApiKeyRecord[];
   settings: ServiceSettingsView;
   canEditConfig: boolean;
+}
+
+export interface CreateServiceApiKeyInput {
+  name: string;
+  expiresAt?: string;
 }
 
 export interface UpsertServiceSmtpInput {
@@ -444,12 +490,81 @@ export const listServiceUserWorkspaces = async (
   };
 };
 
+export const listServiceApiKeys = async (
+  requestHeaders: Record<string, string>
+): Promise<ServiceApiKeyRecord[]> => {
+  const payload = await requestGatewayApi<ServiceApiKeysResponse>(
+    '/service/api-keys',
+    {
+      headers: requestHeaders,
+      cache: 'no-store'
+    },
+    {
+      codeMessages: SERVICE_ERROR_MESSAGES
+    }
+  );
+  return Array.isArray(payload.apiKeys)
+    ? payload.apiKeys.map((apiKey) => normalizeServiceApiKey(apiKey)).filter((apiKey): apiKey is ServiceApiKeyRecord => apiKey !== null)
+    : [];
+};
+
+export const createServiceApiKey = async (
+  input: CreateServiceApiKeyInput,
+  requestHeaders: Record<string, string>
+): Promise<{ apiKey: ServiceApiKeyRecord; secret: string }> => {
+  const payload = await requestGatewayApi<ServiceApiKeyCreateResponse>(
+    '/service/api-keys',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...requestHeaders
+      },
+      body: JSON.stringify({
+        name: input.name,
+        ...(input.expiresAt ? { expiresAt: input.expiresAt } : {})
+      })
+    },
+    {
+      codeMessages: SERVICE_ERROR_MESSAGES
+    }
+  );
+  return {
+    apiKey: payload.apiKey,
+    secret: payload.secret
+  };
+};
+
+export const revokeServiceApiKey = async (
+  keyId: string,
+  requestHeaders: Record<string, string>
+): Promise<ServiceApiKeyRecord[]> => {
+  const payload = await requestGatewayApi<ServiceApiKeysResponse>(
+    '/service/api-keys',
+    {
+      method: 'DELETE',
+      headers: {
+        'content-type': 'application/json',
+        ...requestHeaders
+      },
+      body: JSON.stringify({ keyId })
+    },
+    {
+      codeMessages: SERVICE_ERROR_MESSAGES
+    }
+  );
+  return Array.isArray(payload.apiKeys)
+    ? payload.apiKeys.map((apiKey) => normalizeServiceApiKey(apiKey)).filter((apiKey): apiKey is ServiceApiKeyRecord => apiKey !== null)
+    : [];
+};
+
 export const loadServiceManagementBundle = async (
   requestHeaders: Record<string, string>
 ): Promise<ServiceManagementBundle> => {
-  const [workspacesResult, usersResult, configPayload] = await Promise.all([
+  const [workspacesResult, usersResult, apiKeys, configPayload] = await Promise.all([
     searchServiceWorkspaces(undefined, requestHeaders),
     searchServiceUsers(undefined, requestHeaders),
+    listServiceApiKeys(requestHeaders),
     requestGatewayApi<ServiceConfigResponse>(
       '/service/config',
       {
@@ -468,6 +583,7 @@ export const loadServiceManagementBundle = async (
     users: usersResult.users,
     usersSearch: usersResult.search,
     guards: usersResult.guards,
+    apiKeys,
     settings: configPayload.settings,
     canEditConfig: configPayload.permissions?.canEdit === true
   };

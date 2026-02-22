@@ -1,4 +1,4 @@
-# <img src="images/favicon-32x32.png" alt="Ashfox icon badge" width="32" height="32" /> Ashfox
+# <img src="images/favicons/favicon-32x32.png" alt="Ashfox icon badge" width="32" height="32" /> Ashfox
 
 Blockbench MCP bridge plugin. Ashfox exposes a low-level, deterministic tool surface for modeling, texturing, and animation over MCP.
 
@@ -230,20 +230,15 @@ Brand icon/image source of truth is the repository root `images/` directory.
 
 - `images/logo.png`
 - `images/logo_fullbackground.png`
-- `images/logo_readme.png`
-- `images/favicon.ico`
-- `images/favicon-16x16.png`
-- `images/favicon-24x24.png`
-- `images/favicon-32x32.png`
-- `images/favicon-48x48.png`
-- `images/favicon-64x64.png`
-- `images/favicon-96x96.png`
-- `images/favicon-128x128.png`
-- `images/favicon-180x180.png`
-- `images/favicon-192x192.png`
-- `images/favicon-512x512.png`
+- `images/logo_light.png` / `images/logo_dark.png` (generated)
+- `images/logo_fullbackground_light.png` / `images/logo_fullbackground_dark.png` (generated)
+- `images/favicons/` (all favicon artifacts are generated under this folder only)
+  - base fallback set: `favicon.ico`, `favicon-16x16.png`, `favicon-24x24.png`, `favicon-32x32.png`, `favicon-48x48.png`, `favicon-64x64.png`, `favicon-96x96.png`, `favicon-128x128.png`, `favicon-180x180.png`, `favicon-192x192.png`, `favicon-512x512.png`
+  - theme variants: `favicon-light.ico` / `favicon-dark.ico` and `favicon-<size>-light.png` / `favicon-<size>-dark.png`
 - `apps/web/public` -> `../../images` (symlink)
 - `apps/docs/public` -> `../../images` (symlink)
+
+Theme variant generation uses HSL complement default (`H' = (H + 180) mod 360`) for dark assets.
 
 After replacing source files, sync generated assets:
 
@@ -257,6 +252,8 @@ Before commit, verify brand asset consistency:
 npm run assets:check:brand
 npm run verify:repo-hygiene
 ```
+
+`verify:repo-hygiene` fails when root-level `images/favicon*` artifacts reappear or `images/favicons/` is missing.
 
 ## Development
 Install dependencies:

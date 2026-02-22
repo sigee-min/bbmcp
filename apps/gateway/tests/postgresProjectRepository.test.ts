@@ -197,7 +197,8 @@ registerAsync(
       'create-workspace-access-meta-projection',
       'add-workspace-default-member-role',
       'create-workspace-api-keys-table',
-      'create-service-settings-table'
+      'create-service-settings-table',
+      'create-service-api-keys-table'
     ] as const;
     assert.equal(fakePool.migrations.get('create-projects-table'), 'create_projects_table');
     assert.equal(fakePool.migrations.size, expectedMigrationIds.length);

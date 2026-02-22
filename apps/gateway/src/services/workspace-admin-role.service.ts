@@ -38,12 +38,11 @@ interface WorkspaceRoleServiceDependencies {
 
 const toRoleNameKey = (name: string): string => name.trim().toLowerCase();
 
-export const listWorkspaceRoles = async (
+const listWorkspaceRolesWithActor = async (
   dependencies: WorkspaceRoleServiceDependencies,
-  request: FastifyRequest,
+  actor: GatewayActorContext,
   workspaceId: string
 ): Promise<ResponsePlan> => {
-  const actor = dependencies.resolveActor(request);
   const workspace = await dependencies.getWorkspace(workspaceId);
   if (!workspace) {
     return workspaceNotFoundPlan(workspaceId);
@@ -59,13 +58,12 @@ export const listWorkspaceRoles = async (
   });
 };
 
-export const upsertWorkspaceRole = async (
+const upsertWorkspaceRoleWithActor = async (
   dependencies: WorkspaceRoleServiceDependencies,
-  request: FastifyRequest,
+  actor: GatewayActorContext,
   workspaceId: string,
   body: UpsertWorkspaceRoleDto
 ): Promise<ResponsePlan> => {
-  const actor = dependencies.resolveActor(request);
   const authorization = await dependencies.authorizeWorkspaceMutation(workspaceId, actor, 'workspace.manage');
   if ('kind' in authorization) {
     return authorization;
@@ -130,13 +128,12 @@ export const upsertWorkspaceRole = async (
   });
 };
 
-export const deleteWorkspaceRole = async (
+const deleteWorkspaceRoleWithActor = async (
   dependencies: WorkspaceRoleServiceDependencies,
-  request: FastifyRequest,
+  actor: GatewayActorContext,
   workspaceId: string,
   roleId: string
 ): Promise<ResponsePlan> => {
-  const actor = dependencies.resolveActor(request);
   const authorization = await dependencies.authorizeWorkspaceMutation(workspaceId, actor, 'workspace.manage');
   if ('kind' in authorization) {
     return authorization;
@@ -183,13 +180,12 @@ export const deleteWorkspaceRole = async (
   });
 };
 
-export const setWorkspaceDefaultMemberRole = async (
+const setWorkspaceDefaultMemberRoleWithActor = async (
   dependencies: WorkspaceRoleServiceDependencies,
-  request: FastifyRequest,
+  actor: GatewayActorContext,
   workspaceId: string,
   body: SetWorkspaceDefaultMemberRoleDto
 ): Promise<ResponsePlan> => {
-  const actor = dependencies.resolveActor(request);
   const authorization = await dependencies.authorizeWorkspaceMutation(workspaceId, actor, 'workspace.manage');
   if ('kind' in authorization) {
     return authorization;
@@ -242,3 +238,69 @@ export const setWorkspaceDefaultMemberRole = async (
     roles: await dependencies.listRolePayloads(workspaceId)
   });
 };
+
+export const listWorkspaceRoles = async (
+  dependencies: WorkspaceRoleServiceDependencies,
+  request: FastifyRequest,
+  workspaceId: string
+): Promise<ResponsePlan> => {
+  const actor = dependencies.resolveActor(request);
+  return listWorkspaceRolesWithActor(dependencies, actor, workspaceId);
+};
+
+export const listWorkspaceRolesByActor = async (
+  dependencies: WorkspaceRoleServiceDependencies,
+  actor: GatewayActorContext,
+  workspaceId: string
+): Promise<ResponsePlan> => listWorkspaceRolesWithActor(dependencies, actor, workspaceId);
+
+export const upsertWorkspaceRole = async (
+  dependencies: WorkspaceRoleServiceDependencies,
+  request: FastifyRequest,
+  workspaceId: string,
+  body: UpsertWorkspaceRoleDto
+): Promise<ResponsePlan> => {
+  const actor = dependencies.resolveActor(request);
+  return upsertWorkspaceRoleWithActor(dependencies, actor, workspaceId, body);
+};
+
+export const upsertWorkspaceRoleByActor = async (
+  dependencies: WorkspaceRoleServiceDependencies,
+  actor: GatewayActorContext,
+  workspaceId: string,
+  body: UpsertWorkspaceRoleDto
+): Promise<ResponsePlan> => upsertWorkspaceRoleWithActor(dependencies, actor, workspaceId, body);
+
+export const deleteWorkspaceRole = async (
+  dependencies: WorkspaceRoleServiceDependencies,
+  request: FastifyRequest,
+  workspaceId: string,
+  roleId: string
+): Promise<ResponsePlan> => {
+  const actor = dependencies.resolveActor(request);
+  return deleteWorkspaceRoleWithActor(dependencies, actor, workspaceId, roleId);
+};
+
+export const deleteWorkspaceRoleByActor = async (
+  dependencies: WorkspaceRoleServiceDependencies,
+  actor: GatewayActorContext,
+  workspaceId: string,
+  roleId: string
+): Promise<ResponsePlan> => deleteWorkspaceRoleWithActor(dependencies, actor, workspaceId, roleId);
+
+export const setWorkspaceDefaultMemberRole = async (
+  dependencies: WorkspaceRoleServiceDependencies,
+  request: FastifyRequest,
+  workspaceId: string,
+  body: SetWorkspaceDefaultMemberRoleDto
+): Promise<ResponsePlan> => {
+  const actor = dependencies.resolveActor(request);
+  return setWorkspaceDefaultMemberRoleWithActor(dependencies, actor, workspaceId, body);
+};
+
+export const setWorkspaceDefaultMemberRoleByActor = async (
+  dependencies: WorkspaceRoleServiceDependencies,
+  actor: GatewayActorContext,
+  workspaceId: string,
+  body: SetWorkspaceDefaultMemberRoleDto
+): Promise<ResponsePlan> => setWorkspaceDefaultMemberRoleWithActor(dependencies, actor, workspaceId, body);

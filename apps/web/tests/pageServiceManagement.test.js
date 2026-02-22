@@ -193,6 +193,8 @@ module.exports = async () => {
     const userSearchRequests = [];
     const workspaceSearchRequests = [];
     const userWorkspaceRequests = [];
+    const serviceApiKeyCreateRequests = [];
+    const serviceApiKeyRevokeRequests = [];
     let serviceUsers = [
       {
         accountId: 'admin',
@@ -236,6 +238,7 @@ module.exports = async () => {
         updatedAt: '2026-02-21T00:00:00.000Z'
       }
     };
+    let serviceApiKeys = [];
 
     const mounted = await mountHomePage({
       fetchImpl: async (requestUrl, init = {}) => {
@@ -388,10 +391,49 @@ module.exports = async () => {
             settings: serviceSettings
           });
         }
-        if (url === '/api/service/api-keys') {
+        if (url === '/api/service/api-keys' && method === 'GET') {
           return toJsonResponse({
             ok: true,
-            apiKeys: []
+            apiKeys: serviceApiKeys
+          });
+        }
+        if (url === '/api/service/api-keys' && method === 'POST') {
+          const body = JSON.parse(String(init.body ?? '{}'));
+          serviceApiKeyCreateRequests.push(body);
+          const suffix = String(serviceApiKeys.length + 1).padStart(2, '0');
+          const createdApiKey = {
+            keyId: `svc_key_${suffix}`,
+            name: typeof body.name === 'string' && body.name.trim().length > 0 ? body.name.trim() : 'API key',
+            keyPrefix: `ash_svc_${suffix}`,
+            createdBy: 'admin',
+            createdAt: '2026-02-21T01:00:00.000Z',
+            updatedAt: '2026-02-21T01:00:00.000Z',
+            lastUsedAt: null,
+            expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
+            revokedAt: null
+          };
+          serviceApiKeys = [createdApiKey, ...serviceApiKeys.filter((apiKey) => apiKey.keyId !== createdApiKey.keyId)];
+          return toJsonResponse({
+            ok: true,
+            apiKey: createdApiKey,
+            secret: `ashfox_service_secret_${suffix}`
+          });
+        }
+        if (url === '/api/service/api-keys' && method === 'DELETE') {
+          const body = JSON.parse(String(init.body ?? '{}'));
+          serviceApiKeyRevokeRequests.push(body);
+          serviceApiKeys = serviceApiKeys.map((apiKey) =>
+            apiKey.keyId === body.keyId
+              ? {
+                  ...apiKey,
+                  revokedAt: '2026-02-21T01:30:00.000Z',
+                  updatedAt: '2026-02-21T01:30:00.000Z'
+                }
+              : apiKey
+          );
+          return toJsonResponse({
+            ok: true,
+            apiKeys: serviceApiKeys
           });
         }
         if (url === '/api/service/config/smtp' && method === 'PUT') {
@@ -489,6 +531,75 @@ module.exports = async () => {
       assert.equal(roleRequests.length, 1);
       assert.deepEqual(roleRequests[0].systemRoles.sort(), ['cs_admin', 'system_admin']);
       assert.ok(workspaceSearchRequests.length >= 1);
+
+      const apiKeysNavButton = findButtonByText(dialog, 'API 키');
+      assert.ok(apiKeysNavButton);
+      await dispatchInAct(apiKeysNavButton, new dom.window.MouseEvent('click', { bubbles: true }));
+      await flushUpdates();
+
+      const createApiKeyButton = dialog.querySelector('button[aria-label="API 키 발급"]');
+      assert.ok(createApiKeyButton);
+      await dispatchInAct(createApiKeyButton, new dom.window.MouseEvent('click', { bubbles: true }));
+      await flushUpdates();
+
+      const createApiKeyDialog = container.querySelector('[role="dialog"][aria-label="API 키 발급"]');
+      assert.ok(createApiKeyDialog);
+      const apiKeyNameInput = createApiKeyDialog.querySelector('input[aria-label="API 키 이름 입력"]');
+      assert.ok(apiKeyNameInput);
+      assert.equal(apiKeyNameInput.disabled, false);
+      apiKeyNameInput.value = 'service-ci';
+      await dispatchInAct(
+        apiKeyNameInput,
+        new dom.window.InputEvent('input', { bubbles: true, data: 'service-ci', inputType: 'insertText' })
+      );
+      await dispatchInAct(apiKeyNameInput, new dom.window.Event('change', { bubbles: true }));
+      await flushUpdates();
+      const saveApiKeyButton = createApiKeyDialog.querySelector('button[aria-label="API 키 발급 저장"]');
+      assert.ok(saveApiKeyButton);
+      const createApiKeyForm = createApiKeyDialog.querySelector('form');
+      assert.ok(createApiKeyForm);
+      await dispatchInAct(createApiKeyForm, new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+      await flushUpdates();
+      await flushUpdates();
+      assert.equal(serviceApiKeyCreateRequests.length, 1);
+      assert.equal(serviceApiKeyCreateRequests[0].name, 'service-ci');
+
+      const createdApiKeyId = serviceApiKeys[0]?.keyId ?? null;
+      assert.ok(createdApiKeyId);
+      const issuedApiKeyDialog = container.querySelector('[role="dialog"][aria-label="API 키 발급 완료"]');
+      assert.ok(issuedApiKeyDialog);
+      assert.match(issuedApiKeyDialog.textContent ?? '', /service-ci/);
+      const issuedApiKeyConfirmButton = issuedApiKeyDialog.querySelector('button[aria-label="API 키 발급 완료 확인"]');
+      assert.ok(issuedApiKeyConfirmButton);
+      await dispatchInAct(issuedApiKeyConfirmButton, new dom.window.MouseEvent('click', { bubbles: true }));
+      await flushUpdates();
+      assert.match(dialog.textContent ?? '', /service-ci/);
+
+      const openGuideButton = dialog.querySelector('button[aria-label="MCP 연결 가이드 열기"]');
+      assert.ok(openGuideButton);
+      await dispatchInAct(openGuideButton, new dom.window.MouseEvent('click', { bubbles: true }));
+      await flushUpdates();
+      const guideDialog = container.querySelector('[role="dialog"][aria-label="MCP 연결 가이드"]');
+      assert.ok(guideDialog);
+      assert.match(guideDialog.textContent ?? '', /Codex/);
+      const claudeTabButton = findButtonByText(guideDialog, 'Claude');
+      assert.ok(claudeTabButton);
+      await dispatchInAct(claudeTabButton, new dom.window.MouseEvent('click', { bubbles: true }));
+      await flushUpdates();
+      assert.match(guideDialog.textContent ?? '', /ASHFOX_MCP_API_KEY/);
+      const guideConfirmButton = guideDialog.querySelector('button[aria-label="MCP 연결 가이드 확인"]');
+      assert.ok(guideConfirmButton);
+      await dispatchInAct(guideConfirmButton, new dom.window.MouseEvent('click', { bubbles: true }));
+      await flushUpdates();
+      assert.equal(container.querySelector('[role="dialog"][aria-label="MCP 연결 가이드"]'), null);
+
+      const revokeApiKeyButton = dialog.querySelector('button[aria-label="service-ci API 키 폐기"]');
+      assert.ok(revokeApiKeyButton);
+      await dispatchInAct(revokeApiKeyButton, new dom.window.MouseEvent('click', { bubbles: true }));
+      await flushUpdates();
+      assert.equal(serviceApiKeyRevokeRequests.length, 1);
+      assert.equal(serviceApiKeyRevokeRequests[0].keyId, createdApiKeyId);
+      assert.match(dialog.textContent ?? '', /폐기됨/);
 
       const integrationsNavButton = findButtonByText(dialog, '시스템 설정');
       assert.ok(integrationsNavButton);

@@ -4,6 +4,14 @@ import { useMemo, useState } from 'react';
 import type { WorkspaceApiKeyRecord } from '../../../lib/dashboardModel';
 import { cn } from '../../../lib/utils';
 import styles from '../../page.module.css';
+import {
+  buildApiKeyGuideTemplate,
+  copyTextToClipboard,
+  getApiKeyGuideSubtitle,
+  getApiKeyGuideTitle,
+  resolveMcpEndpoint,
+  type ApiKeyGuidePlatform
+} from '../shared/apiKeyGuide';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { useErrorChannels } from '../shared/useErrorChannels';
 import { WorkspaceDialogListItem, WorkspaceDialogListShell } from './WorkspaceDialogList';
@@ -23,8 +31,6 @@ type CreatedSecretState = {
   keyPrefix: string;
   secret: string;
 };
-
-type GuidePlatform = 'codex' | 'claude' | 'gemini';
 
 const toDateLabel = (value: string | null | undefined): string => {
   if (!value) {
@@ -60,7 +66,7 @@ export function WorkspaceApiKeysPanel({
 }: WorkspaceApiKeysPanelProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [guideDialogOpen, setGuideDialogOpen] = useState(false);
-  const [guidePlatform, setGuidePlatform] = useState<GuidePlatform>('codex');
+  const [guidePlatform, setGuidePlatform] = useState<ApiKeyGuidePlatform>('codex');
   const [draftName, setDraftName] = useState('');
   const [draftExpiresAt, setDraftExpiresAt] = useState('');
   const [createdSecret, setCreatedSecret] = useState<CreatedSecretState | null>(null);
@@ -81,43 +87,10 @@ export function WorkspaceApiKeysPanel({
     () => !disabled && !limitReached && draftName.trim().length > 0 && inlineError === null,
     [disabled, draftName, inlineError, limitReached]
   );
-  const mcpEndpoint = useMemo(() => {
-    if (typeof window === 'undefined' || !window.location?.origin) {
-      return '/mcp';
-    }
-    return `${window.location.origin}/mcp`;
-  }, []);
-  const codexGuideTemplate = useMemo(
-    () => `[mcp_servers.ashfox.env]
-ASHFOX_MCP_ENDPOINT = "${mcpEndpoint}"
-ASHFOX_MCP_API_KEY = "<API_KEY>"`,
-    [mcpEndpoint]
-  );
-  const claudeGuideTemplate = useMemo(
-    () => `"env": {
-  "ASHFOX_MCP_ENDPOINT": "${mcpEndpoint}",
-  "ASHFOX_MCP_API_KEY": "<API_KEY>"
-}`,
-    [mcpEndpoint]
-  );
-  const geminiGuideTemplate = useMemo(
-    () => `ASHFOX_MCP_ENDPOINT=${mcpEndpoint}
-ASHFOX_MCP_API_KEY=<API_KEY>`,
-    [mcpEndpoint]
-  );
-  const guideTitle = guidePlatform === 'codex' ? 'Codex' : guidePlatform === 'claude' ? 'Claude' : 'Gemini';
-  const guideSubtitle =
-    guidePlatform === 'codex'
-      ? '~/.codex/config.toml 의 ashfox MCP 서버 env 블록 예시'
-      : guidePlatform === 'claude'
-        ? 'Claude MCP 서버 설정의 env 블록 예시'
-        : 'Gemini MCP 서버 실행 환경 변수 예시';
-  const guideTemplate =
-    guidePlatform === 'codex'
-      ? codexGuideTemplate
-      : guidePlatform === 'claude'
-        ? claudeGuideTemplate
-        : geminiGuideTemplate;
+  const mcpEndpoint = useMemo(resolveMcpEndpoint, []);
+  const guideTitle = getApiKeyGuideTitle(guidePlatform);
+  const guideSubtitle = getApiKeyGuideSubtitle(guidePlatform);
+  const guideTemplate = useMemo(() => buildApiKeyGuideTemplate(guidePlatform, mcpEndpoint), [guidePlatform, mcpEndpoint]);
 
   const closeCreateDialog = (force = false) => {
     if (busy && !force) {
@@ -131,7 +104,7 @@ ASHFOX_MCP_API_KEY=<API_KEY>`,
 
   const handleCopy = async (token: string, value: string) => {
     try {
-      await copyToClipboard(value);
+      await copyTextToClipboard(value);
       setCopiedToken(token);
       window.setTimeout(() => {
         setCopiedToken((current) => (current === token ? null : current));

@@ -1,9 +1,19 @@
-import { Check, Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
+import { Check, CircleHelp, Copy, KeyRound, Plus, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import type { ServiceApiKeyRecord } from '../../../lib/dashboardModel';
 import { cn } from '../../../lib/utils';
 import styles from '../../page.module.css';
+import {
+  buildApiKeyGuideTemplate,
+  copyTextToClipboard,
+  getApiKeyGuideSubtitle,
+  getApiKeyGuideTitle,
+  resolveMcpEndpoint,
+  type ApiKeyGuidePlatform
+} from '../shared/apiKeyGuide';
+import { ErrorNotice } from '../shared/ErrorNotice';
+import { useErrorChannels } from '../shared/useErrorChannels';
 import { WorkspaceDialogListItem, WorkspaceDialogListShell } from '../workspace/WorkspaceDialogList';
 import { WorkspacePanelSection } from '../workspace/WorkspacePanelSection';
 
@@ -14,6 +24,12 @@ interface ServiceApiKeysPanelProps {
   onCreateApiKey: (input: { name: string; expiresAt?: string }) => Promise<{ apiKey: ServiceApiKeyRecord; secret: string }>;
   onRevokeApiKey: (keyId: string) => Promise<void>;
 }
+
+type CreatedSecretState = {
+  keyName: string;
+  keyPrefix: string;
+  secret: string;
+};
 
 const MAX_SERVICE_API_KEYS_PER_ACCOUNT = 10;
 
@@ -34,13 +50,6 @@ const toDateLabel = (value: string | null | undefined): string => {
   });
 };
 
-const copyToClipboard = async (value: string): Promise<void> => {
-  if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
-    return;
-  }
-  await navigator.clipboard.writeText(value);
-};
-
 export function ServiceApiKeysPanel({
   apiKeys,
   busy,
@@ -48,22 +57,47 @@ export function ServiceApiKeysPanel({
   onCreateApiKey,
   onRevokeApiKey
 }: ServiceApiKeysPanelProps) {
-  const [name, setName] = useState('');
-  const [expiresAt, setExpiresAt] = useState('');
-  const [createdSecret, setCreatedSecret] = useState<{ keyPrefix: string; secret: string } | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [guideDialogOpen, setGuideDialogOpen] = useState(false);
+  const [guidePlatform, setGuidePlatform] = useState<ApiKeyGuidePlatform>('codex');
+  const [draftName, setDraftName] = useState('');
+  const [draftExpiresAt, setDraftExpiresAt] = useState('');
+  const [createdSecret, setCreatedSecret] = useState<CreatedSecretState | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { inlineError, setChannelError, clearChannelError } = useErrorChannels();
 
-  const activeCount = useMemo(() => apiKeys.filter((apiKey) => !apiKey.revokedAt).length, [apiKeys]);
-  const disabled = busy || pending || !canManageApiKeys;
-  const canCreate = !disabled && name.trim().length > 0 && activeCount < MAX_SERVICE_API_KEYS_PER_ACCOUNT;
-  const meta = disabled
-    ? `활성 ${activeCount}/${MAX_SERVICE_API_KEYS_PER_ACCOUNT} · 처리 중`
-    : `활성 ${activeCount}/${MAX_SERVICE_API_KEYS_PER_ACCOUNT}`;
+  const activeApiKeyCount = useMemo(() => apiKeys.filter((apiKey) => !apiKey.revokedAt).length, [apiKeys]);
+  const limitReached = activeApiKeyCount >= MAX_SERVICE_API_KEYS_PER_ACCOUNT;
+  const disabled = busy || !canManageApiKeys;
+  const listMeta = busy
+    ? `활성 ${activeApiKeyCount}/${MAX_SERVICE_API_KEYS_PER_ACCOUNT} · 요청 처리 중`
+    : !canManageApiKeys
+      ? `활성 ${activeApiKeyCount}/${MAX_SERVICE_API_KEYS_PER_ACCOUNT} · 권한 없음`
+      : limitReached
+        ? `활성 ${activeApiKeyCount}/${MAX_SERVICE_API_KEYS_PER_ACCOUNT} · 상한 도달`
+        : `활성 ${activeApiKeyCount}/${MAX_SERVICE_API_KEYS_PER_ACCOUNT}`;
+  const canIssue = useMemo(
+    () => !disabled && !limitReached && draftName.trim().length > 0 && inlineError === null,
+    [disabled, draftName, inlineError, limitReached]
+  );
+  const mcpEndpoint = useMemo(resolveMcpEndpoint, []);
+  const guideTitle = getApiKeyGuideTitle(guidePlatform);
+  const guideSubtitle = getApiKeyGuideSubtitle(guidePlatform);
+  const guideTemplate = useMemo(() => buildApiKeyGuideTemplate(guidePlatform, mcpEndpoint), [guidePlatform, mcpEndpoint]);
+
+  const closeCreateDialog = (force = false) => {
+    if (busy && !force) {
+      return;
+    }
+    setCreateDialogOpen(false);
+    setDraftName('');
+    setDraftExpiresAt('');
+    clearChannelError('inline');
+  };
 
   const handleCopy = async (token: string, value: string) => {
     try {
-      await copyToClipboard(value);
+      await copyTextToClipboard(value);
       setCopiedToken(token);
       window.setTimeout(() => {
         setCopiedToken((current) => (current === token ? null : current));
@@ -74,95 +108,48 @@ export function ServiceApiKeysPanel({
   };
 
   return (
-    <WorkspacePanelSection
-      framed={false}
-      readContent={
-        <div className={styles.workspacePanelSection}>
-          <form
-            className={styles.workspaceInputRow}
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!canCreate) {
-                return;
-              }
-              setPending(true);
-              void onCreateApiKey({
-                name: name.trim(),
-                ...(expiresAt.trim().length > 0 ? { expiresAt: expiresAt.trim() } : {})
-              })
-                .then((created) => {
-                  setCreatedSecret({
-                    keyPrefix: created.apiKey.keyPrefix,
-                    secret: created.secret
-                  });
-                  setName('');
-                  setExpiresAt('');
-                })
-                .finally(() => {
-                  setPending(false);
-                });
-            }}
-          >
-            <input
-              type="text"
-              className={styles.workspaceInput}
-              value={name}
-              disabled={disabled}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="API 키 이름"
-              aria-label="서비스 API 키 이름"
-              maxLength={96}
-            />
-            <input
-              type="datetime-local"
-              className={styles.workspaceInput}
-              value={expiresAt}
-              disabled={disabled}
-              onChange={(event) => setExpiresAt(event.target.value)}
-              aria-label="서비스 API 키 만료일"
-            />
-            <button
-              type="submit"
-              className={cn(styles.workspaceGhostButton, styles.workspaceIconButton)}
-              aria-label="서비스 API 키 발급"
-              title="서비스 API 키 발급"
-              disabled={!canCreate}
-            >
-              <Plus className={styles.workspaceIcon} aria-hidden />
-            </button>
-          </form>
-
-          {createdSecret ? (
-            <div className={styles.workspaceTagRow}>
-              <span className={styles.workspaceTag}>새 키 발급됨</span>
-              <span className={styles.workspaceTag}>{createdSecret.keyPrefix}</span>
-              <button
-                type="button"
-                className={cn(styles.workspaceGhostButton, styles.workspaceIconButton)}
-                onClick={() => {
-                  void handleCopy('created-secret', createdSecret.secret);
-                }}
-                aria-label="새 서비스 API 키 복사"
-                title="새 서비스 API 키 복사"
-              >
-                {copiedToken === 'created-secret' ? (
-                  <Check className={styles.workspaceIcon} aria-hidden />
-                ) : (
-                  <Copy className={styles.workspaceIcon} aria-hidden />
-                )}
-              </button>
-            </div>
-          ) : null}
-
+    <>
+      <WorkspacePanelSection
+        framed={false}
+        readContent={
           <WorkspaceDialogListShell
             title="서비스 API 키"
-            meta={meta}
+            meta={listMeta}
             icon={<KeyRound aria-hidden />}
+            action={
+              <div className={styles.workspaceListShellHeaderActions}>
+                {canManageApiKeys ? (
+                  <button
+                    type="button"
+                    className={cn(styles.workspaceGhostButton, styles.workspaceIconButton)}
+                    aria-label="API 키 발급"
+                    title="API 키 발급"
+                    disabled={busy || limitReached}
+                    onClick={() => setCreateDialogOpen(true)}
+                  >
+                    <Plus className={styles.workspaceIcon} aria-hidden />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className={cn(styles.workspaceGhostButton, styles.workspaceIconButton)}
+                  aria-label="MCP 연결 가이드 열기"
+                  title="MCP 연결 가이드"
+                  onClick={() => {
+                    setGuidePlatform('codex');
+                    setGuideDialogOpen(true);
+                  }}
+                >
+                  <CircleHelp className={styles.workspaceIcon} aria-hidden />
+                </button>
+              </div>
+            }
           >
             {apiKeys.length > 0 ? (
               apiKeys.map((apiKey) => {
                 const isRevoked = Boolean(apiKey.revokedAt);
                 const copyToken = `prefix:${apiKey.keyId}`;
+                const copied = copiedToken === copyToken;
                 return (
                   <WorkspaceDialogListItem
                     key={apiKey.keyId}
@@ -192,22 +179,18 @@ export function ServiceApiKeysPanel({
                         <button
                           type="button"
                           className={cn(styles.workspaceGhostButton, styles.workspaceIconButton)}
-                          aria-label={`${apiKey.name} 접두사 복사`}
+                          aria-label={`${apiKey.name} API 키 접두사 복사`}
                           title="접두사 복사"
                           onClick={() => {
                             void handleCopy(copyToken, apiKey.keyPrefix);
                           }}
                         >
-                          {copiedToken === copyToken ? (
-                            <Check className={styles.workspaceIcon} aria-hidden />
-                          ) : (
-                            <Copy className={styles.workspaceIcon} aria-hidden />
-                          )}
+                          {copied ? <Check className={styles.workspaceIcon} aria-hidden /> : <Copy className={styles.workspaceIcon} aria-hidden />}
                         </button>
                         <button
                           type="button"
                           className={cn(styles.workspaceGhostButton, styles.workspaceDangerButton, styles.workspaceIconButton)}
-                          aria-label={`${apiKey.name} 폐기`}
+                          aria-label={`${apiKey.name} API 키 폐기`}
                           title="API 키 폐기"
                           disabled={disabled || isRevoked}
                           onClick={() => {
@@ -227,8 +210,321 @@ export function ServiceApiKeysPanel({
               </div>
             )}
           </WorkspaceDialogListShell>
+        }
+      />
+
+      {createDialogOpen ? (
+        <div className={styles.workspaceAclEditOverlay} role="presentation" onClick={closeCreateDialog}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="API 키 발급"
+            className={styles.workspaceAclEditDialog}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className={styles.workspaceAclEditHeader}>
+              <div className={styles.workspaceAclEditTitleWrap}>
+                <h3 className={styles.workspaceAclEditTitle}>API 키 발급</h3>
+                <p className={styles.workspaceAclEditSubtitle}>이름과 만료일을 입력해 새 키를 발급합니다.</p>
+              </div>
+              <button
+                type="button"
+                className={styles.workspaceAclEditCloseButton}
+                onClick={closeCreateDialog}
+                disabled={busy}
+                aria-label="API 키 발급 닫기"
+              >
+                <X className={styles.workspaceIcon} aria-hidden />
+              </button>
+            </header>
+
+            <form
+              className={styles.workspaceAclEditForm}
+              onSubmit={(event) => {
+                event.preventDefault();
+                const formData = typeof window !== 'undefined' ? new window.FormData(event.currentTarget) : null;
+                const submittedNameFromForm = formData?.get('name');
+                const normalizedName =
+                  typeof submittedNameFromForm === 'string' && submittedNameFromForm.trim().length > 0
+                    ? submittedNameFromForm.trim()
+                    : draftName.trim();
+                if (disabled || limitReached || inlineError !== null || normalizedName.length === 0) {
+                  return;
+                }
+                let expiresAt: string | undefined;
+                const submittedExpiresAtFromForm = formData?.get('expiresAt');
+                const normalizedExpiresAt =
+                  typeof submittedExpiresAtFromForm === 'string' && submittedExpiresAtFromForm.trim().length > 0
+                    ? submittedExpiresAtFromForm.trim()
+                    : draftExpiresAt.trim();
+                if (normalizedExpiresAt.length > 0) {
+                  const parsed = new Date(normalizedExpiresAt);
+                  if (Number.isNaN(parsed.getTime())) {
+                    setChannelError('inline', '만료일 형식이 올바르지 않습니다.');
+                    return;
+                  }
+                  expiresAt = parsed.toISOString();
+                }
+
+                void onCreateApiKey({
+                  name: normalizedName,
+                  ...(expiresAt ? { expiresAt } : {})
+                })
+                  .then((result) => {
+                    setCreatedSecret({
+                      keyName: result.apiKey.name,
+                      keyPrefix: result.apiKey.keyPrefix,
+                      secret: result.secret
+                    });
+                    closeCreateDialog(true);
+                  })
+                  .catch(() => {
+                    // dialog-level error message is rendered by parent
+                  });
+              }}
+            >
+              <div className={styles.workspaceAclEditBody}>
+                <div className={styles.workspacePanelGroup}>
+                  <p className={styles.workspacePanelLabel}>이름</p>
+                  <input
+                    type="text"
+                    name="name"
+                    className={styles.workspaceInput}
+                    placeholder="예: service-automation"
+                    value={draftName}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      setDraftName(event.target.value);
+                      clearChannelError('inline');
+                    }}
+                    aria-label="API 키 이름 입력"
+                  />
+                </div>
+
+                <div className={styles.workspacePanelGroup}>
+                  <p className={styles.workspacePanelLabel}>만료일 (선택)</p>
+                  <input
+                    type="datetime-local"
+                    name="expiresAt"
+                    className={styles.workspaceInput}
+                    value={draftExpiresAt}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      setDraftExpiresAt(event.target.value);
+                      clearChannelError('inline');
+                    }}
+                    aria-label="API 키 만료일 입력"
+                  />
+                </div>
+
+                {inlineError ? (
+                  <ErrorNotice message={inlineError} channel="inline" size="sm" className={styles.workspacePanelInlineError} />
+                ) : null}
+                {limitReached ? (
+                  <p className={styles.workspacePanelHint}>
+                    활성 API 키가 상한({MAX_SERVICE_API_KEYS_PER_ACCOUNT}개)에 도달했습니다.
+                  </p>
+                ) : null}
+              </div>
+
+              <footer className={styles.workspaceAclEditFooter}>
+                <button
+                  type="button"
+                  className={cn(styles.workspaceGhostButton, styles.workspaceIconButton)}
+                  onClick={closeCreateDialog}
+                  disabled={busy}
+                  aria-label="API 키 발급 취소"
+                >
+                  <X className={styles.workspaceIcon} aria-hidden />
+                </button>
+                <button
+                  type="submit"
+                  className={cn(styles.workspacePrimaryButton, styles.workspaceIconButton)}
+                  disabled={!canIssue}
+                  aria-label="API 키 발급 저장"
+                >
+                  <Check className={styles.workspaceIcon} aria-hidden />
+                </button>
+              </footer>
+            </form>
+          </section>
         </div>
-      }
-    />
+      ) : null}
+
+      {createdSecret ? (
+        <div
+          className={styles.workspaceAclEditOverlay}
+          role="presentation"
+          onClick={() => {
+            setCreatedSecret(null);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="API 키 발급 완료"
+            className={styles.workspaceAclEditDialog}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className={styles.workspaceAclEditHeader}>
+              <div className={styles.workspaceAclEditTitleWrap}>
+                <h3 className={styles.workspaceAclEditTitle}>API 키 발급 완료</h3>
+                <p className={styles.workspaceAclEditSubtitle}>원문 키는 지금 한 번만 확인할 수 있습니다.</p>
+              </div>
+              <button
+                type="button"
+                className={styles.workspaceAclEditCloseButton}
+                onClick={() => {
+                  setCreatedSecret(null);
+                }}
+                aria-label="API 키 발급 완료 닫기"
+              >
+                <X className={styles.workspaceIcon} aria-hidden />
+              </button>
+            </header>
+
+            <div className={styles.workspaceAclEditBody}>
+              <div className={styles.workspacePanelCard}>
+                <p className={styles.workspacePanelCardTitle}>{createdSecret.keyName}</p>
+                <p className={styles.workspacePanelHint}>접두사: {createdSecret.keyPrefix}</p>
+                <code className={styles.workspaceApiKeySecretValue}>{createdSecret.secret}</code>
+              </div>
+            </div>
+
+            <footer className={styles.workspaceAclEditFooter}>
+              <button
+                type="button"
+                className={cn(styles.workspaceGhostButton, styles.workspaceIconButton)}
+                onClick={() => {
+                  void handleCopy('secret', createdSecret.secret);
+                }}
+                aria-label="발급된 API 키 복사"
+              >
+                {copiedToken === 'secret' ? (
+                  <Check className={styles.workspaceIcon} aria-hidden />
+                ) : (
+                  <Copy className={styles.workspaceIcon} aria-hidden />
+                )}
+              </button>
+              <button
+                type="button"
+                className={cn(styles.workspacePrimaryButton, styles.workspaceIconButton)}
+                onClick={() => {
+                  setCreatedSecret(null);
+                }}
+                aria-label="API 키 발급 완료 확인"
+              >
+                <Check className={styles.workspaceIcon} aria-hidden />
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+
+      {guideDialogOpen ? (
+        <div
+          className={styles.workspaceAclEditOverlay}
+          role="presentation"
+          onClick={() => {
+            setGuideDialogOpen(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="MCP 연결 가이드"
+            className={styles.workspaceAclEditDialog}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className={styles.workspaceAclEditHeader}>
+              <div className={styles.workspaceAclEditTitleWrap}>
+                <h3 className={styles.workspaceAclEditTitle}>MCP 연결 가이드</h3>
+                <p className={styles.workspaceAclEditSubtitle}>클라이언트 환경별 설정 예시</p>
+              </div>
+              <button
+                type="button"
+                className={styles.workspaceAclEditCloseButton}
+                onClick={() => {
+                  setGuideDialogOpen(false);
+                }}
+                aria-label="MCP 연결 가이드 닫기"
+              >
+                <X className={styles.workspaceIcon} aria-hidden />
+              </button>
+            </header>
+
+            <div className={styles.workspaceAclEditBody}>
+              <div className={styles.workspacePanelCard}>
+                <div className={styles.workspaceGuideTabs} role="tablist" aria-label="MCP 가이드 클라이언트 탭">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={guidePlatform === 'codex'}
+                    className={cn(styles.workspaceGuideTab, guidePlatform === 'codex' ? styles.workspaceGuideTabActive : null)}
+                    onClick={() => {
+                      setGuidePlatform('codex');
+                    }}
+                  >
+                    Codex
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={guidePlatform === 'claude'}
+                    className={cn(styles.workspaceGuideTab, guidePlatform === 'claude' ? styles.workspaceGuideTabActive : null)}
+                    onClick={() => {
+                      setGuidePlatform('claude');
+                    }}
+                  >
+                    Claude
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={guidePlatform === 'gemini'}
+                    className={cn(styles.workspaceGuideTab, guidePlatform === 'gemini' ? styles.workspaceGuideTabActive : null)}
+                    onClick={() => {
+                      setGuidePlatform('gemini');
+                    }}
+                  >
+                    Gemini
+                  </button>
+                </div>
+                <p className={styles.workspacePanelCardTitle}>{guideTitle}</p>
+                <p className={styles.workspacePanelHint}>{guideSubtitle}</p>
+                <pre className={styles.workspaceEnvSnippet}>{guideTemplate}</pre>
+              </div>
+            </div>
+
+            <footer className={styles.workspaceAclEditFooter}>
+              <button
+                type="button"
+                className={cn(styles.workspaceGhostButton, styles.workspaceIconButton)}
+                onClick={() => {
+                  void handleCopy(`mcp-guide-template:${guidePlatform}`, guideTemplate);
+                }}
+                aria-label="환경변수 템플릿 복사"
+              >
+                {copiedToken === `mcp-guide-template:${guidePlatform}` ? (
+                  <Check className={styles.workspaceIcon} aria-hidden />
+                ) : (
+                  <Copy className={styles.workspaceIcon} aria-hidden />
+                )}
+              </button>
+              <button
+                type="button"
+                className={cn(styles.workspacePrimaryButton, styles.workspaceIconButton)}
+                onClick={() => {
+                  setGuideDialogOpen(false);
+                }}
+                aria-label="MCP 연결 가이드 확인"
+              >
+                <Check className={styles.workspaceIcon} aria-hidden />
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+    </>
   );
 }

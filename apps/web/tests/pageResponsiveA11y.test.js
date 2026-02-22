@@ -1213,6 +1213,8 @@ module.exports = async () => {
       await flushUpdates();
       const createApiKeyButton = quickSettingsDialog.querySelector('button[aria-label="API 키 발급"]');
       assert.ok(createApiKeyButton);
+      const openMcpGuideButton = quickSettingsDialog.querySelector('button[aria-label="MCP 연결 가이드 열기"]');
+      assert.ok(openMcpGuideButton);
       assert.doesNotMatch(quickSettingsDialog.textContent ?? '', /member-hidden-key/);
       const copyDefaultPrefixButton = quickSettingsDialog.querySelector('button[aria-label="default-key API 키 접두사 복사"]');
       assert.ok(copyDefaultPrefixButton);
